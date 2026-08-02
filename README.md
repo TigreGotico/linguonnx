@@ -309,6 +309,69 @@ tx = load_translator(pivot_preference=("es", "en", "fr"))
 tx.route("gl", "ca").pivots      # ('es',) - not English
 ```
 
+#### Ranking pivots by measured distance
+
+A hand-written table only knows the pairs somebody thought of. Install the
+optional extra and the same candidates get ordered by a measured linguistic
+distance instead:
+
+```bash
+pip install linguonnx[distance]     # adds orthography2ipa
+```
+
+```python
+tx = load_translator(pivot_ranking="auto")   # DEFAULT
+tx.route("pt", "eu").pivot_basis             # 'phonological', or 'table'
+```
+
+| `pivot_ranking=` | behaviour |
+|---|---|
+| `"auto"` (default) | phonological when `orthography2ipa` imports, table otherwise |
+| `"phonological"` | demand the package; raise `ValueError` without it |
+| `"table"` | curated order only, even when the package is installed |
+
+Each candidate gets two leg distances, `src -> pivot` and `pivot -> tgt`, from
+`orthography2ipa.distance.phonological_distance(...).combined`. They are ranked
+by **the worse of the two legs first**, then by the total, then by table
+position:
+
+```python
+(max(first_leg, second_leg), first_leg + second_leg, table_index)
+```
+
+Output through a pivot is bottlenecked by the worse leg, so a candidate that
+happens to sit very close to the source cannot buy its way past a bad second
+leg. Ranking on the total alone would pick Galician as the `es -> ru` pivot,
+purely because `es->gl` is 0.10; the worst-leg rule picks Ukrainian, whose leg
+into Russian is 0.23. For `pt -> eu` Spanish wins either way: its worst leg is
+0.25 against English's 0.45.
+
+The total is a tiebreak rather than the primary key, and both are judgement
+calls that a benchmark could overturn.
+
+Three limits are deliberate:
+
+- The candidate **set** does not change. `REGIONAL_PIVOTS` plus the preference
+  list plus the dedicated-edge endpoints still decide who is considered; the
+  distance only reorders them, so the search stays as bounded as before.
+- A language `orthography2ipa` does not know scores nothing, not zero. It keeps
+  its table position and sorts after every candidate that does have a distance.
+- Every pair is memoised, so a routing call never recomputes a distance.
+
+`Route.pivot_basis` reports which ranking produced the path.
+
+**CLDR distance was measured and rejected.** `langcodes.tag_distance` looks
+like the obvious answer and is not: it is a *locale-matching* score, built to
+pick which translation file to serve a user, not to say how alike two languages
+are. It scores `pt->es` and `pt->en` identically (84 each) and rates `pt->gl`
+as distant as `pt->en`. It cannot rank pivots.
+
+`orthography2ipa`'s `full_distance` and `ancestry_similarity` are also unused,
+for now. Their ancestry component is incomplete - every Romance medieval stage
+in the dataset carries an empty ancestry list, so Ibero-Romance languages never
+meet at a shared ancestor and `full_distance` ends up rating English closer to
+Catalan than Spanish is. Fix that data gap before switching.
+
 ### Selecting the target language, per architecture
 
 This is the part that fails **silently**. Get it wrong and the model does not
