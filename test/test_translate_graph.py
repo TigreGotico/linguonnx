@@ -6,8 +6,10 @@ import time
 
 import pytest
 
-from linguonnx.translate.graph import (Capability, Hop, NoRouteError, Route,
-                                       TranslationGraph, normalize_tag)
+from linguonnx.translate.graph import (Capability, Hop, InvalidRouteError,
+                                       MalformedTagError, NoRouteError, Route,
+                                       TranslationGraph, entry_runnability,
+                                       normalize_tag)
 
 # --- fixtures: a miniature registry ---------------------------------------
 
@@ -293,3 +295,283 @@ def test_listing_routes_stays_fast_on_the_real_registry():
         graph.routes("gl", "ca", prefer="dedicated")
     elapsed = time.perf_counter() - start
     assert elapsed < 3.0, f"listing routes took {elapsed:.2f}s"
+
+
+# --- runnability -----------------------------------------------------------
+
+def _unrunnable(model_id="broken", **kwargs):
+    return Capability(model_id=model_id, arch="indictrans2", license="MIT",
+                      license_tier="permissive", size_mb=100,
+                      runnable=False,
+                      unrunnable_reason="no preprocessing pipeline", **kwargs)
+
+
+def test_a_capability_is_runnable_unless_it_says_otherwise():
+    assert marian("en", "pt").is_runnable is True
+    assert marian("en", "pt").unrunnable_because is None
+    assert _unrunnable(pair=("en", "kn")).is_runnable is False
+
+
+def test_an_unrunnable_capability_is_not_a_language_in_the_graph():
+    graph = TranslationGraph([marian("en", "pt"), _unrunnable(pair=("en", "kn"))])
+    assert "kn" not in graph.languages
+    assert "pt" in graph.languages
+
+
+def test_can_translate_is_false_when_only_an_unrunnable_model_covers_the_pair():
+    """The whole point of `can_translate`: it must not promise what fails later."""
+    graph = TranslationGraph([marian("en", "pt"), _unrunnable(pair=("en", "kn"))])
+    assert graph.can_translate("en", "kn") is False
+    with pytest.raises(NoRouteError):
+        graph.route("en", "kn")
+    assert graph.routes("en", "kn") == []
+
+
+def test_no_route_names_the_model_that_covers_the_pair_but_cannot_run():
+    """"Unsupported" and "not implemented here" are different things to fix."""
+    graph = TranslationGraph([marian("en", "pt"), _unrunnable(pair=("en", "kn"))])
+    with pytest.raises(NoRouteError) as err:
+        graph.route("en", "kn")
+    assert "broken" in str(err.value)
+    assert "no preprocessing pipeline" in str(err.value)
+
+
+def test_an_unrunnable_model_is_never_a_leg_of_a_multi_hop_route():
+    graph = TranslationGraph([marian("en", "pt"),
+                              _unrunnable(model_id="broken", pair=("pt", "kn"))],
+                             pivot_preference=("pt",))
+    assert graph.can_translate("en", "kn") is False
+
+
+def test_runnability_comes_from_the_registry_when_the_capability_is_silent():
+    """`capability_from_entry` states nothing, so the entry decides.
+
+    This is what keeps `route` and `translate` in agreement without every
+    caller having to read the registry, and it is why a pipeline landing later
+    only has to clear the flag in the registry.
+    """
+    from linguonnx.model_manager import list_models
+    from linguonnx.translate.models import capability_from_entry
+
+    entries = list_models(kind="translate")
+    flagged = [e for e in entries.values() if e.get("runnable") is False]
+    assert flagged, "expected the registry to flag at least one unrunnable model"
+    for entry in flagged:
+        cap = capability_from_entry(entry)
+        assert cap.runnable is None, "the entry, not the capability, states it"
+        assert cap.is_runnable is False
+        assert cap.unrunnable_because
+
+
+def test_entry_runnability_defaults_to_runnable():
+    assert entry_runnability(
+        {"model_id": "x", "arch": "m2m100", "languages": ["en", "pt"]}) == (True, None)
+
+
+def test_entry_runnability_refuses_a_multi_target_marian_with_no_token(caplog):
+    """No prefix token means the decoder picks a target language on its own."""
+    entry = {"model_id": "opus-mt-en-sla-int8", "arch": "marian",
+             "languages": ["pl", "cs", "ru"]}
+    runnable, reason = entry_runnability(entry)
+    assert runnable is False
+    assert "target token" in reason
+    assert "opus-mt-en-sla-int8" in caplog.text
+
+
+def test_entry_runnability_accepts_a_multi_target_marian_with_a_token():
+    assert entry_runnability({"model_id": "x", "arch": "marian",
+                              "languages": ["pl", "cs"],
+                              "target_token": ">>pol<<"})[0] is True
+    assert entry_runnability({"model_id": "x", "arch": "marian",
+                              "languages": ["liv", "et"],
+                              "target_token_template": "<2{code}>"})[0] is True
+
+
+def test_a_dedicated_marian_needs_no_target_token():
+    assert entry_runnability({"model_id": "x", "arch": "marian",
+                              "pair": ["en", "pt"]})[0] is True
+
+
+# --- max_hops is validated everywhere, not only in the constructor ---------
+
+@pytest.mark.parametrize("max_hops", [0, -1])
+def test_constructor_rejects_max_hops_below_one(max_hops):
+    with pytest.raises(ValueError):
+        TranslationGraph([marian("en", "pt")], max_hops=max_hops)
+
+
+@pytest.mark.parametrize("max_hops", [0, -1])
+def test_route_rejects_max_hops_below_one(graph, max_hops):
+    """It used to behave as `max_hops=1`, contradicting the constructor."""
+    with pytest.raises(ValueError):
+        graph.route("en", "pt", max_hops=max_hops)
+
+
+@pytest.mark.parametrize("max_hops", [0, -1])
+def test_routes_rejects_max_hops_below_one(graph, max_hops):
+    with pytest.raises(ValueError):
+        graph.routes("en", "pt", max_hops=max_hops)
+
+
+@pytest.mark.parametrize("max_hops", [0, -1])
+def test_can_translate_rejects_max_hops_below_one(graph, max_hops):
+    with pytest.raises(ValueError):
+        graph.can_translate("en", "pt", max_hops=max_hops)
+
+
+# --- validating a caller-supplied route ------------------------------------
+
+DIRECTIONAL = Capability(
+    model_id="en-indic", arch="indictrans2", license="MIT",
+    license_tier="permissive", size_mb=480, runnable=True,
+    src_languages=frozenset({"en"}), tgt_languages=frozenset({"hi", "ta"}))
+
+
+def _hop(cap, src, tgt):
+    return Hop(model_id=cap.model_id, src=src, tgt=tgt, arch=cap.arch,
+               license=cap.license, license_tier=cap.license_tier,
+               size_mb=cap.size_mb, dedicated=cap.dedicated)
+
+
+def test_validate_route_accepts_a_route_the_graph_itself_produced(graph):
+    route = graph.route("en", "ru")
+    assert graph.validate_route(route) is route
+
+
+def test_validate_route_refuses_a_backwards_hop_on_a_directional_model():
+    """Both tags are in the model's code map, so nothing else would catch it."""
+    graph = TranslationGraph([DIRECTIONAL])
+    backwards = Route("hi", "en", (_hop(DIRECTIONAL, "hi", "en"),))
+    with pytest.raises(InvalidRouteError) as err:
+        graph.validate_route(backwards)
+    assert "en-indic" in str(err.value)
+
+
+def test_validate_route_refuses_a_reversed_dedicated_pair(graph):
+    cap = marian("en", "pt")
+    backwards = Route("pt", "en", (_hop(cap, "pt", "en"),))
+    with pytest.raises(InvalidRouteError):
+        graph.validate_route(backwards)
+
+
+def test_validate_route_accepts_the_supported_direction():
+    graph = TranslationGraph([DIRECTIONAL])
+    forwards = Route("en", "hi", (_hop(DIRECTIONAL, "en", "hi"),))
+    assert graph.validate_route(forwards) is forwards
+
+
+def test_validate_route_refuses_an_unknown_model(graph):
+    stranger = marian("en", "pt")
+    route = Route("en", "pt", (Hop("not-registered", "en", "pt", "marian",
+                                   "MIT", "permissive", 1, True),))
+    with pytest.raises(InvalidRouteError):
+        graph.validate_route(route)
+    assert stranger.model_id in {c.model_id for c in graph.capabilities}
+
+
+def test_validate_route_refuses_an_unrunnable_model():
+    cap = _unrunnable(pair=("en", "kn"))
+    graph = TranslationGraph([marian("en", "pt"), cap])
+    route = Route("en", "kn", (_hop(cap, "en", "kn"),))
+    with pytest.raises(InvalidRouteError) as err:
+        graph.validate_route(route)
+    assert "no preprocessing pipeline" in str(err.value)
+
+
+def test_validate_route_refuses_a_broken_chain(graph):
+    hops = (_hop(marian("en", "pt"), "en", "pt"),
+            _hop(marian("es", "ca"), "es", "ca"))
+    with pytest.raises(InvalidRouteError):
+        graph.validate_route(Route("en", "ca", hops))
+
+
+def test_validate_route_refuses_hops_that_do_not_match_the_endpoints(graph):
+    route = Route("en", "ru", (_hop(marian("en", "pt"), "en", "pt"),))
+    with pytest.raises(InvalidRouteError):
+        graph.validate_route(route)
+
+
+def test_validate_route_refuses_an_empty_route(graph):
+    with pytest.raises(InvalidRouteError):
+        graph.validate_route(Route("en", "pt", ()))
+
+
+# --- malformed caller input vs unsupported language ------------------------
+
+def test_normalize_tag_is_lenient_and_says_so(caplog):
+    assert normalize_tag("!!!") == "!!!"
+    assert "not a parseable language tag" in caplog.text
+
+
+def test_normalize_tag_strict_refuses_junk():
+    with pytest.raises(MalformedTagError):
+        normalize_tag("!!!", strict=True)
+
+
+def test_normalize_tag_refuses_an_empty_tag():
+    with pytest.raises(MalformedTagError):
+        normalize_tag("   ")
+
+
+def test_routing_a_malformed_tag_is_not_reported_as_an_unsupported_language(graph):
+    """`NoRouteError` would read as "no model for your language". It is not that."""
+    with pytest.raises(MalformedTagError):
+        graph.route("<script>", "pt")
+    with pytest.raises(MalformedTagError):
+        graph.routes("en", "en--")
+
+
+def test_an_unsupported_but_well_formed_tag_is_still_a_no_route(graph):
+    with pytest.raises(NoRouteError):
+        graph.route("en", "kea")
+
+
+def test_a_node_the_registry_minted_stays_addressable():
+    """Lenient normalisation at build time must not make a model unreachable."""
+    graph = TranslationGraph([marian("!!!", "pt")])
+    assert graph.route("!!!", "pt").n_hops == 1
+
+
+def test_a_region_subtag_routes_as_its_language(graph):
+    """No model distinguishes pt-BR from pt; refusing the region helps nobody."""
+    assert graph.route("pt-BR", "en").hops[0].model_id == "opus-pt-en"
+
+
+# --- asymmetric capabilities ----------------------------------------------
+
+SRC_ONLY = Capability(model_id="src-only", arch="m2m100", license="MIT",
+                      license_tier="permissive", size_mb=10,
+                      languages=frozenset({"en", "hi", "ta"}),
+                      src_languages=frozenset({"en"}))
+TGT_ONLY = Capability(model_id="tgt-only", arch="m2m100", license="MIT",
+                      license_tier="permissive", size_mb=10,
+                      languages=frozenset({"en", "hi", "ta"}),
+                      tgt_languages=frozenset({"en"}))
+
+
+def test_a_capability_with_only_src_languages_is_directional():
+    """`languages` fills the side that is not declared, and only that side."""
+    assert SRC_ONLY.directional is True
+    assert SRC_ONLY.covers("en", "hi") is True
+    assert SRC_ONLY.covers("hi", "en") is False
+    assert SRC_ONLY.covers("hi", "ta") is False
+    assert SRC_ONLY.endpoints() == frozenset({"en", "hi", "ta"})
+
+
+def test_a_capability_with_only_tgt_languages_is_directional():
+    assert TGT_ONLY.directional is True
+    assert TGT_ONLY.covers("hi", "en") is True
+    assert TGT_ONLY.covers("en", "hi") is False
+    assert TGT_ONLY.covers("ta", "en") is True
+
+
+@pytest.mark.parametrize("cap", [SRC_ONLY, TGT_ONLY])
+def test_an_asymmetric_capability_never_covers_a_language_with_itself(cap):
+    assert cap.covers("en", "en") is False
+
+
+def test_routing_over_an_asymmetric_capability_respects_its_direction():
+    graph = TranslationGraph([SRC_ONLY])
+    assert graph.route("en", "hi").hops[0].model_id == "src-only"
+    with pytest.raises(NoRouteError):
+        graph.route("hi", "en")

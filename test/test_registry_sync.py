@@ -21,7 +21,8 @@ import pytest
 
 from linguonnx import model_manager
 from linguonnx.translate import load_translator
-from linguonnx.translate.graph import LICENSE_TIERS, normalize_tag
+from linguonnx.translate.graph import (LICENSE_TIERS, NoRouteError,
+                                       normalize_tag)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SYNC_SCRIPT = REPO_ROOT / "scripts" / "sync_registry.py"
@@ -206,8 +207,15 @@ def translator():
     return load_translator()
 
 
-@pytest.mark.parametrize("src,tgt", [("en", "pt"), ("pt", "eu"),
-                                     ("gl", "ca"), ("en", "hi")])
+@pytest.mark.parametrize("src,tgt", [
+    ("en", "pt"), ("pt", "eu"), ("gl", "ca"),
+    # `en -> hi` alone dodges a whole class of bug: Hindi has a dedicated
+    # opus-mt model, so it resolves even when every Indic-only model is
+    # unroutable. The rest of the Indic set has no such cover.
+    ("en", "hi"), ("en", "kn"), ("en", "ta"), ("en", "ur"), ("en", "gu"),
+    ("en", "mr"), ("en", "ml"), ("en", "te"), ("en", "pa"),
+    ("hi", "en"), ("ta", "en"), ("hi", "ta"),
+])
 def test_pair_resolves(translator, src, tgt):
     route = translator.route(src, tgt)
     assert route.hops, f"{src}->{tgt} produced an empty route"
@@ -262,16 +270,96 @@ def test_en_to_an_resolves_aragonese(translator):
     assert route.hops[-1].tgt == "an"
 
 
-def test_hi_to_ta_resolves_direct_via_indictrans2_indic_indic(translator):
+def test_hi_to_ta_resolves_direct(translator):
     """Hindi -> Tamil must not detour through English.
 
-    indictrans2-indic-indic is the only model with both languages on the
-    Indic side; routing it through en-indic + indic-en would silently add a
-    pivot hop this direct model makes unnecessary.
+    It used to assert the hop was ``indictrans2-indic-indic``. IndicTrans2 has
+    no inference pipeline here, so the registry marks it unrunnable and the
+    router now serves the pair from a model that runs. What must hold either
+    way is that one model does the pair, rather than a pivot through English
+    compounding the error twice.
     """
     route = translator.route("hi", "ta")
     assert route.n_hops == 1, route
-    assert route.hops[0].model_id.startswith("indictrans2-indic-indic")
+    assert TRANSLATE[route.hops[0].model_id].get("runnable") is not False
+
+
+# ---------------------------------------------------------------------------
+# Runnability: what is routed has to be what can be executed
+# ---------------------------------------------------------------------------
+
+RUNNABLE_ARCHS = {"marian", "m2m100", "nllb", "madlad"}
+
+
+@pytest.mark.parametrize("model_id", sorted(TRANSLATE))
+def test_unrunnable_entries_say_why(model_id):
+    entry = TRANSLATE[model_id]
+    if entry.get("runnable") is False:
+        assert entry.get("unrunnable_reason", "").strip(), \
+            f"{model_id} is unrunnable with no reason recorded"
+    else:
+        assert "unrunnable_reason" not in entry
+
+
+@pytest.mark.parametrize("model_id", sorted(TRANSLATE))
+def test_the_registry_flags_every_architecture_without_a_pipeline(model_id):
+    """The flag and ``TranslationModel.translate`` have to agree.
+
+    ``translate`` raises ``NotImplementedError`` for the architectures whose
+    preprocessing this library does not vendor. An entry of such an
+    architecture that is *not* flagged would be routable and would fail at the
+    last possible moment, which is exactly what the flag exists to prevent.
+    """
+    entry = TRANSLATE[model_id]
+    implemented = entry["arch"] in RUNNABLE_ARCHS
+    assert (entry.get("runnable") is not False) == implemented, (
+        f"{model_id} is {entry['arch']} and its runnable flag disagrees with "
+        f"what TranslationModel.translate implements")
+
+
+@pytest.mark.parametrize("src,tgt", [
+    ("en", "kn"), ("en", "as"), ("en", "mai"), ("en", "gu"), ("en", "mr"),
+    ("en", "ta"), ("en", "te"), ("en", "ml"), ("en", "pa"), ("en", "ur"),
+    ("en", "sd"), ("en", "ks"), ("en", "doi"), ("en", "brx"), ("en", "mni"),
+    ("en", "sa"), ("en", "sat"), ("gl", "en"), ("en", "gl"), ("pt", "gl"),
+])
+def test_can_translate_never_promises_a_pair_translate_cannot_do(translator, src, tgt):
+    """`can_translate` is asked *before* committing, so it must not lie.
+
+    Every one of these pairs is claimed by a model with no inference pipeline.
+    A `True` here followed by `NotImplementedError` two calls later is worse
+    than a `False`, because the caller had asked.
+    """
+    if not translator.can_translate(src, tgt):
+        # Refusing is always an honest answer; promising is what needs proof.
+        with pytest.raises(NoRouteError):
+            translator.route(src, tgt)
+        return
+    for hop in translator.route(src, tgt).hops:
+        assert TRANSLATE[hop.model_id].get("runnable") is not False, (
+            f"can_translate({src!r}, {tgt!r}) is True but the route runs "
+            f"{hop.model_id}, which cannot be executed")
+
+
+def test_available_languages_are_all_reachable_through_runnable_models(translator):
+    """A language listed but served only by an unrunnable model is a lie too."""
+    runnable = {normalize_tag(code)
+                for model_id, entry in translator.models.items()
+                if entry.get("runnable") is not False
+                for code in (list(entry.get("languages", ()))
+                             + list(entry.get("pair", ()))
+                             + list(entry.get("src_languages") or ())
+                             + list(entry.get("tgt_languages") or ()))}
+    assert translator.available_languages <= runnable
+
+
+def test_no_ranked_route_runs_a_model_that_cannot_be_executed(translator):
+    for src, tgt in [("en", "ta"), ("hi", "ta"), ("en", "gl"), ("gl", "pt"),
+                     ("en", "hi"), ("hi", "en")]:
+        for route in translator.routes(src, tgt, limit=50):
+            for hop in route.hops:
+                assert TRANSLATE[hop.model_id].get("runnable") is not False, \
+                    f"{route} runs {hop.model_id}, which cannot be executed"
 
 
 def test_indictrans2_en_indic_never_serves_indic_to_english(translator):

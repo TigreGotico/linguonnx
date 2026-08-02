@@ -102,8 +102,8 @@ to fall back on.
 | `m2m100` | Source language is the first token of the *input*; target is forced as the decoder's first generated token, `forced_bos_token_id = lang_id(tgt)`. Codes are plain `en`, `pt`, `gl`. |
 | `nllb` | The same forced-decoder mechanism, but the codes are FLORES-200 (`por_Latn`), so language and script are chosen together. |
 | `madlad` (T5) | A `<2xx>` piece prepended to the input text, exactly like any other SentencePiece piece — not a forced decoder id. |
-| `indictrans2` | A custom `IndicProcessor` pipeline: script normalisation and transliteration, then a `<src> <tgt>` prefix. Routing only, see below. |
-| `opennmt-bpe` | Moses tokenisation plus `subword-nmt` BPE over OpenNMT's concatenated source/target vocabulary. Routing only, see below. |
+| `indictrans2` | A custom `IndicProcessor` pipeline: script normalisation and transliteration, then a `<src> <tgt>` prefix. Not implemented, see below. |
+| `opennmt-bpe` | Moses tokenisation plus `subword-nmt` BPE over OpenNMT's concatenated source/target vocabulary. Not implemented, see below. |
 
 `linguonnx` handles the implemented architectures behind one call and converts
 BCP-47 to whatever codes the model wants, so `tgt="pt"` means Portuguese
@@ -128,19 +128,21 @@ The mirror case is harmless: `opus-mt-pt-en-onnx` is an export of
 `opus-mt-ROMANCE-en`, multi-*source*. The source language is inferred from the
 text, so `pt -> en` still holds without any token.
 
-### Architectures that route but do not run
+### Architectures that are listed but cannot run
 
-`indictrans2` and `opennmt-bpe` models are in the registry and do participate
-in routing, but `translate()` on one raises `NotImplementedError`.
+`indictrans2` and `opennmt-bpe` models are in the registry, but `translate()`
+on one raises `NotImplementedError`. Both need a preprocessing pipeline this
+library does not vendor, and vendoring it would mean taking on Moses
+tokenisation or IndicNLP as a runtime dependency.
 
-That combination is deliberate. Both need a preprocessing pipeline this library
-does not vendor, and vendoring it would mean taking on Moses tokenisation or
-IndicNLP as a runtime dependency. But leaving the models out of the registry
-would be the worse failure: `route()` never loads a model, so `hi -> ta`
-resolving directly through `indictrans2-indic-indic` is real, useful
-information about what an export could do. A loud `NotImplementedError` beats
-guessing at a tokenisation scheme and translating fluently into the wrong
-words.
+Their entries carry `"runnable": false`, and the router honours it: they are
+excluded from `route()`, `routes()`, `can_translate()` and
+`available_languages`. Listing them while routing through them would put the
+failure in the worst possible place — `can_translate()` answering `True`, then
+`NotImplementedError` from the call the caller made on the strength of that
+answer. They stay in the registry because the entry is still true about what
+the export covers, and `NoRouteError` names them when they are the only cover
+for a pair. See [routing.md](routing.md#coverage-and-runnability-are-separate).
 
 ## When there is no route
 

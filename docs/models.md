@@ -178,6 +178,7 @@ Everything the Hub can answer is read from the Hub, never typed out:
 | `languages` | `additional_special_tokens` in the model's own `special_tokens_map.json`. |
 | `pair` | The repo name, cross-checked against the base model named in the card. |
 | `size_mb` | Summed blob sizes of the files the entry actually references. |
+| `runnable` | Written as `false`, with an `unrunnable_reason`, for an architecture whose inference pipeline this library does not implement. The router excludes those models. Delete the architecture from `UNRUNNABLE_ARCHS` in the script when its pipeline lands. |
 
 There is no third fallback for the licence. A repo whose licence cannot be read
 is skipped, because "probably Apache" is not a licence claim this library is
