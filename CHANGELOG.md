@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.3a1](https://github.com/TigreGotico/linguonnx/tree/0.5.3a1) (2026-08-02)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.2a1...0.5.3a1)
+
+**Merged pull requests:**
+
+- fix: bound untrusted input and validate decoding knobs [\#20](https://github.com/TigreGotico/linguonnx/pull/20) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.5.2a1](https://github.com/TigreGotico/linguonnx/tree/0.5.2a1) (2026-08-02)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.1...0.5.2a1)
