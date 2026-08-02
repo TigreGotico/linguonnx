@@ -71,7 +71,6 @@
     "license_tier": "permissive",
     "model_id": "indictrans2-en-indic-dist-200M",
     "precision": "fp32",
-    "runnable": false,
     "side_files": {
       "config": "config.json",
       "dict_src": "dict.SRC.json",
@@ -111,8 +110,7 @@
       "tam_Taml",
       "tel_Telu",
       "urd_Arab"
-    ],
-    "unrunnable_reason": "IndicTrans2 needs the IndicProcessor preprocessing pipeline (sentence splitting, script normalisation), which linguonnx does not vendor yet"
+    ]
   },
   "indictrans2-en-indic-dist-200M-int8": {
     "arch": "indictrans2",
@@ -127,7 +125,6 @@
     "license_tier": "permissive",
     "model_id": "indictrans2-en-indic-dist-200M-int8",
     "precision": "int8",
-    "runnable": false,
     "side_files": {
       "config": "int8/config.json",
       "dict_src": "int8/dict.SRC.json",
@@ -167,8 +164,7 @@
       "tam_Taml",
       "tel_Telu",
       "urd_Arab"
-    ],
-    "unrunnable_reason": "IndicTrans2 needs the IndicProcessor preprocessing pipeline (sentence splitting, script normalisation), which linguonnx does not vendor yet"
+    ]
   },
   "indictrans2-indic-en-dist-200M": {
     "arch": "indictrans2",
@@ -183,7 +179,6 @@
     "license_tier": "permissive",
     "model_id": "indictrans2-indic-en-dist-200M",
     "precision": "fp32",
-    "runnable": false,
     "side_files": {
       "config": "config.json",
       "dict_src": "dict.SRC.json",
@@ -223,8 +218,7 @@
     ],
     "tgt_languages": [
       "eng_Latn"
-    ],
-    "unrunnable_reason": "IndicTrans2 needs the IndicProcessor preprocessing pipeline (sentence splitting, script normalisation), which linguonnx does not vendor yet"
+    ]
   },
   "indictrans2-indic-en-dist-200M-int8": {
     "arch": "indictrans2",
@@ -239,7 +233,6 @@
     "license_tier": "permissive",
     "model_id": "indictrans2-indic-en-dist-200M-int8",
     "precision": "int8",
-    "runnable": false,
     "side_files": {
       "config": "int8/config.json",
       "dict_src": "int8/dict.SRC.json",
@@ -279,8 +272,7 @@
     ],
     "tgt_languages": [
       "eng_Latn"
-    ],
-    "unrunnable_reason": "IndicTrans2 needs the IndicProcessor preprocessing pipeline (sentence splitting, script normalisation), which linguonnx does not vendor yet"
+    ]
   },
   "indictrans2-indic-indic-dist-320M": {
     "arch": "indictrans2",
@@ -295,7 +287,6 @@
     "license_tier": "permissive",
     "model_id": "indictrans2-indic-indic-dist-320M",
     "precision": "fp32",
-    "runnable": false,
     "side_files": {
       "config": "config.json",
       "dict_src": "dict.SRC.json",
@@ -359,8 +350,7 @@
       "tam_Taml",
       "tel_Telu",
       "urd_Arab"
-    ],
-    "unrunnable_reason": "IndicTrans2 needs the IndicProcessor preprocessing pipeline (sentence splitting, script normalisation), which linguonnx does not vendor yet"
+    ]
   },
   "indictrans2-indic-indic-dist-320M-int8": {
     "arch": "indictrans2",
@@ -375,7 +365,6 @@
     "license_tier": "permissive",
     "model_id": "indictrans2-indic-indic-dist-320M-int8",
     "precision": "int8",
-    "runnable": false,
     "side_files": {
       "config": "int8/config.json",
       "dict_src": "int8/dict.SRC.json",
@@ -439,8 +428,7 @@
       "tam_Taml",
       "tel_Telu",
       "urd_Arab"
-    ],
-    "unrunnable_reason": "IndicTrans2 needs the IndicProcessor preprocessing pipeline (sentence splitting, script normalisation), which linguonnx does not vendor yet"
+    ]
   },
   "liv4ever-mt": {
     "arch": "marian",
@@ -2854,15 +2842,13 @@
       "es"
     ],
     "precision": "fp32",
-    "runnable": false,
     "side_files": {
       "bpe_code": "en_35k.code",
       "config": "config.json",
       "generation_config": "generation_config.json",
       "vocab": "onmt_vocab.json"
     },
-    "size_mb": 893,
-    "unrunnable_reason": "ProxectoNos' OpenNMT exports need Moses tokenisation plus subword-nmt BPE, which linguonnx does not vendor yet"
+    "size_mb": 893
   },
   "nos-coda_iacobus-en-es-int8": {
     "arch": "opennmt-bpe",
@@ -2882,15 +2868,13 @@
       "es"
     ],
     "precision": "int8",
-    "runnable": false,
     "side_files": {
       "bpe_code": "en_35k.code",
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
       "vocab": "int8/onmt_vocab.json"
     },
-    "size_mb": 499,
-    "unrunnable_reason": "ProxectoNos' OpenNMT exports need Moses tokenisation plus subword-nmt BPE, which linguonnx does not vendor yet"
+    "size_mb": 499
   },
   "nos-coda_iacobus-en-gl": {
     "arch": "opennmt-bpe",
@@ -2910,15 +2894,13 @@
       "gl"
     ],
     "precision": "fp32",
-    "runnable": false,
     "side_files": {
       "bpe_code": "en_35k.code",
       "config": "config.json",
       "generation_config": "generation_config.json",
       "vocab": "onmt_vocab.json"
     },
-    "size_mb": 788,
-    "unrunnable_reason": "ProxectoNos' OpenNMT exports need Moses tokenisation plus subword-nmt BPE, which linguonnx does not vendor yet"
+    "size_mb": 788
   },
   "nos-coda_iacobus-en-gl-int8": {
     "arch": "opennmt-bpe",
@@ -2938,15 +2920,13 @@
       "gl"
     ],
     "precision": "int8",
-    "runnable": false,
     "side_files": {
       "bpe_code": "en_35k.code",
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
       "vocab": "int8/onmt_vocab.json"
     },
-    "size_mb": 591,
-    "unrunnable_reason": "ProxectoNos' OpenNMT exports need Moses tokenisation plus subword-nmt BPE, which linguonnx does not vendor yet"
+    "size_mb": 591
   },
   "nos-coda_iacobus-en-pt": {
     "arch": "opennmt-bpe",
@@ -2966,15 +2946,13 @@
       "pt"
     ],
     "precision": "fp32",
-    "runnable": false,
     "side_files": {
       "bpe_code": "en_35k.code",
       "config": "config.json",
       "generation_config": "generation_config.json",
       "vocab": "onmt_vocab.json"
     },
-    "size_mb": 919,
-    "unrunnable_reason": "ProxectoNos' OpenNMT exports need Moses tokenisation plus subword-nmt BPE, which linguonnx does not vendor yet"
+    "size_mb": 919
   },
   "nos-coda_iacobus-en-pt-int8": {
     "arch": "opennmt-bpe",
@@ -2994,15 +2972,13 @@
       "pt"
     ],
     "precision": "int8",
-    "runnable": false,
     "side_files": {
       "bpe_code": "en_35k.code",
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
       "vocab": "int8/onmt_vocab.json"
     },
-    "size_mb": 524,
-    "unrunnable_reason": "ProxectoNos' OpenNMT exports need Moses tokenisation plus subword-nmt BPE, which linguonnx does not vendor yet"
+    "size_mb": 524
   },
   "nos-coda_iacobus-es-gl": {
     "arch": "opennmt-bpe",
@@ -3022,15 +2998,13 @@
       "gl"
     ],
     "precision": "fp32",
-    "runnable": false,
     "side_files": {
       "bpe_code": "es_35k.code",
       "config": "config.json",
       "generation_config": "generation_config.json",
       "vocab": "onmt_vocab.json"
     },
-    "size_mb": 1069,
-    "unrunnable_reason": "ProxectoNos' OpenNMT exports need Moses tokenisation plus subword-nmt BPE, which linguonnx does not vendor yet"
+    "size_mb": 1069
   },
   "nos-coda_iacobus-es-gl-int8": {
     "arch": "opennmt-bpe",
@@ -3050,15 +3024,13 @@
       "gl"
     ],
     "precision": "int8",
-    "runnable": false,
     "side_files": {
       "bpe_code": "es_35k.code",
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
       "vocab": "int8/onmt_vocab.json"
     },
-    "size_mb": 675,
-    "unrunnable_reason": "ProxectoNos' OpenNMT exports need Moses tokenisation plus subword-nmt BPE, which linguonnx does not vendor yet"
+    "size_mb": 675
   },
   "nos-coda_iacobus-es-pt": {
     "arch": "opennmt-bpe",
@@ -3078,15 +3050,13 @@
       "pt"
     ],
     "precision": "fp32",
-    "runnable": false,
     "side_files": {
       "bpe_code": "es_35k.code",
       "config": "config.json",
       "generation_config": "generation_config.json",
       "vocab": "onmt_vocab.json"
     },
-    "size_mb": 1209,
-    "unrunnable_reason": "ProxectoNos' OpenNMT exports need Moses tokenisation plus subword-nmt BPE, which linguonnx does not vendor yet"
+    "size_mb": 1209
   },
   "nos-coda_iacobus-es-pt-int8": {
     "arch": "opennmt-bpe",
@@ -3106,15 +3076,13 @@
       "pt"
     ],
     "precision": "int8",
-    "runnable": false,
     "side_files": {
       "bpe_code": "es_35k.code",
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
       "vocab": "int8/onmt_vocab.json"
     },
-    "size_mb": 814,
-    "unrunnable_reason": "ProxectoNos' OpenNMT exports need Moses tokenisation plus subword-nmt BPE, which linguonnx does not vendor yet"
+    "size_mb": 814
   },
   "nos-coda_iacobus-pt-gl": {
     "arch": "opennmt-bpe",
@@ -3134,15 +3102,13 @@
       "gl"
     ],
     "precision": "fp32",
-    "runnable": false,
     "side_files": {
       "bpe_code": "pt_35k.code",
       "config": "config.json",
       "generation_config": "generation_config.json",
       "vocab": "onmt_vocab.json"
     },
-    "size_mb": 1124,
-    "unrunnable_reason": "ProxectoNos' OpenNMT exports need Moses tokenisation plus subword-nmt BPE, which linguonnx does not vendor yet"
+    "size_mb": 1124
   },
   "nos-coda_iacobus-pt-gl-int8": {
     "arch": "opennmt-bpe",
@@ -3162,15 +3128,13 @@
       "gl"
     ],
     "precision": "int8",
-    "runnable": false,
     "side_files": {
       "bpe_code": "pt_35k.code",
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
       "vocab": "int8/onmt_vocab.json"
     },
-    "size_mb": 730,
-    "unrunnable_reason": "ProxectoNos' OpenNMT exports need Moses tokenisation plus subword-nmt BPE, which linguonnx does not vendor yet"
+    "size_mb": 730
   },
   "opus-mt-ar-en": {
     "arch": "marian",

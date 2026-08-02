@@ -73,6 +73,48 @@ This is what makes `include_noncommercial=False` a guarantee about the output
 rather than a preference about routing. If you want the model, ask for it —
 with `include_noncommercial=True`, or by naming it in `models=`.
 
+## Vendored code
+
+`linguonnx/translate/_indic_processor.py` is AI4Bharat's `IndicProcessor`,
+copied from [`IndicTransToolkit`](https://github.com/VarunGumma/IndicTransToolkit)
+rather than depended on, because that package declares `transformers` as a hard
+dependency and this library keeps `transformers` out of the runtime. The
+changes are mechanical: Cython declarations dropped, the progress bar removed,
+and the placeholder map returned to the caller instead of parked in a
+module-level queue. Why a copy and not a reimplementation is explained in
+[translate.md](translate.md#indictrans2) — a reimplementation could diverge
+from the training-time preprocessing and translate fluently into the wrong
+words.
+
+The upstream licence is MIT:
+
+```
+MIT License
+
+Copyright (c) 2024 Varun Gumma
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+MIT is a permissive licence, so this changes nothing about a route's
+`license_tier`. It is recorded here because the file is someone else's work.
+
 ## What a route tells you
 
 Every `Route` carries the licence of every hop, and a tier for the chain as a

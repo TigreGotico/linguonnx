@@ -288,7 +288,11 @@ def test_hi_to_ta_resolves_direct(translator):
 # Runnability: what is routed has to be what can be executed
 # ---------------------------------------------------------------------------
 
-RUNNABLE_ARCHS = {"marian", "m2m100", "nllb", "madlad"}
+#: Every architecture `linguonnx.translate.preprocess` registers a pipeline
+#: for. Kept as a literal set rather than read from the registry, so that
+#: adding an entry for an architecture nobody wrote a pipeline for fails here.
+RUNNABLE_ARCHS = {"marian", "m2m100", "nllb", "madlad", "indictrans2",
+                  "opennmt-bpe"}
 
 
 @pytest.mark.parametrize("model_id", sorted(TRANSLATE))
@@ -303,15 +307,20 @@ def test_unrunnable_entries_say_why(model_id):
 
 @pytest.mark.parametrize("model_id", sorted(TRANSLATE))
 def test_the_registry_flags_every_architecture_without_a_pipeline(model_id):
-    """The flag and ``TranslationModel.translate`` have to agree.
+    """The flag and the pipeline registry have to agree.
 
-    ``translate`` raises ``NotImplementedError`` for the architectures whose
-    preprocessing this library does not vendor. An entry of such an
-    architecture that is *not* flagged would be routable and would fail at the
-    last possible moment, which is exactly what the flag exists to prevent.
+    An entry whose architecture has no registered pipeline would be routable
+    and would fail at the last possible moment, which is what the flag exists
+    to prevent. The reverse is just as wrong: an architecture that *does* have
+    a pipeline and is still flagged is a model the router refuses for no
+    reason.
     """
+    from linguonnx.translate.preprocess import pipeline_for
+
     entry = TRANSLATE[model_id]
     implemented = entry["arch"] in RUNNABLE_ARCHS
+    if implemented:
+        assert pipeline_for(entry["arch"]) is not None
     assert (entry.get("runnable") is not False) == implemented, (
         f"{model_id} is {entry['arch']} and its runnable flag disagrees with "
         f"what TranslationModel.translate implements")

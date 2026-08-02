@@ -228,13 +228,10 @@ SIDE_FILES: Dict[str, Dict[str, str]] = {
 #: **Delete an architecture from this table when its pipeline lands**, re-run
 #: this script, and the models start routing again with no code change in
 #: `linguonnx/translate/graph.py`.
-UNRUNNABLE_ARCHS: Dict[str, str] = {
-    "indictrans2": ("IndicTrans2 needs the IndicProcessor preprocessing "
-                    "pipeline (sentence splitting, script normalisation), "
-                    "which linguonnx does not vendor yet"),
-    "opennmt-bpe": ("ProxectoNos' OpenNMT exports need Moses tokenisation "
-                    "plus subword-nmt BPE, which linguonnx does not vendor yet"),
-}
+#:
+#: Empty since the IndicTrans2 and OpenNMT-BPE pipelines landed in
+#: `linguonnx/translate/preprocess.py`. Both were listed here; both now route.
+UNRUNNABLE_ARCHS: Dict[str, str] = {}
 
 REQUIRED_SIDE_FILES: Dict[str, Tuple[str, ...]] = {
     "marian": ("source_spm", "target_spm", "vocab", "config"),

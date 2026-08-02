@@ -16,6 +16,20 @@ fluent text in the wrong language and nothing raises. So it is concentrated in
 ``marian``
     Nothing to select. The model is the pair. A target token is only used by
     the multi-target ``tc-big``/``ROMANCE`` models, and only on request.
+``madlad``
+    A ``<2xx>`` piece prepended to the *input* text, not a forced decoder id.
+``indictrans2``
+    A ``<src_tag> <tgt_tag> `` prefix on preprocessed text, where "preprocessed"
+    includes transliterating Indic scripts into Devanagari - which then has to
+    be undone on the output.
+``opennmt-bpe``
+    Nothing to select; the model is the pair. The work is Moses tokenisation
+    and BPE, on both ends.
+
+The per-architecture parts of that live in
+:mod:`linguonnx.translate.preprocess`, one :class:`~preprocess.Pipeline` each,
+so that encoding and decoding for an architecture are written next to each
+other and cannot drift apart.
 """
 
 from __future__ import annotations
@@ -26,9 +40,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from linguonnx.limits import MAX_ENCODER_TOKENS
 from linguonnx.model_manager import ensure_model_files, registry_entry
 from linguonnx.translate.decode import GenerationConfig, Seq2SeqDecoder
 from linguonnx.translate.graph import Capability, normalize_tag
+from linguonnx.translate.preprocess import Pipeline, pipeline_for
 from linguonnx.translate.tokenizers import load_tokenizer
 
 LOG = logging.getLogger(__name__)
@@ -120,8 +136,14 @@ class TranslationModel:
     def tokenizer(self):
         if self._tokenizer is None:
             self._tokenizer = load_tokenizer(
-                self.arch, self.files, self.entry.get("languages", ()))
+                self.arch, self.files, self.entry.get("languages", ()),
+                pair=self.entry.get("pair"))
         return self._tokenizer
+
+    @property
+    def pipeline(self) -> Pipeline:
+        """The pre/post-processing pair for this model's architecture."""
+        return pipeline_for(self.arch)
 
     @property
     def decoder(self) -> Seq2SeqDecoder:
@@ -134,8 +156,28 @@ class TranslationModel:
                 eos_id=int(config["eos_token_id"]),
                 pad_id=int(config["pad_token_id"]),
                 decoder_start_id=int(config["decoder_start_token_id"]),
+                max_input_tokens=self._max_input_tokens(),
             )
         return self._decoder
+
+    def _max_input_tokens(self) -> int:
+        """The tightest encoder bound that applies to this model.
+
+        Three numbers can cap the input and the smallest wins: the
+        library-wide `LINGUONNX_MAX_ENCODER_TOKENS`, the architecture's own
+        frozen position table (IndicTrans2's is 256), and whatever the
+        exported config records. Reading the config means a re-export with a
+        different table is respected without a code change.
+        """
+        limits = [MAX_ENCODER_TOKENS]
+        if self.pipeline.max_source_tokens is not None:
+            limits.append(self.pipeline.max_source_tokens)
+        for key in ("max_source_positions", "max_position_embeddings"):
+            value = self.config.get(key)
+            if isinstance(value, int) and value > 0:
+                limits.append(value)
+                break
+        return min(limits)
 
     # -- languages --------------------------------------------------------
 
@@ -159,17 +201,6 @@ class TranslationModel:
                   target_token: Optional[str] = None) -> str:
         if not text.strip():
             return ""
-        if self.arch in ("indictrans2", "opennmt-bpe"):
-            # Both need a preprocessing pipeline this library does not vendor:
-            # IndicTrans2's IndicProcessor (sentence splitting, script
-            # normalisation/transliteration) and OpenNMT's Moses+subword-nmt
-            # BPE. Registered for routing - `Translator.route()` never loads a
-            # model - but raising here beats the alternative of guessing at a
-            # tokenisation scheme and translating fluently into the wrong
-            # words.
-            raise NotImplementedError(
-                f"{self.model_id} ({self.arch}) is registered for routing "
-                f"only; its inference pipeline is not implemented yet")
         # A multi-target Marian group model (opus-mt-en-sla and friends) picks
         # its target language from a prefix token, and picks it *wrong* when
         # the token is absent - fluently, with nothing raised. The registry
@@ -185,18 +216,13 @@ class TranslationModel:
             template = self.entry.get("target_token_template")
             if template:
                 target_token = template.format(code=self.native_code(tgt))
-        if self.arch == "marian":
-            input_ids = self.tokenizer.encode(text, target_token=target_token)
-            forced_bos = None
-        elif self.arch == "madlad":
-            input_ids = self.tokenizer.encode(text, prefix=target_token)
-            forced_bos = None
-        else:
-            input_ids = self.tokenizer.encode(text, self.native_code(src))
-            forced_bos = self.tokenizer.lang_id(self.native_code(tgt))
+        pipeline = self.pipeline
+        input_ids = pipeline.encode(self, text, src, tgt,
+                                    target_token=target_token)
         output_ids = self.decoder.generate(
-            input_ids, forced_bos_token_id=forced_bos, config=config)
-        return self.tokenizer.decode(output_ids)
+            input_ids, forced_bos_token_id=pipeline.forced_bos(self, tgt),
+            config=config)
+        return pipeline.decode(self, output_ids, src, tgt)
 
 
 @lru_cache(maxsize=None)

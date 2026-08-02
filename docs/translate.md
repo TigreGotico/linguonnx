@@ -102,8 +102,8 @@ to fall back on.
 | `m2m100` | Source language is the first token of the *input*; target is forced as the decoder's first generated token, `forced_bos_token_id = lang_id(tgt)`. Codes are plain `en`, `pt`, `gl`. |
 | `nllb` | The same forced-decoder mechanism, but the codes are FLORES-200 (`por_Latn`), so language and script are chosen together. |
 | `madlad` (T5) | A `<2xx>` piece prepended to the input text, exactly like any other SentencePiece piece — not a forced decoder id. |
-| `indictrans2` | A custom `IndicProcessor` pipeline: script normalisation and transliteration, then a `<src> <tgt>` prefix. Not implemented, see below. |
-| `opennmt-bpe` | Moses tokenisation plus `subword-nmt` BPE over OpenNMT's concatenated source/target vocabulary. Not implemented, see below. |
+| `indictrans2` | AI4Bharat's `IndicProcessor` pipeline, then a `<src_tag> <tgt_tag>` prefix on the input. Needs the `indic` extra; see below. |
+| `opennmt-bpe` | Nothing to choose — the model is the pair. The work is Moses tokenisation plus `subword-nmt` BPE over OpenNMT's concatenated source/target vocabulary. Needs the `opennmt` extra; see below. |
 
 `linguonnx` handles the implemented architectures behind one call and converts
 BCP-47 to whatever codes the model wants, so `tgt="pt"` means Portuguese
@@ -128,21 +128,118 @@ The mirror case is harmless: `opus-mt-pt-en-onnx` is an export of
 `opus-mt-ROMANCE-en`, multi-*source*. The source language is inferred from the
 text, so `pt -> en` still holds without any token.
 
-### Architectures that are listed but cannot run
+## Architectures with their own preprocessing
 
-`indictrans2` and `opennmt-bpe` models are in the registry, but `translate()`
-on one raises `NotImplementedError`. Both need a preprocessing pipeline this
-library does not vendor, and vendoring it would mean taking on Moses
-tokenisation or IndicNLP as a runtime dependency.
+Two architectures do not translate raw text. They expect the text their
+training pipeline produced, and the work on the way out is the exact inverse of
+the work on the way in. Both live in `linguonnx/translate/preprocess.py`, one
+`Pipeline` subclass each, so that the two halves are written next to each other
+and cannot drift apart.
 
-Their entries carry `"runnable": false`, and the router honours it: they are
-excluded from `route()`, `routes()`, `can_translate()` and
-`available_languages`. Listing them while routing through them would put the
-failure in the worst possible place — `can_translate()` answering `True`, then
-`NotImplementedError` from the call the caller made on the strength of that
-answer. They stay in the registry because the entry is still true about what
-the export covers, and `NoRouteError` names them when they are the only cover
-for a pair. See [routing.md](routing.md#coverage-and-runnability-are-separate).
+Neither is installed by default. `linguonnx` itself stays on `onnxruntime`,
+`numpy` and `sentencepiece`; the extras add the tokenisation these two need.
+When an extra is missing the call raises `ImportError` naming it. It never
+falls back to a simpler tokenisation, because a wrong tokenisation does not
+fail — it translates fluently into the wrong words.
+
+### IndicTrans2
+
+```bash
+pip install 'linguonnx[indic]'
+```
+
+On the way in:
+
+1. punctuation normalisation;
+2. Devanagari, Bengali, Tamil, Perso-Arabic and the other native digits folded
+   to ASCII;
+3. URLs, emails, numerals and `@handles` replaced by `<ID1>`-style
+   placeholders, so the model moves an opaque token instead of trying to
+   translate a URL;
+4. Moses tokenisation for English, IndicNLP tokenisation for everything else;
+5. **transliteration into Devanagari** for every Indic script except
+   Perso-Arabic, Ol Chiki, Meetei Mayek and Latin, because the model's shared
+   vocabulary is written in Devanagari;
+6. the `<src_tag> <tgt_tag> ` prefix — FLORES-style tags such as `hin_Deva` or
+   `tam_Taml` — which is what selects the pair.
+
+On the way out, all of that in reverse: script fix-ups for Perso-Arabic and
+Oriya, placeholders restored, **transliteration back into the target script**,
+then detokenisation.
+
+Step 5 and its inverse are the reason this is not optional work. Skip the
+transliteration back and a `tam_Taml` request returns fluent Tamil spelled in
+Devanagari. It is correct text in the wrong script, and nothing raises.
+
+The processing code is vendored from AI4Bharat's
+[`IndicTransToolkit`](https://github.com/VarunGumma/IndicTransToolkit) rather
+than depended on, because that package declares `transformers` as a hard
+dependency and `linguonnx` keeps `transformers` out of the runtime. It is a
+copy, not a reimplementation — see
+[`_indic_processor.py`](../linguonnx/translate/_indic_processor.py) and
+[licences.md](licences.md).
+
+**These models accept at most 256 source tokens.** The export bakes in a
+256-row sinusoidal position table, so a longer input cannot be embedded at all.
+`translate()` raises `InputTooLongError` before anything reaches ONNX Runtime;
+split the text into sentences and translate them one at a time.
+
+### OpenNMT-BPE (Proxecto Nós `nos-coda_iacobus-*`)
+
+```bash
+pip install 'linguonnx[opennmt]'
+```
+
+In: Moses-tokenise with the source language's rules, apply the `*_35k.code`
+merges shipped in the model repo, look the pieces up in the source vocabulary,
+and add `source_offset`. OpenNMT-py keeps separate source and target
+vocabularies; the export concatenates them as `[target | source]`, so encoder
+input ids carry that offset and decoder output ids do not. No `</s>` is
+appended to the source, because OpenNMT-py does not append one.
+
+Out: map through the target vocabulary, strip the `@@` merge markers, Moses-
+detokenise. The markers are removed with the upstream `sed 's/@\s*//g'` rule,
+not `replace("@@ ", "")` — the two differ on a word-final `@@` before
+punctuation, where the naive form glues two words together.
+
+**`<unk>` is kept in the output.** Upstream `onmt_translate` hides it with
+`-replace_unk`, which copies the aligned source word using the decoder's
+cross-attention weights. Those weights are not outputs of the exported graph,
+so the substitution cannot be reproduced, and inventing a replacement would be
+a guess presented as a translation. A visible `<unk>` says where the model
+failed; the original `onmt_translate` emits one in the same places.
+
+### Verified against the reference implementations
+
+Ten sentences per model, beam 4, exact string match:
+
+| model | reference | match |
+|---|---|---|
+| `indictrans2-en-indic-dist-200M` | `IndicProcessor` + `transformers` 4.44.2 | 10/10 |
+| `indictrans2-indic-en-dist-200M` | as above | 10/10 |
+| `indictrans2-indic-indic-dist-320M` | as above | 10/10 |
+| `nos-coda_iacobus-en-gl` | the Moses+BPE recipe on the same graph | 10/10 |
+| `nos-coda_iacobus-en-es` | as above | 10/10 |
+| `nos-coda_iacobus-en-pt` | as above | 10/10 |
+| `nos-coda_iacobus-es-gl` | as above | 10/10 |
+| `nos-coda_iacobus-es-pt` | as above | 10/10 |
+| `nos-coda_iacobus-pt-gl` | as above | 10/10 |
+
+The IndicTrans2 runs cover Hindi, Tamil, Bengali, Marathi and Malayalam, and
+include Indic→Indic pairs, which is what proves the transliteration round-trip
+rather than assuming it.
+
+### An architecture that cannot run
+
+Nothing in the registry is in this state today, but the mechanism stays. An
+entry can carry `"runnable": false` with an `unrunnable_reason`, and the router
+honours it: the model is excluded from `route()`, `routes()`, `can_translate()`
+and `available_languages`, while remaining listed, licensed and sized. Listing
+a model while routing through it would put the failure in the worst possible
+place — `can_translate()` answering `True`, then a raise from the call the
+caller made on the strength of that answer. `NoRouteError` names such a model
+when it is the only cover for a pair. See
+[routing.md](routing.md#coverage-and-runnability-are-separate).
 
 ## When there is no route
 

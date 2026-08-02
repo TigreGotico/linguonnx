@@ -32,6 +32,15 @@ classifiers = [
 # Linguistic distance for pivot-language ranking. Optional on purpose: without
 # it the routing graph uses its curated pivot table instead.
 distance = ["orthography2ipa>=0.1.0"]
+# IndicTrans2 preprocessing. `indic-nlp-library-itt` supplies the script
+# normalisers, the Indic tokenizer and the Devanagari transliterator that
+# IndicTrans2 was trained with. AI4Bharat's own `IndicTransToolkit` is not used
+# because it declares `transformers` as a hard dependency and linguonnx keeps
+# `transformers` out of the runtime; its processing logic is vendored instead,
+# with attribution, in `linguonnx/translate/_indic_processor.py`.
+indic = ["regex>=2021.8.3", "sacremoses>=0.0.53", "indic-nlp-library-itt>=0.1.1"]
+# OpenNMT-py + subword-nmt BPE preprocessing for the Proxecto Nos models.
+opennmt = ["sacremoses>=0.0.53", "subword-nmt>=0.3.8"]
 # `onnx` is only used by the tests, but the floor is a security floor, not a
 # feature one: CVE-2022-25882 (<1.13.0) is directory traversal through the
 # external-data `location` field, and CVE-2024-5187 (<1.16.0) is a second path
