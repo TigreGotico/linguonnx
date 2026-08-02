@@ -157,3 +157,34 @@ keeping the highest probability for a tag.
 A handful of GlotLID labels are not valid language tags at all — `und_Kawi`,
 `und_Nagm`, `tok_Latn` (Toki Pona), `eml_Latn` — and are emitted as-is with a
 warning on the logger. Better a code you can look up than a silent guess.
+
+## Short text is unreliable
+
+Accuracy depends strongly on how much text you give the model. GlotLID scores
+character n-grams, so a handful of words carries little signal and closely
+related languages collapse into each other. Galician shows this clearly:
+
+| input | length | detected | confidence |
+|---|---|---|---|
+| `Bo día` | 6 | `pap` (Papiamento) | 0.77 |
+| `Bo día, como estás?` | 19 | `es` | 0.53 |
+| `Bo día, o meu nome é Miro` | 25 | `gl` | 1.00 |
+| `A lingua galega é unha lingua románica...` | 113 | `gl` | 1.00 |
+
+The first two are wrong, and the second is wrong *confidently enough to look
+plausible* — Galician and Spanish share most of their character n-grams, so a
+short greeting genuinely does not distinguish them. Around 25 characters the
+model becomes reliable for this pair.
+
+Two practical consequences:
+
+- **Check the probability, not just the label.** A top-1 score near 0.5 on a
+  short string means the model is guessing between neighbours. `detect_probs`
+  shows you what it was choosing between.
+- **Orthography matters.** Stripping diacritics costs accuracy: the same
+  greeting written `bo dia, como estas?` is detected as Kimbundu. If your input
+  is ASCII-folded or lowercased upstream, expect worse results, and prefer a
+  language hint over detection where you have one.
+
+This is a property of n-gram language identification rather than a defect in
+this export — the same behaviour is present in the original fastText models.
