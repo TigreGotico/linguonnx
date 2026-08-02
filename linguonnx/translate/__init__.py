@@ -63,13 +63,15 @@ class Translator:
                  prefer: str = "fewest_hops", max_hops: int = 2,
                  pivot_preference: Sequence[str] = DEFAULT_PIVOT_PREFERENCE,
                  max_routes: int = 10,
+                 pivot_ranking: str = "auto",
                  num_beams: int = 4, max_new_tokens: int = 128,
                  length_penalty: float = 1.0, no_repeat_ngram_size: int = 0):
         self._entries = entries
         self.graph = TranslationGraph(
             [capability_from_entry(e) for e in entries.values()],
             pivot_preference=pivot_preference, prefer=prefer,
-            max_hops=max_hops, max_routes=max_routes)
+            max_hops=max_hops, max_routes=max_routes,
+            pivot_ranking=pivot_ranking)
         self.generation = GenerationConfig(
             max_new_tokens=max_new_tokens, num_beams=num_beams,
             length_penalty=length_penalty,
@@ -95,6 +97,11 @@ class Translator:
     @property
     def max_hops(self) -> int:
         return self.graph.max_hops
+
+    @property
+    def pivot_ranking(self) -> str:
+        """The pivot ranking in force, ``"phonological"`` or ``"table"``."""
+        return self.graph.pivot_ranking
 
     def route(self, src: str, tgt: str, max_hops: Optional[int] = None,
               prefer: Optional[str] = None) -> Route:
@@ -204,6 +211,7 @@ def load_translator(models: Optional[Sequence[str]] = None,
                     include_noncommercial: bool = False,
                     pivot_preference: Sequence[str] = DEFAULT_PIVOT_PREFERENCE,
                     max_routes: int = 10,
+                    pivot_ranking: str = "auto",
                     num_beams: int = 4,
                     max_new_tokens: int = 128,
                     length_penalty: float = 1.0,
@@ -226,6 +234,12 @@ def load_translator(models: Optional[Sequence[str]] = None,
     :param max_hops: 1 = direct models only, 2 = default, 3+ = allowed but see
         the README on diminishing returns.
     :param precision: ``"int8"`` (default), ``"fp32"``, or ``None`` for both.
+    :param pivot_ranking: how to order pivot candidates for a 2-hop route.
+        ``"auto"`` (default) ranks them by phonological distance when the
+        optional ``orthography2ipa`` package is installed - ``pip install
+        linguonnx[distance]`` - and by the curated table otherwise.
+        ``"phonological"`` demands the package and raises without it;
+        ``"table"`` ignores it. ``Route.pivot_basis`` reports which was used.
     :param num_beams: 4 by default; 1 is greedy and about 4x faster.
     """
     if model is not None:
@@ -235,6 +249,7 @@ def load_translator(models: Optional[Sequence[str]] = None,
         raise ValueError("no translation models matched the given filters")
     return Translator(entries, prefer=prefer, max_hops=max_hops,
                       pivot_preference=pivot_preference, max_routes=max_routes,
+                      pivot_ranking=pivot_ranking,
                       num_beams=num_beams, max_new_tokens=max_new_tokens,
                       length_penalty=length_penalty,
                       no_repeat_ngram_size=no_repeat_ngram_size)

@@ -46,6 +46,17 @@ that:
    the direct pair can never help, so it is pruned.
 2. Each leg of a multi-hop route keeps at most its best dedicated candidate and
    its best multilingual candidate, not every model that could serve the leg.
+
+Pivot ranking
+-------------
+
+The bounded candidate list is *ordered* by ``pivot_ranking``. ``"table"`` uses
+:data:`REGIONAL_PIVOTS` then the preference list; ``"phonological"`` reorders
+the same candidates by measured linguistic distance, see
+:mod:`linguonnx.translate.distance`. ``"auto"``, the default, picks
+phonological when the optional ``orthography2ipa`` package is installed. The
+ranking never adds or drops a candidate, so the search bounds above hold either
+way, and :attr:`Route.pivot_basis` says which ranking produced a route.
 """
 
 from __future__ import annotations
@@ -56,6 +67,8 @@ from typing import Dict, FrozenSet, Iterable, List, Optional, Sequence, Tuple
 
 import langcodes
 
+from linguonnx.translate import distance as _distance
+
 __all__ = [
     "NoRouteError",
     "Capability",
@@ -63,6 +76,8 @@ __all__ = [
     "Route",
     "TranslationGraph",
     "DEFAULT_PIVOT_PREFERENCE",
+    "REGIONAL_PIVOTS",
+    "PIVOT_RANKINGS",
     "LICENSE_TIERS",
     "normalize_tag",
 ]
@@ -104,6 +119,12 @@ REGIONAL_PIVOTS: Dict[str, Tuple[str, ...]] = {
     "uk": ("ru",), "be": ("ru",), "bg": ("ru",), "sr": ("hr", "ru"),
     "hr": ("sr",), "bs": ("hr", "sr"), "sk": ("cs",), "cs": ("sk",),
 }
+
+
+#: Accepted values for ``pivot_ranking``. ``"auto"`` uses phonological
+#: distance when :mod:`orthography2ipa` is installed and the curated table
+#: order otherwise, so the extra dependency changes quality, never behaviour.
+PIVOT_RANKINGS: Tuple[str, ...] = ("auto", "phonological", "table")
 
 
 #: Model codes that are not valid language tags in any standard. M2M100 calls
@@ -206,6 +227,11 @@ class Route:
     #: direct route. Used to break ties between equally-costed pivots, so a
     #: linguistically closer pivot wins over an alphabetically earlier model id.
     pivot_rank: Tuple[int, ...] = ()
+    #: What produced the pivot ordering behind ``pivot_rank``:
+    #: ``"phonological"`` (orthography2ipa distances) or ``"table"`` (the
+    #: curated :data:`REGIONAL_PIVOTS` plus the preference list). Reported even
+    #: on direct routes, where it simply says what *would* have been used.
+    pivot_basis: str = "table"
 
     @property
     def n_hops(self) -> int:
@@ -267,6 +293,7 @@ class TranslationGraph:
         prefer: str = "fewest_hops",
         max_hops: int = 2,
         max_routes: int = 10,
+        pivot_ranking: str = "auto",
     ):
         if max_hops < 1:
             raise ValueError("max_hops must be at least 1")
@@ -279,6 +306,18 @@ class TranslationGraph:
         self.prefer = prefer
         self.max_hops = max_hops
         self.max_routes = max_routes
+        if pivot_ranking not in PIVOT_RANKINGS:
+            raise ValueError(
+                f"unknown pivot_ranking {pivot_ranking!r}; "
+                f"use one of {', '.join(PIVOT_RANKINGS)}")
+        if pivot_ranking == "auto":
+            pivot_ranking = "phonological" if _distance.available() else "table"
+        elif pivot_ranking == "phonological" and not _distance.available():
+            raise ValueError(
+                "pivot_ranking='phonological' needs orthography2ipa; "
+                "install linguonnx[distance], or use pivot_ranking='auto'")
+        #: The ranking actually in force, never ``"auto"``.
+        self.pivot_ranking = pivot_ranking
 
         self._bilingual: Dict[Tuple[str, str], List[Capability]] = {}
         self._multilingual: List[Capability] = []
@@ -338,7 +377,30 @@ class TranslationGraph:
             add(lang)
         for lang in sorted(self._dedicated_endpoints):
             add(lang)
+        if self.pivot_ranking == "phonological":
+            ordered = self._rank_phonologically(src, tgt, ordered)
         return ordered
+
+    @staticmethod
+    def _rank_phonologically(src: str, tgt: str,
+                             ordered: List[str]) -> List[str]:
+        """Reorder an existing candidate list by ``src->pivot->tgt`` distance.
+
+        The candidate *set* is untouched - this only changes the order, so the
+        search stays exactly as bounded as it was. A pivot that
+        :mod:`orthography2ipa` does not know scores ``None``, which keeps its
+        table position among the other unknowns and sorts it after every
+        candidate that does have a distance. Unknown is not zero.
+        """
+        def key(item: Tuple[int, str]) -> tuple:
+            index, lang = item
+            first = _distance.pair_distance(src, lang)
+            second = _distance.pair_distance(lang, tgt)
+            if first is None or second is None:
+                return (1, float(index), index)
+            return (0, first + second, index)
+
+        return [lang for _, lang in sorted(enumerate(ordered), key=key)]
 
     # -- route enumeration ------------------------------------------------
 
@@ -365,7 +427,8 @@ class TranslationGraph:
 
         for cap in self.capabilities_for(src, tgt):
             routes.append(Route(src, tgt, (self._hop(cap, src, tgt),),
-                                prefer=prefer, max_hops=max_hops))
+                                prefer=prefer, max_hops=max_hops,
+                                pivot_basis=self.pivot_ranking))
 
         # Under fewest_hops a direct route can never be beaten by a longer one,
         # so enumerating pivots would be pure waste on the hot path.
@@ -393,7 +456,8 @@ class TranslationGraph:
                 hops = tuple(self._hop(cap, a, b)
                              for cap, a, b in zip(combo, nodes, nodes[1:]))
                 routes.append(Route(src, tgt, hops, prefer=prefer,
-                                    max_hops=max_hops, pivot_rank=pivot_rank))
+                                    max_hops=max_hops, pivot_rank=pivot_rank,
+                                    pivot_basis=self.pivot_ranking))
         return routes
 
     @staticmethod

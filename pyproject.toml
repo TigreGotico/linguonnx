@@ -27,6 +27,9 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
+# Linguistic distance for pivot-language ranking. Optional on purpose: without
+# it the routing graph uses its curated pivot table instead.
+distance = ["orthography2ipa"]
 test = ["pytest", "onnx"]
 
 [project.urls]
