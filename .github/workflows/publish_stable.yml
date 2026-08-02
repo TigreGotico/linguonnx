@@ -1,0 +1,22 @@
+name: Stable Release
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish_stable:
+    if: github.actor != 'github-actions[bot]'
+    uses: OpenVoiceOS/gh-automations/.github/workflows/publish-stable.yml@dev
+    secrets: inherit
+    with:
+      branch: 'master'
+      version_file: 'lingonnx/version.py'
+      publish_pypi: true
+      sync_dev: true
+      publish_release: true
+      notify_matrix: true
