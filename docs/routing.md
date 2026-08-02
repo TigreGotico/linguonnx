@@ -27,6 +27,51 @@ expanded only when a pair is resolved. Directionality is stored too, because
 treating a one-way model as any-to-any would let the router propose a hop that
 fails at runtime.
 
+## Coverage and runnability are separate
+
+A capability says what a model's weights know. It also says whether this
+library can **run** them, which is a different question: an entry can be a
+correct claim about languages and still have no inference pipeline here.
+IndicTrans2 needs the IndicProcessor preprocessing chain and ProxectoNos'
+OpenNMT exports need Moses plus subword-nmt BPE; neither is vendored, so
+`TranslationModel.translate` raises `NotImplementedError` for them.
+
+The routing layer agrees with that. A model the registry marks unrunnable is
+excluded from `route()`, `routes()`, `can_translate()` and
+`available_languages`, so a caller who asks "will this work" before committing
+gets the same answer `translate()` will give:
+
+```python
+from linguonnx import load_translator
+
+tx = load_translator()
+print(tx.can_translate("en", "sat"))    # False — no runnable model has Santali
+```
+
+The pair is still covered by an entry, and the error says so instead of
+implying the language is unknown:
+
+```
+no route from 'en' to 'sat' within 2 hop(s) -- model(s) cover this pair but
+cannot be run: indictrans2-en-indic-dist-200M-int8 (IndicTrans2 needs the
+IndicProcessor preprocessing pipeline ...)
+```
+
+Runnability is registry data, not a list of architecture names in the router.
+`scripts/sync_registry.py` writes `"runnable": false` and an
+`"unrunnable_reason"` onto the entries of an architecture it knows has no
+pipeline. When a pipeline lands, that flag stops being written and the models
+route again with no change to `graph.py`. A caller building capabilities by
+hand can state it directly with `Capability(runnable=False, ...)`; the default,
+`None`, means "ask the registry".
+
+One rule is applied on top of the flag, because it guards a failure with no
+error at all: a Marian model that serves several targets from one decoder picks
+its target with a `>>xxx<<` or `<2xx>` prefix token, and with no token it
+answers in whichever of them it likes. An entry like that with no
+`target_token` and no `target_token_template` is refused and logged rather than
+routed.
+
 ## Routes
 
 `tx.route(src, tgt)` returns a `Route`: an ordered list of `Hop`s, each naming
@@ -122,6 +167,11 @@ translation error compounds multiplicatively per hop while latency only adds
 up, so a third hop costs a lot and buys little. It is not forbidden, because
 the caller may know something the registry does not.
 
+`max_hops` must be at least 1, and the per-call override is held to the same
+rule as the constructor: `route(src, tgt, max_hops=0)` raises `ValueError`. A
+route with no hops translates nothing, so there is no reading of `0` worth
+guessing at.
+
 ## Choosing the path yourself
 
 The cost model is a default, not a verdict. There are three ways to overrule
@@ -142,11 +192,54 @@ tx.translate("olá", route=chosen)                                  # verbatim
 tx.translate("olá", model="m2m100-418M-int8", src="pt", tgt="ru")  # pinned
 ```
 
+A `Route` that came from `routes()` is already valid. One built by hand is not
+checked by construction, and the mistake it invites is the expensive one: a
+directional model accepts both tags of a backwards hop, because both are in its
+code map, and translates in the direction it was trained in while reporting the
+other. `TranslationGraph.validate_route` re-checks every hop against the
+capability that will execute it — direction, chain continuity, endpoints, and
+runnability — and raises `InvalidRouteError`:
+
+<!-- doc-check: skip constructs a deliberately invalid route -->
+```python
+from linguonnx.translate.graph import Hop, Route
+
+backwards = Route("hi", "en", (Hop("indictrans2-en-indic-dist-200M-int8",
+                                   "hi", "en", "indictrans2", "MIT",
+                                   "permissive", 480, False),))
+tx.graph.validate_route(backwards)      # InvalidRouteError
+```
+
 `routes()` is bounded on purpose. It returns the top 10 by default (`limit=`),
 and each leg of a multi-hop route contributes at most its best dedicated and
 its best multilingual candidate. It is a curated ranking, not the full product
 of every model combination. It returns `[]` for an unroutable pair rather than
 raising; use `route()` when you want the `NoRouteError`.
+
+## Language tags
+
+Nodes are BCP-47, and `normalize_tag` maps every shape onto one node name:
+`por_Latn`, `POR` and `pt` all resolve to `pt`. A tag carrying a region the
+models do not distinguish routes as its language, so `route("pt-BR", "en")`
+serves `pt`.
+
+Junk gets two different answers, because two callers with opposite needs share
+the function. Building the graph is lenient: an exotic registry code that no
+standard knows is lowercased, logged as a warning, and kept as a node, which
+leaves the model routable instead of failing construction over one entry.
+Caller input is strict: `route()`, `routes()` and `can_translate()` raise
+`MalformedTagError` for a tag that cannot be parsed.
+
+<!-- doc-check: norun one of the two lines is meant to raise -->
+```python
+tx.can_translate("en", "kea")   # False — well-formed, no runnable model
+tx.route("en", "!!!")           # MalformedTagError, not NoRouteError
+```
+
+The distinction is the point. `NoRouteError` tells the caller their language is
+not served, which is the wrong thing to go and fix when what actually arrived
+was an unvalidated query parameter. A node the lenient path minted stays
+addressable by the name it was given.
 
 ## Why routing stays fast
 

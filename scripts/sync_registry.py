@@ -221,6 +221,21 @@ SIDE_FILES: Dict[str, Dict[str, str]] = {
     },
 }
 
+#: Architectures whose inference pipeline this library does not implement yet,
+#: and why. The entries they produce carry ``"runnable": false``, which keeps
+#: them in the registry - listed, licensed, sized - while `can_translate`,
+#: `route` and `available_languages` all agree that nothing can run them.
+#: **Delete an architecture from this table when its pipeline lands**, re-run
+#: this script, and the models start routing again with no code change in
+#: `linguonnx/translate/graph.py`.
+UNRUNNABLE_ARCHS: Dict[str, str] = {
+    "indictrans2": ("IndicTrans2 needs the IndicProcessor preprocessing "
+                    "pipeline (sentence splitting, script normalisation), "
+                    "which linguonnx does not vendor yet"),
+    "opennmt-bpe": ("ProxectoNos' OpenNMT exports need Moses tokenisation "
+                    "plus subword-nmt BPE, which linguonnx does not vendor yet"),
+}
+
 REQUIRED_SIDE_FILES: Dict[str, Tuple[str, ...]] = {
     "marian": ("source_spm", "target_spm", "vocab", "config"),
     "m2m100": ("spm", "config", "special_tokens_map", "vocab"),
@@ -726,6 +741,9 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
         entry["license_tier"] = LICENSE_TIERS[license_id]
         entry["size_mb"] = max(1, round(size / 1e6))
         entry["precision"] = "int8" if prefix else "fp32"
+        if arch in UNRUNNABLE_ARCHS:
+            entry["runnable"] = False
+            entry["unrunnable_reason"] = UNRUNNABLE_ARCHS[arch]
         entries[entry["model_id"]] = entry
     return entries
 

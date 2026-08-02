@@ -13,6 +13,19 @@ some set of directions.
 :meth:`TranslationGraph.route` returns a :class:`Route`, an ordered list of
 :class:`Hop` objects. Nothing here loads a model or translates anything.
 
+Coverage and runnability
+------------------------
+
+A capability claims languages; it also says whether this library can *run* the
+model at all. Some registered architectures need a preprocessing pipeline that
+is not vendored, and ``translate()`` raises for them. Those capabilities are
+excluded from routing, so :meth:`TranslationGraph.can_translate`,
+:meth:`TranslationGraph.route` and :attr:`TranslationGraph.languages` answer
+for the same models ``translate()`` will use - a ``True`` followed by
+``NotImplementedError`` is worse than a ``False``, because the caller asked
+first. Which models those are is registry data, never a list of architecture
+names here: see :func:`entry_runnability`.
+
 Cost model
 ----------
 
@@ -62,15 +75,21 @@ way, and :attr:`Route.pivot_basis` says which ranking produced a route.
 from __future__ import annotations
 
 import itertools
+import logging
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Dict, FrozenSet, Iterable, List, Optional, Sequence, Tuple
 
 import langcodes
 
 from linguonnx.translate import distance as _distance
 
+LOG = logging.getLogger(__name__)
+
 __all__ = [
     "NoRouteError",
+    "MalformedTagError",
+    "InvalidRouteError",
     "Capability",
     "Hop",
     "Route",
@@ -80,11 +99,26 @@ __all__ = [
     "PIVOT_RANKINGS",
     "LICENSE_TIERS",
     "normalize_tag",
+    "entry_runnability",
 ]
 
 
 class NoRouteError(LookupError):
     """No chain of models within ``max_hops`` connects the two languages."""
+
+
+class MalformedTagError(ValueError):
+    """A caller passed something that is not a language tag at all.
+
+    Distinct from :class:`NoRouteError` on purpose. ``"kea"`` with no model to
+    serve it and ``"!!!"`` from an unvalidated HTTP query parameter are
+    different failures, and answering both with "no route" tells the caller
+    their language is unsupported when in fact their input was junk.
+    """
+
+
+class InvalidRouteError(ValueError):
+    """A caller-supplied :class:`Route` is not executable as written."""
 
 
 # Licence tiers, low number = fewer strings attached. A route is only as
@@ -138,27 +172,88 @@ MODEL_CODE_ALIASES: Dict[str, str] = {
 }
 
 
-def normalize_tag(tag: str) -> str:
+def normalize_tag(tag: str, strict: bool = False) -> str:
     """Normalise any language tag shape to the graph's BCP-47 node name.
 
-    Accepts FLORES/GlotLID ``por_Latn`` as readily as ``pt``, ``pt-BR`` or
-    ``POR``, and returns the same node name for all of them. Unparseable input
-    is returned lowercased rather than raising, so an exotic registry code
-    still gets *a* node instead of crashing the graph.
+    Accepts FLORES/GlotLID ``por_Latn`` as readily as ``pt`` or ``POR``, and
+    returns the same node name for all of them.
+
+    Two callers with opposite needs share this function, so unparseable input
+    has two answers:
+
+    ``strict=False`` (default), the *registry* path
+        Return the tag lowercased and log a warning. An exotic model code that
+        no standard knows still gets *a* node, which keeps the model routable
+        instead of crashing graph construction over one entry.
+    ``strict=True``, the *caller-input* path
+        Raise :class:`MalformedTagError`. A lowercased pseudo-node matches
+        nothing in the graph, so the lenient answer would reach the caller as
+        ``NoRouteError`` - "this language is unsupported" - when the truth is
+        "this was not a language tag".
     """
     from linguonnx.detect.labels import to_bcp47
 
     tag = tag.strip()
     if not tag:
-        raise ValueError("empty language tag")
+        raise MalformedTagError("empty language tag")
     tag = MODEL_CODE_ALIASES.get(tag, tag)
     try:
         if "_" in tag:
             return to_bcp47(tag)
         return to_bcp47(tag) if len(tag) <= 3 and tag.isalpha() else \
             langcodes.standardize_tag(tag)
-    except Exception:
+    except Exception as err:
+        if strict:
+            raise MalformedTagError(
+                f"{tag!r} is not a usable language tag: {err}") from err
+        LOG.warning("%r is not a parseable language tag; using %r as a graph "
+                    "node as-is", tag, tag.lower())
         return tag.lower()
+
+
+def entry_runnability(entry: Dict) -> Tuple[bool, Optional[str]]:
+    """``(runnable, reason)`` for one ``translate.json`` entry.
+
+    Runnability is **data**, not a list of architecture names kept in this
+    module. A model is runnable unless its registry entry says otherwise, so a
+    preprocessing pipeline that lands later removes the flag from the registry
+    and the model starts routing again with no change here.
+
+    One rule is enforced on top of the flag, because it guards a failure that
+    produces fluent output instead of an error: a Marian model that serves
+    several targets from one decoder selects the target with a prefix token,
+    and with no token it answers in whichever language it likes. Such an entry
+    is refused rather than trusted.
+    """
+    if entry.get("runnable") is False:
+        return False, entry.get("unrunnable_reason") or "the registry marks it unrunnable"
+    multi_target = entry["arch"] == "marian" and not entry.get("pair")
+    if multi_target and not (entry.get("target_token")
+                             or entry.get("target_token_template")):
+        LOG.warning(
+            "%s is a multi-target Marian model with no target_token and no "
+            "target_token_template; it cannot select a target language and "
+            "would translate into an arbitrary one. Excluded from routing.",
+            entry["model_id"])
+        return False, ("multi-target Marian model with no target token; it "
+                       "cannot select which language it translates into")
+    return True, None
+
+
+@lru_cache(maxsize=None)
+def _registry_runnability(model_id: str) -> Tuple[bool, Optional[str]]:
+    """Runnability of a model the caller did not state it for.
+
+    A :class:`Capability` built outside the registry (a test, a caller's own
+    model) is runnable: only the registry can say otherwise, and it says so on
+    the entry.
+    """
+    from linguonnx.model_manager import list_models
+
+    entry = list_models(kind="translate").get(model_id)
+    if entry is None:
+        return True, None
+    return entry_runnability(entry)
 
 
 @dataclass(frozen=True)
@@ -176,6 +271,14 @@ class Capability:
                   reverse, and ``indic-indic`` is symmetric (both sets equal).
                   Treating a one-directional model as any-to-any would let the
                   router propose an impossible hop that fails at runtime.
+
+    A capability also says whether it can be **run**, not only what it covers.
+    Coverage is what the weights know; runnability is whether this library can
+    drive them end to end. The two are separate because a model can be a
+    correct claim about languages and still have no inference pipeline here.
+    ``runnable=None``, the default, means "not stated" and is resolved from the
+    registry entry, so :meth:`TranslationGraph.route` and ``translate()`` agree
+    without every caller having to look the entry up.
     """
 
     model_id: str
@@ -187,6 +290,26 @@ class Capability:
     pair: Optional[Tuple[str, str]] = None
     src_languages: Optional[FrozenSet[str]] = None
     tgt_languages: Optional[FrozenSet[str]] = None
+    #: ``None`` = not stated, ask the registry. ``True``/``False`` = stated.
+    runnable: Optional[bool] = None
+    #: Why it cannot run, for the error the caller finally sees.
+    unrunnable_reason: Optional[str] = None
+
+    @property
+    def is_runnable(self) -> bool:
+        """Whether :meth:`TranslationModel.translate` can actually execute this."""
+        if self.runnable is not None:
+            return self.runnable
+        return _registry_runnability(self.model_id)[0]
+
+    @property
+    def unrunnable_because(self) -> Optional[str]:
+        """The reason :attr:`is_runnable` is false, or ``None`` when it is true."""
+        if self.is_runnable:
+            return None
+        if self.runnable is False:
+            return self.unrunnable_reason or "no reason recorded"
+        return _registry_runnability(self.model_id)[1] or "no reason recorded"
 
     @property
     def dedicated(self) -> bool:
@@ -209,17 +332,27 @@ class Capability:
         if src == tgt:
             return False
         if self.directional:
-            srcs = self.src_languages if self.src_languages is not None else self.languages
-            tgts = self.tgt_languages if self.tgt_languages is not None else self.languages
-            return src in srcs and tgt in tgts
+            return src in self._sources and tgt in self._targets
         return src in self.languages and tgt in self.languages
 
     def endpoints(self) -> FrozenSet[str]:
         if self.pair is not None:
             return frozenset(self.pair)
         if self.directional:
-            return (self.src_languages or frozenset()) | (self.tgt_languages or frozenset())
+            # The same fallback :meth:`covers` uses: a capability that declares
+            # one side only takes the other from ``languages``. Without the
+            # fallback here the graph would serve a hop into a language it does
+            # not list, and `available_languages` would disagree with `route`.
+            return self._sources | self._targets
         return self.languages
+
+    @property
+    def _sources(self) -> FrozenSet[str]:
+        return self.src_languages if self.src_languages is not None else self.languages
+
+    @property
+    def _targets(self) -> FrozenSet[str]:
+        return self.tgt_languages if self.tgt_languages is not None else self.languages
 
 
 @dataclass(frozen=True)
@@ -350,10 +483,22 @@ class TranslationGraph:
         #: The ranking actually in force, never ``"auto"``.
         self.pivot_ranking = pivot_ranking
 
+        # A capability that cannot be executed is kept for error messages and
+        # excluded from everything else. `can_translate` exists so a caller can
+        # ask "will this work" before committing, so it has to answer for the
+        # same thing `translate` will do, not for what the registry lists.
+        self._runnable: Tuple[Capability, ...] = tuple(
+            cap for cap in self.capabilities if cap.is_runnable)
+        #: Registered but not executable; named in :class:`NoRouteError`.
+        self.unrunnable_capabilities: Tuple[Capability, ...] = tuple(
+            cap for cap in self.capabilities if not cap.is_runnable)
+
         self._bilingual: Dict[Tuple[str, str], List[Capability]] = {}
         self._multilingual: List[Capability] = []
         self._dedicated_endpoints: set = set()
-        for cap in self.capabilities:
+        self._by_model: Dict[str, Capability] = {
+            cap.model_id: cap for cap in self.capabilities}
+        for cap in self._runnable:
             if cap.dedicated:
                 self._bilingual.setdefault(cap.pair, []).append(cap)
                 self._dedicated_endpoints.update(cap.pair)
@@ -361,14 +506,52 @@ class TranslationGraph:
                 self._multilingual.append(cap)
 
         self._languages = frozenset().union(
-            *(cap.endpoints() for cap in self.capabilities)) if self.capabilities else frozenset()
+            *(cap.endpoints() for cap in self._runnable)) if self._runnable else frozenset()
 
     # -- introspection ----------------------------------------------------
 
     @property
     def languages(self) -> FrozenSet[str]:
-        """Every language any registered model can read or write."""
+        """Every language a *runnable* model can read or write.
+
+        A language only an unrunnable model reaches is not listed, because a
+        caller reads this as "these are the languages I can ask for".
+        """
         return self._languages
+
+    @staticmethod
+    def _check_max_hops(max_hops: int) -> int:
+        """The constructor's invariant, enforced on the per-call override too.
+
+        ``max_hops=0`` used to run the direct-hop loop anyway and behave as
+        ``max_hops=1``, which contradicted the constructor rejecting it.
+        """
+        if max_hops < 1:
+            raise ValueError("max_hops must be at least 1")
+        return max_hops
+
+    def _node(self, tag: str) -> str:
+        """Caller-supplied tag -> graph node. Strict about junk; see :func:`normalize_tag`."""
+        try:
+            node = normalize_tag(tag, strict=True)
+        except MalformedTagError:
+            # The lenient registry path can mint a node no standard knows, and
+            # a node that exists must stay addressable by the name it has.
+            # Only a tag that is neither parseable nor a node is refused.
+            lowered = tag.strip().lower()
+            if lowered in self._languages:
+                return lowered
+            raise
+        if node in self._languages or "-" not in node:
+            return node
+        # `pt-BR` is well-formed and unsupported as written, but the graph is
+        # keyed on the language subtag, and refusing a region the models simply
+        # do not distinguish would be a worse answer than serving `pt`.
+        base = node.split("-")[0]
+        if base in self._languages:
+            LOG.debug("%r is not a graph node; routing it as %r", node, base)
+            return base
+        return node
 
     def capabilities_for(self, src: str, tgt: str) -> List[Capability]:
         """Every model that can do this exact pair in one hop, best first."""
@@ -520,9 +703,10 @@ class TranslationGraph:
         combination. Returns ``[]`` rather than raising - use :meth:`route`
         when you want ``NoRouteError``.
         """
-        src, tgt = normalize_tag(src), normalize_tag(tgt)
+        src, tgt = self._node(src), self._node(tgt)
         prefer = prefer or self.prefer
-        max_hops = self.max_hops if max_hops is None else max_hops
+        max_hops = self._check_max_hops(
+            self.max_hops if max_hops is None else max_hops)
         limit = self.max_routes if limit is None else limit
         if src == tgt:
             return []
@@ -544,9 +728,10 @@ class TranslationGraph:
               prefer: Optional[str] = None) -> Route:
         """The single best route, or raise :class:`NoRouteError`."""
         raw_src, raw_tgt = src, tgt
-        src, tgt = normalize_tag(src), normalize_tag(tgt)
+        src, tgt = self._node(src), self._node(tgt)
         prefer = prefer or self.prefer
-        max_hops = self.max_hops if max_hops is None else max_hops
+        max_hops = self._check_max_hops(
+            self.max_hops if max_hops is None else max_hops)
         if src == tgt:
             raise NoRouteError(
                 f"source and target are the same language ({src!r}); nothing to translate")
@@ -556,6 +741,7 @@ class TranslationGraph:
             if max_hops == 1:
                 hint = " (max_hops=1: only direct models were considered)"
             hint += self._excluded_licence_hint(src, tgt)
+            hint += self._unrunnable_hint(src, tgt)
             raise NoRouteError(
                 f"no route from {raw_src!r} to {raw_tgt!r} within {max_hops} hop(s){hint}")
         return min(found, key=lambda r: _route_key(r, prefer))
@@ -581,9 +767,74 @@ class TranslationGraph:
         return (f" -- excluded non-commercial model(s) cover this pair: "
                 f"{', '.join(covering)}; pass include_noncommercial=True to use them")
 
+    def _unrunnable_hint(self, src: str, tgt: str) -> str:
+        """Say when the pair is covered, but only by a model nothing can run.
+
+        Without this the caller reads "no route" as "this language pair is not
+        in the registry", which is the wrong thing to go and fix.
+        """
+        covering = sorted({cap.model_id for cap in self.unrunnable_capabilities
+                           if cap.covers(src, tgt)})
+        if not covering:
+            return ""
+        reasons = sorted({cap.unrunnable_because
+                          for cap in self.unrunnable_capabilities
+                          if cap.covers(src, tgt)})
+        return (f" -- model(s) cover this pair but cannot be run: "
+                f"{', '.join(covering)} ({'; '.join(reasons)})")
+
     def can_translate(self, src: str, tgt: str, max_hops: Optional[int] = None) -> bool:
+        """Whether :meth:`route` would succeed *and* the route would execute.
+
+        Answers for the same models ``translate()`` will use: a pair served
+        only by a model this library cannot run is ``False``, not ``True``
+        followed by ``NotImplementedError`` two calls later.
+        """
         try:
             self.route(src, tgt, max_hops=max_hops)
             return True
         except NoRouteError:
             return False
+
+    # -- validation of a caller-supplied route ----------------------------
+
+    def validate_route(self, route: Route) -> Route:
+        """Check a :class:`Route` built outside the graph before it is executed.
+
+        ``translate(route=...)`` is the escape hatch for a caller who disagrees
+        with the cost model, and it runs the hops verbatim. Nothing in a
+        hand-built :class:`Hop` is checked by construction, and the failure it
+        invites is the one this whole module exists to prevent: a directional
+        model - IndicTrans2 ``en-indic``, the one-way ``nos-coda`` pairs,
+        liv4ever - accepts both tags of a backwards hop, because both are in
+        its code map, and translates in the direction it was trained in while
+        the caller is told it got the other one.
+
+        Raises :class:`InvalidRouteError`; returns the route so it can be used
+        inline.
+        """
+        if not route.hops:
+            raise InvalidRouteError("route has no hops")
+        for hop in route.hops:
+            cap = self._by_model.get(hop.model_id)
+            if cap is None:
+                raise InvalidRouteError(
+                    f"{hop.model_id!r} is not a model in this graph")
+            if not cap.is_runnable:
+                raise InvalidRouteError(
+                    f"{hop.model_id} cannot be run: {cap.unrunnable_because}")
+            if not cap.covers(hop.src, hop.tgt):
+                raise InvalidRouteError(
+                    f"{hop.model_id} does not translate "
+                    f"{hop.src!r} -> {hop.tgt!r}; running it anyway would "
+                    f"produce fluent text in the wrong language")
+        for first, second in zip(route.hops, route.hops[1:]):
+            if first.tgt != second.src:
+                raise InvalidRouteError(
+                    f"hop {first} ends in {first.tgt!r} but the next hop "
+                    f"starts from {second.src!r}")
+        if route.hops[0].src != route.src or route.hops[-1].tgt != route.tgt:
+            raise InvalidRouteError(
+                f"route says {route.src!r} -> {route.tgt!r} but its hops go "
+                f"{route.hops[0].src!r} -> {route.hops[-1].tgt!r}")
+        return route
