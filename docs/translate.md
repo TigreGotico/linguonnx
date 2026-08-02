@@ -165,3 +165,47 @@ See [licences.md](licences.md) for why that model is out of the default graph.
 Asking to translate a language into itself also raises, rather than returning
 the input unchanged, because a caller who does that usually has a bug upstream
 in their language detection.
+
+## Input limits and generation bounds
+
+The source text is bounded before it reaches the encoder. Self-attention is
+quadratic in the source length, and beam search then re-gathers the whole
+cross-attention cache once per generated token — around 0.4 MB per source
+token for M2M100-418M at 4 beams, so a 1,000-token input moves over a gigabyte
+per token produced. Past the model's positional table the output is not a
+translation anyway.
+
+| limit | default | environment variable |
+|---|---|---|
+| encoder input tokens | 1,024 | `LINGUONNX_MAX_ENCODER_TOKENS` |
+| `num_beams` | 32 | `LINGUONNX_MAX_NUM_BEAMS` |
+
+1,024 is the largest positional table among the registered architectures
+(M2M100); Marian stops at 512. Crossing the bound raises
+`linguonnx.limits.InputTooLongError` — split long text into sentences or
+paragraphs and translate them one at a time.
+
+`GenerationConfig` validates its values on construction, which is the boundary
+`Translator(...)` and `load_translator(...)` pass through:
+
+- `num_beams` — positive int, at most 32. Beams past the number of finite
+  candidates are padded with PAD tokens and add nothing, but each is still a
+  full row of the attention cache, re-gathered every step.
+- `max_new_tokens` — positive int.
+- `length_penalty` — between `0.0` and `10.0`. Beam scores are log
+  probabilities, so they are negative and divided by
+  `length ** length_penalty`; a negative exponent rewards longer sequences and
+  can rank a PAD-padded beam first.
+- `no_repeat_ngram_size` — `0` (off) or `2` and above. **`1` is rejected**: in
+  this loop the n-gram prefix is empty, so every token ever emitted would be
+  banned from recurring and the output collapses, while in `transformers` the
+  same setting silently does nothing because its lookup key is the whole
+  sequence. Neither reading is useful, so it raises.
+
+### Decode failure is not empty output
+
+`translate()` returns `""` for empty input. Generation therefore never returns
+an empty sequence to mean failure: if beam search finishes no hypothesis and
+every beam collapses, or greedy decoding ends before emitting a token, the
+decoder raises `linguonnx.limits.DecodeError`. A caller can tell "nothing to
+translate" from "this model could not produce anything for that input".
