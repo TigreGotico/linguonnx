@@ -21,16 +21,28 @@ from huggingface_hub import hf_hub_download
 
 CACHE_ROOT = Path.home() / ".cache" / "linguonnx"
 MODELS_DIR = CACHE_ROOT / "models"
-REGISTRY_PATH = Path(__file__).parent / "model_index" / "lid.json"
+INDEX_DIR = Path(__file__).parent / "model_index"
+REGISTRY_PATH = INDEX_DIR / "lid.json"
+
+#: One registry file per task. ``kind`` selects which one.
+REGISTRY_PATHS = {
+    "lid": REGISTRY_PATH,
+    "translate": INDEX_DIR / "translate.json",
+}
 
 
-def _load_registry() -> Dict[str, Any]:
-    with open(REGISTRY_PATH, encoding="utf-8") as fh:
+def _load_registry(kind: str = "lid") -> Dict[str, Any]:
+    try:
+        path = REGISTRY_PATHS[kind]
+    except KeyError:
+        raise ValueError(f"unknown registry {kind!r}; "
+                         f"available: {', '.join(sorted(REGISTRY_PATHS))}") from None
+    with open(path, encoding="utf-8") as fh:
         return json.load(fh)
 
 
-def registry_entry(model_id: str) -> Dict[str, Any]:
-    registry = _load_registry()
+def registry_entry(model_id: str, kind: str = "lid") -> Dict[str, Any]:
+    registry = _load_registry(kind)
     if model_id not in registry:
         available = ", ".join(sorted(registry))
         raise ValueError(f"unknown model_id {model_id!r}; available: {available}")
@@ -45,7 +57,10 @@ def _fetch_one(repo_id: str, filename: str, dest_dir: Path) -> Path:
     dest = dest_dir / filename
     if not _is_missing_or_empty(dest):
         return dest
-    dest_dir.mkdir(parents=True, exist_ok=True)
+    # A registry filename may carry a repo subfolder ("int8/encoder_model.onnx").
+    # The layout is kept as-is in the cache, because ONNX external-data files
+    # (`*.onnx_data`) are found by relative path next to their `.onnx`.
+    dest.parent.mkdir(parents=True, exist_ok=True)
     downloaded = hf_hub_download(repo_id=repo_id, filename=filename)
     tmp = dest.with_suffix(dest.suffix + ".part")
     shutil.copyfile(downloaded, tmp)
@@ -53,18 +68,25 @@ def _fetch_one(repo_id: str, filename: str, dest_dir: Path) -> Path:
     return dest
 
 
-def ensure_model_files(model_id: str) -> Dict[str, Path]:
+def ensure_model_files(model_id: str, kind: str = "lid") -> Dict[str, Path]:
     """Download (if needed) every file a model needs; return name -> local path."""
-    entry = registry_entry(model_id)
+    entry = registry_entry(model_id, kind)
     repo_id = entry["hf_repo"]
     dest_dir = MODELS_DIR / model_id
 
     paths: Dict[str, Path] = {}
-    paths["onnx_file"] = _fetch_one(repo_id, entry["onnx_file"], dest_dir)
+    if "onnx_file" in entry:
+        paths["onnx_file"] = _fetch_one(repo_id, entry["onnx_file"], dest_dir)
+    for key, filename in entry.get("graphs", {}).items():
+        paths[key] = _fetch_one(repo_id, filename, dest_dir)
     for key, filename in entry.get("side_files", {}).items():
         paths[key] = _fetch_one(repo_id, filename, dest_dir)
+    # External weight blobs are not opened by name; they only have to sit next
+    # to their graph, so they are fetched but not returned under a key.
+    for filename in entry.get("extra_files", ()):
+        _fetch_one(repo_id, filename, dest_dir)
     return paths
 
 
-def list_models() -> Dict[str, Any]:
-    return _load_registry()
+def list_models(kind: str = "lid") -> Dict[str, Any]:
+    return _load_registry(kind)
