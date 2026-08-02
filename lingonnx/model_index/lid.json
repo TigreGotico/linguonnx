@@ -1,0 +1,32 @@
+{
+  "glotlid": {
+    "model_id": "glotlid",
+    "hf_repo": "TigreGotico/glotlid-onnx",
+    "onnx_file": "glotlid.onnx",
+    "side_files": {
+      "vocab": "vocab.txt",
+      "labels": "labels.json",
+      "config": "config.json"
+    },
+    "license": "Apache-2.0",
+    "engine": "fasttext-onnx",
+    "num_labels": 2102,
+    "size_mb": 1680,
+    "precision": "fp32"
+  },
+  "glotlid-int8": {
+    "model_id": "glotlid-int8",
+    "hf_repo": "TigreGotico/glotlid-onnx",
+    "onnx_file": "glotlid.int8.onnx",
+    "side_files": {
+      "vocab": "vocab.txt",
+      "labels": "labels.json",
+      "config": "config.json"
+    },
+    "license": "Apache-2.0",
+    "engine": "fasttext-onnx",
+    "num_labels": 2102,
+    "size_mb": 419,
+    "precision": "int8"
+  }
+}
