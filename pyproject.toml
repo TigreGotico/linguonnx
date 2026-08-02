@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "linguonnx"
 dynamic = ["version"]
-description = "CPU-first language technology models on ONNX Runtime (language identification, with translation planned)"
+description = "CPU-first language technology models on ONNX Runtime: language identification and machine translation, with no torch at runtime"
 readme = "README.md"
 license = { text = "Apache-2.0" }
 authors = [
@@ -17,6 +17,7 @@ dependencies = [
     "numpy",
     "huggingface_hub",
     "langcodes",
+    "sentencepiece",
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -26,7 +27,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ["pytest", "onnx"]
 
 [project.urls]
 Homepage = "https://github.com/TigreGotico/linguonnx"
