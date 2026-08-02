@@ -1,123 +1,143 @@
-"""GlotLID label <-> BCP-47 mapping.
+"""fastText LID label <-> BCP-47 mapping.
 
-GlotLID labels look like ``eng_Latn`` or ``__label__eng_Latn`` (fastText's
-native prefix) - an ISO 639-3 code, an underscore, an ISO 15924 script code.
-We convert those to BCP-47 tags:
+The models lingonnx ships use two label shapes:
 
-- ISO 639-3 -> ISO 639-1 when a two-letter code exists (eng -> en).
-- The script subtag is kept when it disambiguates something real-world
-  speakers actually care about (Chinese Han script, Serbian Cyrillic-vs-Latin)
-  and dropped when it is just the unsurprising default for that language
-  (eng_Latn -> en, not en-Latn; ast_Latn -> ast, not ast-Latn).
-- Languages with no ISO 639-1 code keep their ISO 639-3 code as the primary
-  subtag (ast_Latn -> ast).
+- ``eng_Latn`` / ``__label__eng_Latn`` - an ISO 639-3 code, an underscore, an
+  ISO 15924 script code. GlotLID, OpenLID and OpenLID-v2 use this shape.
+- ``en`` / ``__label__pt`` - a bare ISO 639-1 or 639-3 code with no script.
+  fastText's classic ``lid.176`` uses this shape.
 
-Determining "the unsurprising default script" is delegated to `langcodes`
-(CLDR likely-subtags data via ``Language.maximize()``), which is precise for
-the vast majority of the 2102 GlotLID labels. It is a language, not a script,
-that decides whether a script is meaningful, though: langcodes' likely-subtag
-data says Cyrl is Serbian's *statistically* most common script, and Hans is
-Mandarin's - but both languages are routinely written in a second script that
-readers need distinguished, so we never drop the script for them regardless
-of what the likelihood tables say.
+Both are converted to BCP-47 tags by :func:`to_bcp47`.
+
+The conversion is `langcodes.standardize_tag` doing the work: it maps ISO
+639-3 to ISO 639-1 where a two-letter code exists (``eng`` -> ``en``), repairs
+deprecated codes (``iw`` -> ``he``, ``in`` -> ``id``), applies canonical
+replacements (``tgl`` -> ``fil``), normalises case and region form
+(``pt-br`` -> ``pt-BR``), and drops a script subtag that CLDR's likely-subtags
+data says is redundant (``eng-Latn`` -> ``en``) while keeping one that is not
+(``zho-Hans`` -> ``zh-Hans``, ``srp-Cyrl`` -> ``sr-Cyrl``).
+
+Two things `standardize_tag` does not do, which this module owns:
+
+1. **Redundant scripts CLDR has no data to drop.** ``standardize_tag`` only
+   drops a script subtag when CLDR's likely-subtags table covers that
+   language, and that table covers a minority of GlotLID's 2102 labels. It
+   returns ``ast-Latn``, ``yo-Latn``, ``ig-Latn`` and ``sn-Latn`` - correct
+   but noisy, since none of those languages is written in a second script
+   that anyone needs distinguished. So we drop the script when
+   ``Language.maximize()`` guesses the same script anyway, which for a
+   language CLDR knows nothing about is a plain "Latn unless told
+   otherwise". ``_ALWAYS_KEEP_SCRIPT`` holds the languages this must not
+   happen to: it is a *language*, not a script, that decides whether a
+   script subtag is informative, and CLDR likelihood tables call Cyrl
+   Serbian's most likely script and Hans Mandarin's even though readers of
+   both need the two scripts kept apart.
+2. **Macrolanguage varieties.** ``standardize_tag`` passes ``arb``, ``ars``,
+   ``cmn``, ``yue``, ``pes``, ``swh`` and friends through unchanged. See
+   ``_MACRO_OVERRIDES`` (always applied - GlotLID never emits a bare ``ara``)
+   and :func:`collapse_variety` (opt-in) below.
 """
 
 from __future__ import annotations
 
-from typing import Dict, Optional
+import logging
+from typing import Dict, Optional, Tuple
 
-try:
-    import langcodes
-    _HAS_LANGCODES = True
-except ImportError:  # pragma: no cover - langcodes is a hard dependency
-    _HAS_LANGCODES = False
+import langcodes
+
+LOG = logging.getLogger(__name__)
 
 LABEL_PREFIX = "__label__"
 
-# ISO 639-3 codes that have a 2-letter ISO 639-1 equivalent but langcodes
-# does not resolve automatically, because they name an *individual* language
-# under a macrolanguage rather than the macrolanguage itself (e.g. GlotLID's
-# "arb" = Standard Arabic, a specific variety of the "ar" macrolanguage; GlotLID
-# never emits a bare "ara" label). Mapping these to the macrolanguage's
-# 2-letter code is what every downstream consumer (translators, TTS voice
-# pickers, etc.) actually expects.
+# ISO 639-3 codes that name an *individual* language under a macrolanguage
+# whose two-letter code is what every downstream consumer (translators, TTS
+# voice pickers, ...) actually expects. GlotLID/OpenLID label Standard Arabic
+# as "arb" and never emit a bare "ara", so "arb_Arab" must resolve to "ar".
 _MACRO_OVERRIDES: Dict[str, str] = {
     "arb": "ar",   # Standard Arabic -> Arabic macrolanguage
     "cmn": "zh",   # Mandarin -> Chinese macrolanguage
     "zho": "zh",   # Chinese (langcodes already does this, kept explicit)
 }
 
-# Languages where GlotLID's script subtag encodes information real users
-# care about, even though CLDR likely-subtag data would call it "the
-# default" and we'd otherwise drop it. Keyed by the *resolved* BCP-47 base
-# tag (post 639-3 -> 639-1 mapping).
+# Languages routinely written in more than one script, where the script
+# subtag carries information even though CLDR's likely-subtag data would call
+# it "the default" and we would otherwise drop it. Keyed by the *resolved*
+# BCP-47 base tag.
 _ALWAYS_KEEP_SCRIPT = {"zh", "sr"}
 
-
-def _base_tag(iso3: str) -> str:
-    """ISO 639-3 -> best BCP-47 primary-language subtag."""
-    if iso3 in _MACRO_OVERRIDES:
-        return _MACRO_OVERRIDES[iso3]
-    if _HAS_LANGCODES:
-        try:
-            lang = langcodes.Language.get(iso3)
-            resolved = lang.language or iso3
-            # langcodes accepts unknown-but-well-formed codes without error;
-            # guard against it silently echoing back nonsense subtags.
-            if lang.is_valid():
-                return resolved
-        except Exception:
-            pass
-    return iso3
+_WARNED_UNKNOWN: set = set()
 
 
-def _default_script(base: str) -> Optional[str]:
-    """The script langcodes' CLDR data considers unsurprising for `base`."""
-    if not _HAS_LANGCODES:
-        return None
-    try:
-        return langcodes.Language.get(base).maximize().script
-    except Exception:
-        return None
+def split_label(label: str) -> Tuple[str, Optional[str]]:
+    """Split a raw fastText LID label into (code, script or None).
 
-
-def parse_label(label: str) -> tuple[str, str]:
-    """Split a raw GlotLID label into (iso3, iso15924_script).
-
-    Accepts both ``eng_Latn`` and fastText-prefixed ``__label__eng_Latn``.
-    Raises ValueError for anything that doesn't match the ``xxx_Yyyy`` shape.
+    Accepts ``eng_Latn``, ``__label__eng_Latn``, ``pt`` and ``__label__pt``.
+    Raises ValueError for anything that is neither shape.
     """
     raw = label[len(LABEL_PREFIX):] if label.startswith(LABEL_PREFIX) else label
     if "_" not in raw:
-        raise ValueError(f"not a GlotLID label: {label!r}")
-    iso3, script = raw.rsplit("_", 1)
-    if not iso3 or not script:
-        raise ValueError(f"not a GlotLID label: {label!r}")
-    return iso3, script
+        # bare lid.176-style code: 2 or 3 letters, nothing else
+        if raw.isalpha() and 2 <= len(raw) <= 3:
+            return raw, None
+        raise ValueError(f"not a fastText LID label: {label!r}")
+    code, script = raw.rsplit("_", 1)
+    if not code or not script:
+        raise ValueError(f"not a fastText LID label: {label!r}")
+    return code, script
 
 
-def to_bcp47(glotlid_label: str) -> str:
-    """``eng_Latn`` -> ``en``, ``zho_Hans`` -> ``zh-Hans``, ``ast_Latn`` -> ``ast``."""
-    iso3, script = parse_label(glotlid_label)
-    base = _base_tag(iso3)
-    default_script = _default_script(base)
-    if base in _ALWAYS_KEEP_SCRIPT or script != default_script:
-        return f"{base}-{script}"
-    return base
+def parse_label(label: str) -> Tuple[str, str]:
+    """Split a ``xxx_Yyyy`` label into (iso3, iso15924_script).
+
+    Raises ValueError for a label with no script subtag; use
+    :func:`split_label` when either shape is acceptable.
+    """
+    code, script = split_label(label)
+    if script is None:
+        raise ValueError(f"not a language_Script label: {label!r}")
+    return code, script
 
 
-def build_label_maps(glotlid_labels: list[str]) -> tuple[Dict[str, str], Dict[str, str]]:
-    """Build the (glotlid_label -> bcp47) and (bcp47 -> glotlid_label) maps.
+def _drop_redundant_script(tag: str) -> str:
+    """Drop a script subtag that ``standardize_tag`` kept for lack of data."""
+    base, _, script = tag.partition("-")
+    if not script or base in _ALWAYS_KEEP_SCRIPT:
+        return tag
+    try:
+        if langcodes.Language.get(base).maximize().script == script:
+            return base
+    except Exception:
+        pass
+    return tag
 
-    Labels are processed in file order, so when two GlotLID labels collapse
-    to the same BCP-47 tag (shouldn't normally happen once scripts are kept
-    where they matter) the *first* one in the label list wins the reverse
+
+def to_bcp47(label: str) -> str:
+    """``eng_Latn`` -> ``en``, ``zho_Hans`` -> ``zh-Hans``, ``pt`` -> ``pt``."""
+    iso3, script = split_label(label)
+    code = _MACRO_OVERRIDES.get(iso3, iso3)
+    tag = f"{code}-{script}" if script else code
+    try:
+        if not langcodes.Language.get(tag).is_valid() and tag not in _WARNED_UNKNOWN:
+            _WARNED_UNKNOWN.add(tag)
+            LOG.warning("label %r is not a valid language tag; "
+                        "emitting it as-is", label)
+        standardized = langcodes.standardize_tag(tag)
+    except Exception:
+        return tag
+    return _drop_redundant_script(standardized)
+
+
+def build_label_maps(labels: list[str]) -> Tuple[Dict[str, str], Dict[str, str]]:
+    """Build the (raw label -> bcp47) and (bcp47 -> raw label) maps.
+
+    Labels are processed in file order, so when two labels collapse to the
+    same BCP-47 tag the *first* one in the label list wins the reverse
     mapping - deterministic, and matches "first/primary sense wins" used
     elsewhere in these BCP-47 conversions.
     """
     forward: Dict[str, str] = {}
     reverse: Dict[str, str] = {}
-    for label in glotlid_labels:
+    for label in labels:
         raw = label[len(LABEL_PREFIX):] if label.startswith(LABEL_PREFIX) else label
         bcp47 = to_bcp47(label)
         forward[raw] = bcp47
@@ -126,25 +146,25 @@ def build_label_maps(glotlid_labels: list[str]) -> tuple[Dict[str, str], Dict[st
 
 
 class LabelMapper:
-    """Bidirectional GlotLID-label <-> BCP-47 lookup built from `labels.json`."""
+    """Bidirectional LID-label <-> BCP-47 lookup built from `labels.json`."""
 
-    def __init__(self, glotlid_labels: list[str]):
-        self._forward, self._reverse = build_label_maps(glotlid_labels)
+    def __init__(self, labels: list[str]):
+        self._forward, self._reverse = build_label_maps(labels)
 
     @property
     def available_languages(self) -> set:
         return set(self._reverse.keys())
 
-    def to_bcp47(self, glotlid_label: str) -> str:
-        raw = (glotlid_label[len(LABEL_PREFIX):]
-               if glotlid_label.startswith(LABEL_PREFIX) else glotlid_label)
+    def to_bcp47(self, label: str) -> str:
+        raw = (label[len(LABEL_PREFIX):]
+               if label.startswith(LABEL_PREFIX) else label)
         if raw not in self._forward:
-            raise KeyError(f"unknown GlotLID label: {glotlid_label!r}")
+            raise KeyError(f"unknown label: {label!r}")
         return self._forward[raw]
 
     def to_glotlid(self, bcp47_tag: str) -> str:
         if bcp47_tag not in self._reverse:
-            raise KeyError(f"no GlotLID label maps to BCP-47 tag: {bcp47_tag!r}")
+            raise KeyError(f"no label maps to BCP-47 tag: {bcp47_tag!r}")
         return self._reverse[bcp47_tag]
 
 
@@ -176,10 +196,16 @@ VARIETY_TO_MACRO: Dict[str, str] = {
     "uzn": "uz", "uzs": "uz",           # Northern / Southern Uzbek
     "khk": "mn",                        # Halh Mongolian
     "zsm": "ms", "lvs": "lv", "ydd": "yi", "swh": "sw",
-    "nob": "no", "nno": "no",           # Bokmal / Nynorsk
+    "nob": "no", "nno": "no",           # Bokmal / Nynorsk (ISO 639-3 form)
+    "nb": "no", "nn": "no",             # ... and their standardized BCP-47 form
     "plt": "mg", "gaz": "om", "npi": "ne", "pbt": "ps", "als": "sq",
     "ekk": "et", "knc": "kr", "kmr": "ku", "ckb": "ku",
 }
+
+# Languages routinely written in more than one script, where the script
+# subtag still disambiguates something readers care about after a variety has
+# been collapsed onto its macrolanguage (yue-Hani -> zh-Hani, not zh).
+_MULTISCRIPT_MACROS = {"zh", "sr"}
 
 
 def collapse_variety(tag: str) -> str:
@@ -196,6 +222,6 @@ def collapse_variety(tag: str) -> str:
     if not macro:
         return tag
     # a script subtag is only worth keeping if it still disambiguates
-    if rest and macro in _ALWAYS_KEEP_SCRIPT:
+    if rest and macro in _MULTISCRIPT_MACROS:
         return f"{macro}-{rest}"
     return macro

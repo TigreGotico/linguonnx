@@ -6,17 +6,50 @@ import pytest
 from lingonnx import model_manager
 
 
-def test_registry_has_expected_models():
-    registry = model_manager.list_models()
-    assert "glotlid" in registry
-    assert "glotlid-int8" in registry
-    for model_id, entry in registry.items():
-        assert entry["model_id"] == model_id
-        assert entry["hf_repo"] == "TigreGotico/glotlid-onnx"
-        assert entry["license"] == "Apache-2.0"
-        assert entry["engine"] == "fasttext-onnx"
-        assert entry["num_labels"] == 2102
-        assert entry["onnx_file"].endswith(".onnx")
+EXPECTED = {
+    # model_id: (hf_repo, license, loss, num_labels, precision)
+    "glotlid": ("TigreGotico/glotlid-onnx", "Apache-2.0", "softmax", 2102, "fp32"),
+    "glotlid-int8": ("TigreGotico/glotlid-onnx", "Apache-2.0", "softmax", 2102, "int8"),
+    "lid176": ("TigreGotico/lid176-onnx", "CC-BY-SA-3.0", "hs", 176, "fp32"),
+    "lid176-int8": ("TigreGotico/lid176-onnx", "CC-BY-SA-3.0", "hs", 176, "int8"),
+    "openlid": ("TigreGotico/openlid-onnx", "GPL-3.0", "softmax", 201, "fp32"),
+    "openlid-int8": ("TigreGotico/openlid-onnx", "GPL-3.0", "softmax", 201, "int8"),
+    "openlid-v2": ("TigreGotico/openlid-v2-onnx", "GPL-3.0", "softmax", 200, "fp32"),
+    "openlid-v2-int8": ("TigreGotico/openlid-v2-onnx", "GPL-3.0", "softmax", 200, "int8"),
+}
+
+
+def test_registry_has_exactly_the_expected_models():
+    assert set(model_manager.list_models()) == set(EXPECTED)
+
+
+@pytest.mark.parametrize("model_id", sorted(EXPECTED))
+def test_registry_entry_fields(model_id):
+    entry = model_manager.list_models()[model_id]
+    repo, lic, loss, num_labels, precision = EXPECTED[model_id]
+    assert entry["model_id"] == model_id
+    assert entry["hf_repo"] == repo
+    assert entry["license"] == lic
+    assert entry["loss"] == loss
+    assert entry["num_labels"] == num_labels
+    assert entry["precision"] == precision
+    assert entry["engine"] == "fasttext-onnx"
+    assert entry["onnx_file"].endswith(".onnx")
+    assert entry["size_mb"] > 0
+
+
+def test_default_model_is_the_permissively_licensed_one():
+    """GPL/CC-BY-SA models must never be what a caller gets without asking."""
+    from lingonnx.detect import DEFAULT_MODEL_ID
+
+    assert DEFAULT_MODEL_ID == "glotlid-int8"
+    assert model_manager.registry_entry(DEFAULT_MODEL_ID)["license"] == "Apache-2.0"
+
+
+def test_only_hs_models_declare_an_hs_tree_side_file():
+    for model_id, entry in model_manager.list_models().items():
+        has_tree = "hs_tree" in entry["side_files"]
+        assert has_tree == (entry["loss"] == "hs"), model_id
 
 
 def test_registry_entry_unknown_model_raises():

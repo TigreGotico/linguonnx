@@ -69,7 +69,12 @@ def compute_subwords(word: str, minn: int, maxn: int, bucket: int,
 
 
 class GlotLIDFeaturizer:
-    """Maps raw text to the fastText feature ids the ONNX graph expects."""
+    """Maps raw text to the fastText feature ids the ONNX graph expects.
+
+    Shared by every model in the registry - GlotLID, OpenLID, OpenLID-v2 and
+    lid.176 all use the same fastText hashing, differing only in the
+    ``nwords``/``minn``/``maxn``/``bucket`` values read from their config.
+    """
 
     def __init__(self, words: Sequence[str], nwords: int, minn: int = 2,
                  maxn: int = 5, bucket: int = 1_000_000):
@@ -129,3 +134,8 @@ class GlotLIDFeaturizer:
         for token in tokenize(text):
             self.add_subwords(line, token)
         return np.asarray(line, dtype=np.int64)
+
+
+# The hashing is fastText's, not GlotLID's; the original name is kept as the
+# public one for backward compatibility.
+FastTextFeaturizer = GlotLIDFeaturizer

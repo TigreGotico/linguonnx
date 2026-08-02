@@ -10,6 +10,7 @@
     },
     "license": "Apache-2.0",
     "engine": "fasttext-onnx",
+    "loss": "softmax",
     "num_labels": 2102,
     "size_mb": 1680,
     "precision": "fp32"
@@ -25,8 +26,107 @@
     },
     "license": "Apache-2.0",
     "engine": "fasttext-onnx",
+    "loss": "softmax",
     "num_labels": 2102,
     "size_mb": 419,
+    "precision": "int8"
+  },
+  "lid176": {
+    "model_id": "lid176",
+    "hf_repo": "TigreGotico/lid176-onnx",
+    "onnx_file": "lid176.onnx",
+    "side_files": {
+      "vocab": "vocab.txt",
+      "labels": "labels.json",
+      "config": "config.json",
+      "hs_tree": "hs_tree.json"
+    },
+    "license": "CC-BY-SA-3.0",
+    "engine": "fasttext-onnx",
+    "loss": "hs",
+    "num_labels": 176,
+    "size_mb": 125,
+    "precision": "fp32"
+  },
+  "lid176-int8": {
+    "model_id": "lid176-int8",
+    "hf_repo": "TigreGotico/lid176-onnx",
+    "onnx_file": "lid176.int8.onnx",
+    "side_files": {
+      "vocab": "vocab.txt",
+      "labels": "labels.json",
+      "config": "config.json",
+      "hs_tree": "hs_tree.json"
+    },
+    "license": "CC-BY-SA-3.0",
+    "engine": "fasttext-onnx",
+    "loss": "hs",
+    "num_labels": 176,
+    "size_mb": 31,
+    "precision": "int8"
+  },
+  "openlid": {
+    "model_id": "openlid",
+    "hf_repo": "TigreGotico/openlid-onnx",
+    "onnx_file": "openlid.onnx",
+    "side_files": {
+      "vocab": "vocab.txt",
+      "labels": "labels.json",
+      "config": "config.json"
+    },
+    "license": "GPL-3.0",
+    "engine": "fasttext-onnx",
+    "loss": "softmax",
+    "num_labels": 201,
+    "size_mb": 1177,
+    "precision": "fp32"
+  },
+  "openlid-int8": {
+    "model_id": "openlid-int8",
+    "hf_repo": "TigreGotico/openlid-onnx",
+    "onnx_file": "openlid.int8.onnx",
+    "side_files": {
+      "vocab": "vocab.txt",
+      "labels": "labels.json",
+      "config": "config.json"
+    },
+    "license": "GPL-3.0",
+    "engine": "fasttext-onnx",
+    "loss": "softmax",
+    "num_labels": 201,
+    "size_mb": 293,
+    "precision": "int8"
+  },
+  "openlid-v2": {
+    "model_id": "openlid-v2",
+    "hf_repo": "TigreGotico/openlid-v2-onnx",
+    "onnx_file": "openlid-v2.onnx",
+    "side_files": {
+      "vocab": "vocab.txt",
+      "labels": "labels.json",
+      "config": "config.json"
+    },
+    "license": "GPL-3.0",
+    "engine": "fasttext-onnx",
+    "loss": "softmax",
+    "num_labels": 200,
+    "size_mb": 1157,
+    "precision": "fp32"
+  },
+  "openlid-v2-int8": {
+    "model_id": "openlid-v2-int8",
+    "hf_repo": "TigreGotico/openlid-v2-onnx",
+    "onnx_file": "openlid-v2.int8.onnx",
+    "side_files": {
+      "vocab": "vocab.txt",
+      "labels": "labels.json",
+      "config": "config.json"
+    },
+    "license": "GPL-3.0",
+    "engine": "fasttext-onnx",
+    "loss": "softmax",
+    "num_labels": 200,
+    "size_mb": 290,
     "precision": "int8"
   }
 }

@@ -118,3 +118,89 @@ class TestCollapseVariety:
         from lingonnx.detect.labels import collapse_variety
         assert collapse_variety("") == ""
         assert collapse_variety("xyz") == "xyz"
+
+
+class TestBareLabelShape:
+    """lid.176 emits bare ISO codes with no script subtag."""
+
+    def test_split_label_accepts_both_shapes(self):
+        from lingonnx.detect.labels import split_label
+        assert split_label("__label__pt") == ("pt", None)
+        assert split_label("glg") == ("glg", None)
+        assert split_label("__label__glg_Latn") == ("glg", "Latn")
+
+    def test_split_label_rejects_junk(self):
+        from lingonnx.detect.labels import split_label
+        for bad in ("notalabel", "", "e", "_Latn", "eng_"):
+            with pytest.raises(ValueError):
+                split_label(bad)
+
+    def test_parse_label_still_requires_a_script(self):
+        with pytest.raises(ValueError):
+            parse_label("pt")
+
+    @pytest.mark.parametrize(
+        "label,expected",
+        [
+            ("__label__pt", "pt"),   # lid.176 Portuguese
+            ("pt", "pt"),
+            ("gl", "gl"),            # lid.176 Galician
+            ("en", "en"),
+            ("eu", "eu"),
+            ("ca", "ca"),
+            ("ru", "ru"),
+            ("zh", "zh"),
+            ("ceb", "ceb"),          # lid.176 3-letter code, no 639-1
+            ("nds", "nds"),
+        ],
+    )
+    def test_bare_codes_pass_through(self, label, expected):
+        assert to_bcp47(label) == expected
+
+    def test_openlid_labels_use_the_glotlid_shape(self):
+        # OpenLID/OpenLID-v2 share GlotLID's iso3_Script labels
+        assert to_bcp47("glg_Latn") == "gl"
+        assert to_bcp47("por_Latn") == "pt"
+        assert to_bcp47("eus_Latn") == "eu"
+
+    def test_mixed_shapes_in_one_mapper(self):
+        mapper = LabelMapper(["__label__pt", "__label__gl", "__label__zh"])
+        assert mapper.to_bcp47("pt") == "pt"
+        assert mapper.to_glotlid("gl") == "gl"
+        assert mapper.available_languages == {"pt", "gl", "zh"}
+
+
+class TestStandardizeTagBehaviour:
+    """Regression guards on what langcodes.standardize_tag gives us."""
+
+    @pytest.mark.parametrize(
+        "label,expected",
+        [
+            ("srp_Latn", "sr-Latn"),   # second script kept, not just Cyrl
+            ("nno_Latn", "nn"),        # canonical 639-1 for Nynorsk
+            ("nob_Latn", "nb"),        # ... and Bokmal, kept distinct
+            ("tgl_Latn", "fil"),       # canonical replacement tgl -> fil
+            ("iw", "he"),              # deprecated code repaired
+            ("in", "id"),
+            ("PT", "pt"),              # case normalised
+        ],
+    )
+    def test_standardization(self, label, expected):
+        assert to_bcp47(label) == expected
+
+    def test_uncollapsed_path_stays_faithful(self):
+        # standardize_tag does not fold varieties; only collapse_variety does
+        from lingonnx.detect.labels import collapse_variety
+        assert to_bcp47("ars_Arab") == "ars"
+        assert to_bcp47("yue_Hani") == "yue-Hani"
+        assert collapse_variety(to_bcp47("ars_Arab")) == "ar"
+        assert collapse_variety(to_bcp47("cmn_Hant")) == "zh-Hant"
+        assert collapse_variety(to_bcp47("nno_Latn")) == "no"
+
+    def test_invalid_label_warns_but_does_not_raise(self, caplog):
+        import logging
+        from lingonnx.detect import labels as labels_mod
+        labels_mod._WARNED_UNKNOWN.clear()
+        with caplog.at_level(logging.WARNING, logger=labels_mod.__name__):
+            assert to_bcp47("xyz_Latn") == "xyz"
+        assert any("not a valid language tag" in r.message for r in caplog.records)
