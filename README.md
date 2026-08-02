@@ -168,3 +168,27 @@ uv pip install -e .
 pytest test/                      # unit tests only need the mocked ONNX session
 pytest test/ -m network           # also runs the real end-to-end model downloads
 ```
+
+## Related projects
+
+`linguonnx` answers "what language is this text in?". These siblings answer the
+neighbouring questions, and are worth reaching for instead of stretching this
+library to cover them:
+
+- **[scriptconv](https://github.com/TigreGotico/scriptconv)** — the *writing
+  system* rather than the language: zero-dependency ISO-15924 script detection
+  and metadata, plus conversions between phoneme notations (IPA ↔ ARPABET,
+  X-SAMPA, Kirshenbaum, Cotovía, RFE), Buckwalter ↔ Arabic, Hangul → jamo and
+  kana. A GlotLID label carries a script subtag (`zho_Hans`, `srp_Cyrl`); use
+  scriptconv when the script itself is the thing you need to identify or
+  transliterate.
+- **[ovos-lang-parser](https://github.com/OpenVoiceOS/ovos-lang-parser)** —
+  language *names* rather than text: parses a spoken or written language name
+  into a BCP-47 code, and renders a BCP-47 code back into a spoken name. Pair it
+  with `linguonnx` when a user says or reads a language name ("translate this to
+  Brazilian Portuguese") and you need the tag, or when you want to speak a
+  detected tag back to them.
+- **[phoonnx](https://github.com/TigreGotico/phoonnx)** — text to speech on ONNX
+  Runtime, 1000+ languages.
+- **[onnx-asr](https://github.com/istupakov/onnx-asr)** — speech to text on ONNX
+  Runtime; the structural model this library follows.
