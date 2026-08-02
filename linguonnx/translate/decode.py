@@ -38,18 +38,75 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
+from linguonnx.limits import (MAX_ENCODER_TOKENS, MAX_LENGTH_PENALTY,
+                              MAX_NUM_BEAMS, DecodeError, check_length)
+
 __all__ = ["Seq2SeqDecoder", "GenerationConfig"]
 
 
 @dataclass
 class GenerationConfig:
-    """Decoding knobs. ``num_beams=1`` means greedy."""
+    """Decoding knobs. ``num_beams=1`` means greedy.
+
+    The values are validated on construction. They are caller-settable all the
+    way from ``Translator(...)``, several of them cost memory linearly or
+    worse, and two of them have a range where the decoder still returns
+    something - just not a translation. An error at the boundary is the only
+    place the caller can act on it.
+    """
 
     max_new_tokens: int = 128
     num_beams: int = 4
     length_penalty: float = 1.0
     no_repeat_ngram_size: int = 0
     early_stopping: bool = True
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.max_new_tokens, int) or self.max_new_tokens < 1:
+            raise ValueError(
+                f"max_new_tokens must be a positive int, got "
+                f"{self.max_new_tokens!r}")
+        if not isinstance(self.num_beams, int) or self.num_beams < 1:
+            raise ValueError(
+                f"num_beams must be a positive int, got {self.num_beams!r}")
+        if self.num_beams > MAX_NUM_BEAMS:
+            # Beams past the number of finite candidates are padded with PAD
+            # and contribute nothing, but they are still full rows of the
+            # cross-attention cache, re-gathered on every step.
+            raise ValueError(
+                f"num_beams={self.num_beams} is over the limit of "
+                f"{MAX_NUM_BEAMS}; beam search stops paying for itself long "
+                f"before this, and every beam costs a full copy of the "
+                f"attention cache (raise LINGUONNX_MAX_NUM_BEAMS to allow it)")
+        if not np.isfinite(self.length_penalty):
+            raise ValueError(
+                f"length_penalty must be finite, got {self.length_penalty!r}")
+        if not 0.0 <= self.length_penalty <= MAX_LENGTH_PENALTY:
+            # Beam scores are log probabilities, so they are negative, and the
+            # score is divided by length**length_penalty. A negative exponent
+            # therefore *multiplies* the penalty term by the length and makes
+            # longer sequences rank higher - including a beam padded out with
+            # PAD tokens, which is the worst hypothesis in the set.
+            raise ValueError(
+                f"length_penalty must be between 0.0 and "
+                f"{MAX_LENGTH_PENALTY}, got {self.length_penalty}; a negative "
+                f"value inverts beam ranking and can hand back the worst "
+                f"hypothesis")
+        if not isinstance(self.no_repeat_ngram_size, int) \
+                or self.no_repeat_ngram_size < 0:
+            raise ValueError(
+                f"no_repeat_ngram_size must be a non-negative int, got "
+                f"{self.no_repeat_ngram_size!r}")
+        if self.no_repeat_ngram_size == 1:
+            # Size 1 has no useful reading. Here the n-gram prefix is empty, so
+            # every token ever emitted is banned from recurring and the output
+            # collapses; in transformers the lookup key is the whole sequence,
+            # which never matches, so the setting silently does nothing. Two
+            # opposite wrong answers, neither of them what a caller wants.
+            raise ValueError(
+                "no_repeat_ngram_size=1 would ban every token from appearing "
+                "twice, which no real translation survives; use 0 to disable "
+                "the guard or 2 or more to block repeated phrases")
 
 
 def _log_softmax(x: np.ndarray) -> np.ndarray:
@@ -74,7 +131,9 @@ class Seq2SeqDecoder:
     """Greedy and beam-search generation over three ONNX Runtime sessions."""
 
     def __init__(self, encoder_session, decoder_session, decoder_past_session,
-                 eos_id: int, pad_id: int, decoder_start_id: int):
+                 eos_id: int, pad_id: int, decoder_start_id: int,
+                 max_input_tokens: int = MAX_ENCODER_TOKENS):
+        self.max_input_tokens = max_input_tokens
         self.encoder = encoder_session
         self.decoder = decoder_session
         self.decoder_past = decoder_past_session
@@ -126,6 +185,13 @@ class Seq2SeqDecoder:
     # -- graph calls ------------------------------------------------------
 
     def _encode(self, input_ids: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        # Self-attention is quadratic in the source length, and beam search
+        # then re-gathers the cross-attention cache - which is also linear in
+        # that length - once per generated token. Long inputs are therefore
+        # paid for twice over, and past the model's positional table the
+        # result is not a translation anyway.
+        check_length(input_ids.shape[-1], self.max_input_tokens, "tokens",
+                     "LINGUONNX_MAX_ENCODER_TOKENS")
         mask = np.ones_like(input_ids, dtype=np.int64)
         feeds = {"input_ids": input_ids, "attention_mask": mask}
         feeds = {name: feeds[name] for name in self._enc_inputs}
@@ -203,6 +269,13 @@ class Seq2SeqDecoder:
                 break
             logits, cache = self._step(
                 np.array([[token]], dtype=np.int64), mask, cache)
+        if not generated:
+            # The first sampled token was EOS. Empty input never gets this
+            # far, so an empty generation is a failure, and the caller has to
+            # be able to tell it from the empty string it asks for.
+            raise DecodeError(
+                "greedy decoding ended before emitting a single token; "
+                "no output can be produced for this input")
         return generated
 
     def _beam(self, input_ids: np.ndarray, forced_bos: Optional[int],
@@ -288,5 +361,17 @@ class Seq2SeqDecoder:
         alive = [(scores[i] / max(len(sequences[i]), 1) ** config.length_penalty, i)
                  for i in range(beams) if np.isfinite(scores[i])]
         if not alive:
-            return []
-        return sequences[max(alive)[1]]
+            # Every beam was padded to -inf and none reached EOS. Returning []
+            # here would decode to "", which is exactly what the caller layer
+            # returns for empty input - so a real decode failure would arrive
+            # indistinguishable from "you gave me nothing".
+            raise DecodeError(
+                f"beam search finished no hypothesis and every beam collapsed "
+                f"after {config.max_new_tokens} steps; no output can be "
+                f"produced for this input")
+        best = sequences[max(alive)[1]]
+        if not best:
+            raise DecodeError(
+                "beam search ended before any beam emitted a token; "
+                "no output can be produced for this input")
+        return best
