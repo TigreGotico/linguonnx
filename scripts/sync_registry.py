@@ -104,6 +104,41 @@ BILINGUAL_FINETUNES: Dict[str, Dict] = {
                  "by Projecte Aina; Aranese uses the added token 'arn_Latn'. "
                  "One-way: there is no Aranese -> Spanish direction.",
     },
+    #: ProxectoNos' nos-coda_iacobus family: OpenNMT-py checkpoints exported as
+    #: a Pegasus-shaped graph (see the arch docstring above `_arch`). Each is a
+    #: single hand-verified pair, one-way - there is no reverse-direction repo
+    #: for any of them.
+    "nos-coda_iacobus-en-gl": {"pair": ["en", "gl"],
+                               "notes": "OpenNMT-py English -> Galician."},
+    "nos-coda_iacobus-es-gl": {"pair": ["es", "gl"],
+                               "notes": "OpenNMT-py Spanish -> Galician."},
+    "nos-coda_iacobus-pt-gl": {"pair": ["pt", "gl"],
+                               "notes": "OpenNMT-py Portuguese -> Galician."},
+    "nos-coda_iacobus-es-pt": {"pair": ["es", "pt"],
+                               "notes": "OpenNMT-py Spanish -> Portuguese."},
+    "nos-coda_iacobus-en-pt": {"pair": ["en", "pt"],
+                               "notes": "OpenNMT-py English -> Portuguese."},
+    "nos-coda_iacobus-en-es": {"pair": ["en", "es"],
+                               "notes": "OpenNMT-py English -> Spanish."},
+}
+
+#: Hand-verified fix-ups for a *multilingual* Marian export whose target is
+#: chosen by a `<2xx>` prefix token read straight out of its own vocab.json
+#: (see :func:`_marian_multilingual_languages`). Keyed by model id.
+#:
+#: ``liv4ever-mt``: TartuNLP's vocabulary spells Livonian's token `<2li>`.
+#: ISO assigns `li` to Limburgish, so publishing the raw code as-is would make
+#: the graph believe this model translates Limburgish. `native_codes` records
+#: the true mapping so `TranslationModel` still sends the model its own
+#: `<2li>` token, while the graph only ever sees the correct BCP-47 `liv`.
+#: Source: https://huggingface.co/tartuNLP/liv4ever-mt (model card language table).
+MARIAN_MULTILINGUAL_OVERRIDES: Dict[str, Dict] = {
+    "liv4ever-mt": {
+        "code_fixups": {"li": "liv"},
+        "notes": "en/et/lv <-> Livonian (liv). Target chosen by a <2xx> "
+                 "prefix token; the vocabulary spells Livonian '<2li>', which "
+                 "collides with ISO's 'li' (Limburgish) - fixed up to 'liv'.",
+    },
 }
 
 #: Canonical spelling for the licence ids the Hub reports lowercased.
@@ -156,12 +191,43 @@ SIDE_FILES: Dict[str, Dict[str, str]] = {
         "generation_config": "generation_config.json",
         "special_tokens_map": "special_tokens_map.json",
     },
+    # T5 (MADLAD): a single SentencePiece model with the `<2xx>` target tokens
+    # baked in as ordinary pieces - nothing in special_tokens_map.json names
+    # them, so there is no separate vocab/special-tokens file to record.
+    "madlad": {
+        "spm": "spiece.model",
+        "config": "config.json",
+        "generation_config": "generation_config.json",
+        "tokenizer_config": "tokenizer_config.json",
+    },
+    # IndicTrans2: a custom HF architecture with separate source/target
+    # SentencePiece models and BPE merge dictionaries - see `_arch`.
+    "indictrans2": {
+        "spm_src": "model.SRC",
+        "spm_tgt": "model.TGT",
+        "dict_src": "dict.SRC.json",
+        "dict_tgt": "dict.TGT.json",
+        "config": "config.json",
+        "generation_config": "generation_config.json",
+        "tokenizer_config": "tokenizer_config.json",
+    },
+    # ProxectoNos' OpenNMT-py exports, shaped as Pegasus graphs (see `_arch`).
+    # `bpe_code` is added per-entry in `translate_entries`, since its filename
+    # is `{src}_35k.code` - it names the source language, not the pair.
+    "opennmt-bpe": {
+        "vocab": "onmt_vocab.json",
+        "config": "config.json",
+        "generation_config": "generation_config.json",
+    },
 }
 
 REQUIRED_SIDE_FILES: Dict[str, Tuple[str, ...]] = {
     "marian": ("source_spm", "target_spm", "vocab", "config"),
     "m2m100": ("spm", "config", "special_tokens_map", "vocab"),
     "nllb": ("spm", "config", "special_tokens_map"),
+    "madlad": ("spm", "config"),
+    "indictrans2": ("spm_src", "spm_tgt", "dict_src", "dict_tgt", "config"),
+    "opennmt-bpe": ("vocab", "config", "bpe_code"),
 }
 
 GRAPHS: Dict[str, str] = {
@@ -304,10 +370,53 @@ def classify(files: Dict[str, int]) -> Optional[str]:
     return None
 
 
+#: IndicTrans2's fixed 22-language + English tag set. Not recoverable from the
+#: export's own files - `config.json` carries vocab sizes, not a language
+#: list, and the custom tokenizer ships no `special_tokens_map.json` for the
+#: two directional variants. Read from the model's own published card:
+#: https://huggingface.co/ai4bharat/indictrans2-en-indic-dist-200M
+INDICTRANS2_TAGS: Tuple[str, ...] = (
+    "asm_Beng", "ben_Beng", "brx_Deva", "doi_Deva", "eng_Latn", "gom_Deva",
+    "guj_Gujr", "hin_Deva", "kan_Knda", "kas_Arab", "kas_Deva", "mai_Deva",
+    "mal_Mlym", "mar_Deva", "mni_Beng", "mni_Mtei", "npi_Deva", "ory_Orya",
+    "pan_Guru", "san_Deva", "sat_Olck", "snd_Arab", "snd_Deva", "tam_Taml",
+    "tel_Telu", "urd_Arab",
+)
+_INDICTRANS2_INDIC_TAGS = tuple(t for t in INDICTRANS2_TAGS if t != "eng_Latn")
+
+#: model id suffix -> (src tags, tgt tags). `indic-indic` is symmetric: both
+#: sides are the 22 Indic tags, English excluded from either side, because the
+#: distilled indic-indic checkpoint was never trained on English at all.
+INDICTRANS2_DIRECTIONS: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...]]] = {
+    "indictrans2-en-indic": (("eng_Latn",), _INDICTRANS2_INDIC_TAGS),
+    "indictrans2-indic-en": (_INDICTRANS2_INDIC_TAGS, ("eng_Latn",)),
+    "indictrans2-indic-indic": (_INDICTRANS2_INDIC_TAGS, _INDICTRANS2_INDIC_TAGS),
+}
+
+#: `<2xx>` / `>>xx<<` target-selector tokens, shared by MADLAD (T5, SentencePiece
+#: pieces) and a multilingual Marian export like liv4ever-mt (plain vocab.json
+#: keys). Both spell it `<2code>`; opus-mt group models spell it `>>code<<`
+#: instead (see `_TARGET_TOKEN_RE`).
+_PREFIX_TARGET_TOKEN_RE = re.compile(r"^<2([A-Za-z]{2,3}(?:_[A-Za-z]+)?)>$")
+
+#: MADLAD's vocabulary also carries a handful of bare ISO-3166 REGION tokens
+#: (`<2CA>`, `<2IR>`, `<2NL>`, `<2RU>`, `<2ZW>`). They match the target-token
+#: shape but name a country, not a language, so claiming them as coverage
+#: would advertise translation into "Zimbabwe". Language subtags are
+#: lowercase by convention; an all-uppercase 2-letter code is a region.
+_REGION_ONLY_TOKEN_RE = re.compile(r"^[A-Z]{2}$")
+
+
 def _arch(detail: dict, files: Dict[str, int]) -> str:
     model_type = (detail.get("config") or {}).get("model_type", "")
     if model_type == "marian":
         return "marian"
+    if model_type == "t5":
+        return "madlad"
+    if model_type == "IndicTrans":
+        return "indictrans2"
+    if model_type == "pegasus":
+        return "opennmt-bpe"
     # M2M100 and NLLB share `model_type: m2m_100`; the tokenizer tells them
     # apart. M2M100 ships a vocab.json and reads ids from it; NLLB has none and
     # uses fairseq's sp_id + 1 offset instead.
@@ -439,7 +548,78 @@ def _multilingual_languages(repo_id: str, files: Dict[str, int]) -> List[str]:
             codes.append(code)
     if not codes:
         raise SkipRepo("special_tokens_map.json lists no language tokens")
-    return sorted(codes)
+    # NLLB spells its set in FLORES codes (``kea_Latn``); the router speaks
+    # BCP-47, so a raw FLORES tag makes the language unreachable even though
+    # the model covers it. Normalise, keeping the raw tag when it does not
+    # resolve rather than dropping the language.
+    from linguonnx.detect.labels import to_bcp47
+    normalized = set()
+    for code in codes:
+        try:
+            tag = to_bcp47(code)
+        except Exception:
+            tag = code
+        normalized.add(tag or code)
+    return sorted(normalized)
+
+
+def _madlad_languages(repo_id: str, files: Dict[str, int]) -> List[str]:
+    """MADLAD's target set, read off its own SentencePiece vocabulary.
+
+    Every language MADLAD was trained on gets a `<2xx>` piece baked into the
+    tokenizer at train time; there is no separate special-tokens list. This is
+    a file-level fact, not a guess: `sentencepiece` loads the model straight
+    from bytes (no temp file needed) and every piece is scanned.
+    """
+    import urllib.request
+    import sentencepiece as spm
+
+    if "spiece.model" not in files:
+        raise SkipRepo("no spiece.model to read <2xx> target tokens from")
+    # spiece.model is Git-LFS/xet backed: `/raw/main/` only returns the LFS
+    # pointer text for a file this size, not the bytes. `/resolve/main/`
+    # redirects to the real blob, so this goes through urllib (which follows
+    # redirects) instead of the raw-file connection used for small text files.
+    url = f"https://{HOST}/{repo_id}/resolve/main/spiece.model"
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(request, timeout=60) as response:
+        blob = response.read()
+    processor = spm.SentencePieceProcessor()
+    processor.LoadFromSerializedProto(blob)
+    codes = sorted({
+        match.group(1)
+        for i in range(processor.get_piece_size())
+        if (match := _PREFIX_TARGET_TOKEN_RE.match(processor.IdToPiece(i)))
+        and not _REGION_ONLY_TOKEN_RE.match(match.group(1))
+    })
+    if not codes:
+        raise SkipRepo("spiece.model has no <2xx> target-prefix pieces")
+    return codes
+
+
+def _marian_multilingual_languages(repo_id: str, files: Dict[str, int],
+                                   model_id: str
+                                   ) -> Tuple[List[str], Dict[str, str]]:
+    """Codes (+ any hand-verified fix-up) for a `<2xx>`-prefix Marian export.
+
+    liv4ever-mt is multilingual (en/et/lv/liv), not one dedicated pair, and
+    picks its target the same way MADLAD does - a prefix token - just spelled
+    out in a plain `vocab.json` instead of the SentencePiece model itself.
+    """
+    if "vocab.json" not in files:
+        raise SkipRepo("no vocab.json to read <2xx> target tokens from")
+    vocab = json.loads(raw_file(repo_id, "vocab.json"))
+    codes = sorted({
+        match.group(1) for key in vocab
+        if (match := _PREFIX_TARGET_TOKEN_RE.match(key))
+        and not _REGION_ONLY_TOKEN_RE.match(match.group(1))
+    })
+    if not codes:
+        raise SkipRepo("vocab.json has no <2xx> target-prefix tokens")
+    fixups = MARIAN_MULTILINGUAL_OVERRIDES.get(model_id, {}).get("code_fixups", {})
+    codes = sorted({fixups.get(code, code) for code in codes})
+    native_codes = {fixups[raw]: raw for raw in fixups}
+    return codes, native_codes
 
 
 def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict]:
@@ -452,14 +632,52 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
     license_id = _license_of(detail, readme)
 
     shared: Dict[str, object] = {"arch": arch}
-    if arch == "marian":
+    declared_langs = (detail.get("cardData") or {}).get("language") or []
+    opus_named = re.fullmatch(r"opus-mt-[a-z]{2,3}-[a-z]{2,3}-onnx", name) is not None
+
+    marian_multilingual = None
+    if arch == "marian" and not opus_named and isinstance(declared_langs, list) \
+            and len(declared_langs) > 2:
+        # A multilingual Marian export (liv4ever-mt): any-to-any within its
+        # set, target chosen by a <2xx> prefix token - not the single
+        # dedicated pair `_marian_pair` expects. The `tc-big`/ROMANCE-style
+        # group models also declare >2 languages but pick their target with a
+        # `>>xxx<<` token instead, so this only fires when `<2xx>` tokens are
+        # actually present; otherwise it falls through to `_marian_pair`,
+        # which knows what to do with (or skip) a `>>xxx<<` group model.
+        try:
+            marian_multilingual = _marian_multilingual_languages(repo_id, files, model_id)
+        except SkipRepo:
+            marian_multilingual = None
+
+    if model_id in BILINGUAL_FINETUNES:
+        shared.update(BILINGUAL_FINETUNES[model_id])
+    elif marian_multilingual is not None:
+        codes, native_codes = marian_multilingual
+        shared["languages"] = codes
+        shared["target_token_template"] = "<2{code}>"
+        if native_codes:
+            shared["native_codes"] = native_codes
+    elif arch == "marian":
         pair, base, token = _marian_pair(name, readme, detail)
         shared["pair"] = pair
         shared["base_model"] = base if "/" in base else f"Helsinki-NLP/{base}"
         if token:
             shared["target_token"] = token
-    elif model_id in BILINGUAL_FINETUNES:
-        shared.update(BILINGUAL_FINETUNES[model_id])
+    elif arch == "madlad":
+        shared["languages"] = _madlad_languages(repo_id, files)
+    elif arch == "indictrans2":
+        directions = None
+        for suffix, dirs in INDICTRANS2_DIRECTIONS.items():
+            if name.startswith(suffix):
+                directions = dirs
+                break
+        if directions is None:
+            raise SkipRepo(
+                f"{name!r} does not match a known IndicTrans2 direction "
+                f"({', '.join(INDICTRANS2_DIRECTIONS)})")
+        shared["src_languages"], shared["tgt_languages"] = \
+            list(directions[0]), list(directions[1])
     else:
         _assert_not_narrow_finetune(detail, model_id)
         shared["languages"] = _multilingual_languages(repo_id, files)
@@ -480,6 +698,13 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
             path = _resolve(files, prefix, filename)
             if path is not None:
                 side[key] = path
+        if arch == "opennmt-bpe" and "pair" in shared:
+            # The BPE merge codes are named after the *source* language
+            # (`en_35k.code`, `es_35k.code`, ...), not the pair - the filename
+            # is per-repo, so it cannot live in the static SIDE_FILES table.
+            bpe_path = _resolve(files, prefix, f"{shared['pair'][0]}_35k.code")
+            if bpe_path is not None:
+                side["bpe_code"] = bpe_path
         missing = [k for k in REQUIRED_SIDE_FILES[arch] if k not in side]
         if missing:
             raise SkipRepo(f"missing required side files: {', '.join(missing)}")

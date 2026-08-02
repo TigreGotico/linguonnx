@@ -166,7 +166,16 @@ class Capability:
     """What one model claims it can translate.
 
     ``pair`` set  -> a bilingual model, exactly one directed edge.
-    ``pair`` None -> a multilingual model, any-to-any across ``languages``.
+    ``pair`` None, ``src_languages``/``tgt_languages`` both None
+                  -> a multilingual model, any-to-any across ``languages``.
+    ``pair`` None, ``src_languages``/``tgt_languages`` set
+                  -> a *directional* multilingual model: it only translates
+                  from the source set into the target set, never backwards.
+                  IndicTrans2 ships three such models - ``en-indic`` only goes
+                  ``eng_Latn -> {22 Indic tags}``, ``indic-en`` only the
+                  reverse, and ``indic-indic`` is symmetric (both sets equal).
+                  Treating a one-directional model as any-to-any would let the
+                  router propose an impossible hop that fails at runtime.
     """
 
     model_id: str
@@ -176,11 +185,19 @@ class Capability:
     size_mb: int
     languages: FrozenSet[str] = frozenset()
     pair: Optional[Tuple[str, str]] = None
+    src_languages: Optional[FrozenSet[str]] = None
+    tgt_languages: Optional[FrozenSet[str]] = None
 
     @property
     def dedicated(self) -> bool:
         """True when the model *is* the pair, rather than covering it."""
         return self.pair is not None
+
+    @property
+    def directional(self) -> bool:
+        """True for a covering-set model that cannot be run backwards."""
+        return self.pair is None and (
+            self.src_languages is not None or self.tgt_languages is not None)
 
     @property
     def tier_rank(self) -> int:
@@ -189,11 +206,19 @@ class Capability:
     def covers(self, src: str, tgt: str) -> bool:
         if self.pair is not None:
             return self.pair == (src, tgt)
-        return src != tgt and src in self.languages and tgt in self.languages
+        if src == tgt:
+            return False
+        if self.directional:
+            srcs = self.src_languages if self.src_languages is not None else self.languages
+            tgts = self.tgt_languages if self.tgt_languages is not None else self.languages
+            return src in srcs and tgt in tgts
+        return src in self.languages and tgt in self.languages
 
     def endpoints(self) -> FrozenSet[str]:
         if self.pair is not None:
             return frozenset(self.pair)
+        if self.directional:
+            return (self.src_languages or frozenset()) | (self.tgt_languages or frozenset())
         return self.languages
 
 
@@ -530,9 +555,31 @@ class TranslationGraph:
             hint = ""
             if max_hops == 1:
                 hint = " (max_hops=1: only direct models were considered)"
+            hint += self._excluded_licence_hint(src, tgt)
             raise NoRouteError(
                 f"no route from {raw_src!r} to {raw_tgt!r} within {max_hops} hop(s){hint}")
         return min(found, key=lambda r: _route_key(r, prefer))
+
+    def _excluded_licence_hint(self, src: str, tgt: str) -> str:
+        """Say so when the only thing blocking a route is the licence filter.
+
+        Non-commercial models are left out of the default graph so nobody
+        inherits CC-BY-NC output without asking for it. That is the right
+        default, but silence is the wrong way to enforce it: a language only
+        NLLB covers (Kabuverdianu, for one) would otherwise look simply
+        unsupported. Name the models and the flag instead.
+        """
+        excluded = getattr(self, "excluded_capabilities", None)
+        if not excluded:
+            return ""
+        covering = sorted({
+            cap.model_id for cap in excluded
+            if cap.covers(src, tgt)
+        })
+        if not covering:
+            return ""
+        return (f" -- excluded non-commercial model(s) cover this pair: "
+                f"{', '.join(covering)}; pass include_noncommercial=True to use them")
 
     def can_translate(self, src: str, tgt: str, max_hops: Optional[int] = None) -> bool:
         try:

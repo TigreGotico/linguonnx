@@ -236,6 +236,32 @@ class MarianTokenizer:
         return self.spm_target.DecodePieces(pieces)
 
 
+class T5SpmTokenizer:
+    """MADLAD (T5). One SentencePiece model; ids are its own piece ids.
+
+    The target language is not a decoder-forced id, unlike M2M100/NLLB: it is
+    a `<2xx>` piece **prepended to the input text**, exactly like any other
+    piece, because MADLAD was trained on ``"<2pt> hello"`` style examples. The
+    piece is already in the SentencePiece model (see
+    :func:`scripts.sync_registry._madlad_languages`), so encoding it is just
+    string concatenation before the normal `sp.encode`.
+    """
+
+    def __init__(self, spm_path, eos_id: int = 2, pad_id: int = 1, unk_id: int = 0):
+        self.sp = _load_spm(spm_path)
+        self.eos_id, self.pad_id, self.unk_id = eos_id, pad_id, unk_id
+        self._specials = {self.eos_id, self.pad_id, self.unk_id}
+
+    def encode(self, text: str, prefix: Optional[str] = None) -> List[int]:
+        full = f"{prefix} {text}" if prefix else text
+        ids = [max(i, self.unk_id) for i in self.sp.encode(full, out_type=int)]
+        return ids + [self.eos_id]
+
+    def decode(self, ids: Sequence[int]) -> str:
+        pieces = [self.sp.IdToPiece(i) for i in ids if i not in self._specials]
+        return self.sp.DecodePieces(pieces)
+
+
 def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str]):
     """Build the right tokenizer for ``arch`` from the downloaded ``files``."""
     if arch == "marian":
@@ -245,4 +271,6 @@ def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str])
                                    added_tokens_path=files.get("added_tokens"))
     if arch == "nllb":
         return SpmSeq2SeqTokenizer(files["spm"], lang_codes, fairseq_offset=1)
+    if arch == "madlad":
+        return T5SpmTokenizer(files["spm"])
     raise ValueError(f"unknown architecture {arch!r}")

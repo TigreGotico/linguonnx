@@ -380,25 +380,37 @@ differently:
 
 | arch | how the target is chosen |
 |---|---|
-| `marian` | Nothing to choose. The model **is** the pair. |
+| `marian` | Nothing to choose, for a dedicated pair - the model **is** the pair. A *multilingual* Marian export (liv4ever-mt) instead prepends a `<2xx>` token to the input, per `target_token_template` in the registry entry. |
 | `m2m100` | Source language is the first token of the *input*; target language is forced as the decoder's first generated token, `forced_bos_token_id = lang_id("pt")`. Codes are plain `en`, `pt`, `gl`. |
 | `nllb` | Same mechanism, but the codes are FLORES-200 (`por_Latn`), so language and script are chosen together. |
+| `madlad` (T5) | A `<2xx>` piece prepended to the input text, exactly like any other SentencePiece piece - not a forced decoder id. |
+| `indictrans2` | A custom `IndicProcessor` pipeline (script normalisation/transliteration, then a `<src> <tgt>` prefix). Registered for routing; inference is not yet implemented in `linguonnx` - see below. |
+| `opennmt-bpe` | Moses tokenisation + `subword-nmt` BPE with OpenNMT's concatenated source/target vocabulary. Also routing-only for now. |
 
-`linguonnx` handles all three behind one call and converts BCP-47 to whatever
-codes the model wants, so `tgt="pt"` means Portuguese whichever model serves
-the hop. The per-architecture tests assert the target actually changes the
-output language, because nothing else would catch it.
+`linguonnx` handles the implemented architectures behind one call and converts
+BCP-47 to whatever codes the model wants, so `tgt="pt"` means Portuguese
+whichever model serves the hop. The per-architecture tests assert the target
+actually changes the output language, because nothing else would catch it.
+
+`indictrans2` and `opennmt-bpe` models are in the registry - and route -
+because a missing entry is a worse failure than a loud one: `.route()` never
+loads a model, so `hi -> ta` still resolves directly through
+`indictrans2-indic-indic`. Calling `.translate()` on one of them raises
+`NotImplementedError` rather than guessing at a tokenisation scheme this
+library does not vendor.
 
 ### Basque, and why the default is not flat
 
-**M2M100 does not support Basque.** `eu` is absent from its 100 codes. A single
-flat default model would therefore drop Basque silently. The default graph is
-M2M100-418M for general coverage *plus* the opus-mt bilingual pairs, and `eu`
-routes through `opus-mt-en-eu` / `opus-mt-eu-en`:
+**M2M100 does not support Basque.** `eu` is absent from its 100 codes. MADLAD
+carries it directly, so the default (`fewest_hops`) route is now the one-hop
+MADLAD hop; a two-hop dedicated chain through `opus-mt-*-eu` is still available
+under `prefer="dedicated"`:
 
 ```python
 tx.route("pt", "eu").model_ids
-# ('opus-mt-pt-en-int8', 'opus-mt-en-eu-int8')
+# ('madlad400-3b-mt-int8',)
+tx.route("pt", "eu", prefer="dedicated").model_ids
+# a same-licence-tier bilingual chain ending in eu, e.g. ('opus-mt-pt-ca-int8', 'opus-mt-ca-eu-int8')
 ```
 
 ### Licences
@@ -416,15 +428,22 @@ is only as free as its worst hop.
 
 ### Models
 
-`linguonnx/model_index/translate.json` holds the registry: 64 entries, fp32 and
-int8 for every model. `load_translator()` defaults to `precision="int8"`; pass
-`precision="fp32"` or `precision=None` for both.
+`linguonnx/model_index/translate.json` holds the registry: 150 entries, fp32
+and int8 for every model. `load_translator()` defaults to `precision="int8"`;
+pass `precision="fp32"` or `precision=None` for both.
 
 | model_id | arch | languages | size (int8) | licence |
 |---|---|---|---|---|
 | `m2m100-418M-int8` | M2M100 | 100, any-to-any | 1.2 GB | MIT |
 | `m2m100-1.2B-int8` | M2M100 | 100, any-to-any | 2.3 GB | MIT |
+| `m2m100-418M-smugri-int8` | M2M100 | 8, any-to-any (Livonian, Võro, North/South Sami, et/fi/lv/en) | ~500 MB | MIT |
 | `nllb-600M-int8` | NLLB-200 | 202, any-to-any | 1.8 GB | **CC-BY-NC-4.0** |
+| `madlad400-3b-mt-int8` | T5 (MADLAD) | 419, any-to-any (incl. Mirandese, Aragonese, Occitan, ...) | ~5 GB | Apache-2.0 |
+| `liv4ever-mt-int8` | Marian (multilingual) | 4, any-to-any (en, et, lv, Livonian) | ~570 MB | Apache-2.0 |
+| `indictrans2-en-indic-dist-200M-int8` | IndicTrans2 | eng_Latn -> 22 Indic tags, **one-way** | ~480 MB | MIT |
+| `indictrans2-indic-en-dist-200M-int8` | IndicTrans2 | 22 Indic tags -> eng_Latn, **one-way** | ~340 MB | MIT |
+| `indictrans2-indic-indic-dist-320M-int8` | IndicTrans2 | 22 Indic tags, any-to-any (no English) | ~530 MB | MIT |
+| `nos-coda_iacobus-*-int8` (6 repos) | OpenNMT/Pegasus | one pair each, **one-way**: en/es/pt -> gl, es<->pt, en<->es | 590 MB-1.2 GB | MIT |
 | `opus-mt-<src>-<tgt>-int8` | Marian | one pair | 180-1020 MB | Apache-2.0 or CC-BY-4.0 |
 
 28 opus-mt pairs are published: `ar-en`, `ca-en`, `ca-es`, `de-en`, `en-ar`,

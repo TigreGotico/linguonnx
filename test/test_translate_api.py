@@ -190,13 +190,23 @@ def test_non_commercial_models_are_opt_in():
 
 
 def test_basque_is_routed_away_from_m2m100_in_the_real_registry():
-    """M2M100 has no Basque. A flat default would silently drop it."""
+    """M2M100 has no Basque. A flat default would silently drop it.
+
+    MADLAD carries Basque directly, so under the default `fewest_hops` policy
+    it now wins outright over the two-hop opus-mt chain - fewer hops always
+    beats more, and MADLAD is Apache-2.0, same tier as opus-mt.
+    """
     translator = load_translator()
     assert "eu" in translator.available_languages
     route = translator.route("pt", "eu")
     for hop in route.hops:
         assert not hop.model_id.startswith("m2m100") or "eu" not in (hop.src, hop.tgt)
-    assert route.model_ids == ("opus-mt-pt-en-int8", "opus-mt-en-eu-int8")
+    assert route.n_hops == 1
+    assert route.model_ids == ("madlad400-3b-mt-int8",)
+    # A dedicated bilingual chain is still available under `prefer="dedicated"`.
+    dedicated_route = translator.route("pt", "eu", prefer="dedicated")
+    assert dedicated_route.n_multilingual_hops == 0
+    assert dedicated_route.hops[-1].tgt == "eu"
 
 
 def test_english_to_portuguese_prefers_the_dedicated_model():
@@ -211,3 +221,43 @@ def test_fp32_precision_can_be_selected():
 def test_unknown_model_id_is_rejected():
     with pytest.raises(ValueError):
         load_translator(models=["not-a-model"])
+
+
+def test_norouteerror_names_excluded_noncommercial_models():
+    """A language only a non-commercial model covers must not look unsupported.
+
+    Kabuverdianu is reachable only through NLLB (CC-BY-NC-4.0), which the
+    default graph leaves out so nobody inherits a non-commercial licence
+    unasked. Excluding it silently is the wrong way to enforce that — the
+    error has to name the model and the opt-in flag.
+    """
+    from linguonnx import load_translator
+    from linguonnx.translate.graph import NoRouteError
+    import pytest as _pytest
+
+    tx = load_translator()
+    with _pytest.raises(NoRouteError) as excinfo:
+        tx.route("pt", "kea")
+    message = str(excinfo.value)
+    assert "non-commercial" in message
+    assert "nllb" in message.lower()
+    assert "include_noncommercial=True" in message
+
+
+def test_norouteerror_stays_quiet_for_genuinely_unknown_languages():
+    """No spurious licence hint when nothing covers the pair at all."""
+    from linguonnx import load_translator
+    from linguonnx.translate.graph import NoRouteError
+    import pytest as _pytest
+
+    tx = load_translator()
+    with _pytest.raises(NoRouteError) as excinfo:
+        tx.route("pt", "zzz")
+    assert "non-commercial" not in str(excinfo.value)
+
+
+def test_noncommercial_opt_in_reaches_kabuverdianu():
+    from linguonnx import load_translator
+    tx = load_translator(include_noncommercial=True)
+    route = tx.route("pt", "kea")
+    assert any("nllb" in hop.model_id for hop in route.hops)
