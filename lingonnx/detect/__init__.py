@@ -13,7 +13,7 @@ import onnxruntime as ort
 
 from lingonnx import model_manager
 from lingonnx.detect.hashing import GlotLIDFeaturizer
-from lingonnx.detect.labels import LABEL_PREFIX, LabelMapper
+from lingonnx.detect.labels import LABEL_PREFIX, LabelMapper, collapse_variety
 
 DEFAULT_MODEL_ID = "glotlid-int8"
 
@@ -77,10 +77,19 @@ class LanguageDetector:
         best = int(np.argmax(probs))
         return self._raw_labels[best], float(probs[best])
 
-    def detect(self, text: str) -> str:
-        """Return the best-guess BCP-47 tag, e.g. "gl"."""
+    def detect(self, text: str, collapse_varieties: bool = False) -> str:
+        """
+        Return the best-guess BCP-47 tag, e.g. "gl".
+
+        GlotLID labels individual varieties, so casual Arabic is reported as
+        e.g. "ajp-Arab" (South Levantine) rather than "ar". Pass
+        ``collapse_varieties=True`` to fold varieties onto the macrolanguage
+        a caller can act on ("ar"); use :meth:`detect_raw` when the variety
+        itself is the answer you want.
+        """
         raw_label, _ = self.detect_raw(text)
-        return self._label_mapper.to_bcp47(raw_label)
+        tag = self._label_mapper.to_bcp47(raw_label)
+        return collapse_variety(tag) if collapse_varieties else tag
 
     def detect_probs(self, text: str, top_k: int = 5) -> Dict[str, float]:
         """Return the top_k BCP-47 tags with their probabilities."""

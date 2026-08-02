@@ -94,3 +94,27 @@ def test_label_mapper_first_label_wins_on_collision():
     # the reverse mapping (documented, deterministic behavior).
     mapper = LabelMapper(["__label__eng_Latn", "__label__eng_Latn"])
     assert mapper.to_glotlid("en") == "eng_Latn"
+
+
+class TestCollapseVariety:
+    """Varieties fold onto the macrolanguage a caller can act on."""
+
+    def test_arabic_varieties_collapse(self):
+        from lingonnx.detect.labels import collapse_variety
+        for tag in ("ajp-Arab", "ars-Arab", "arz-Arab", "ary-Arab", "arb-Arab"):
+            assert collapse_variety(tag) == "ar", tag
+
+    def test_chinese_keeps_script_when_collapsed(self):
+        from lingonnx.detect.labels import collapse_variety
+        assert collapse_variety("yue-Hani") == "zh-Hani"
+        assert collapse_variety("cmn-Hans") == "zh-Hans"
+
+    def test_non_variety_unchanged(self):
+        from lingonnx.detect.labels import collapse_variety
+        for tag in ("pt", "gl", "eu", "ast", "sr-Cyrl"):
+            assert collapse_variety(tag) == tag
+
+    def test_empty_and_unknown(self):
+        from lingonnx.detect.labels import collapse_variety
+        assert collapse_variety("") == ""
+        assert collapse_variety("xyz") == "xyz"

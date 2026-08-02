@@ -54,6 +54,24 @@ det.detect_raw("...")                    # -> ("glg_Latn", 0.82)  native GlotLID
 det.available_languages                  # -> set of BCP-47 tags it can emit
 ```
 
+
+## Language varieties
+
+GlotLID labels individual varieties, not macrolanguages. Casual Arabic comes
+back as `ajp-Arab` (South Levantine) or `ars` (Najdi/Saudi) rather than `ar`,
+and Chinese may come back as `yue-Hani` (Cantonese). There are 11 Arabic and
+8 Chinese varieties in the label set.
+
+That is useful on its own — it is free text-side dialect identification — but
+most callers want a tag they can act on (a TTS voice, a translation target).
+Both are available:
+
+```python
+det.detect_raw("وش لونك يا خوي")               # ('ars_Arab', 0.87)  Najdi/Saudi
+det.detect("وش لونك يا خوي")                    # 'ars'
+det.detect("وش لونك يا خوي", collapse_varieties=True)   # 'ar'
+```
+
 ## Models
 
 | model_id       | file               | size   | precision | license    |

@@ -146,3 +146,56 @@ class LabelMapper:
         if bcp47_tag not in self._reverse:
             raise KeyError(f"no GlotLID label maps to BCP-47 tag: {bcp47_tag!r}")
         return self._reverse[bcp47_tag]
+
+
+# ---------------------------------------------------------------------------
+# Macrolanguage varieties
+#
+# GlotLID labels individual varieties, not macrolanguages: casual Arabic input
+# comes back as ajp_Arab (South Levantine) or ars_Arab (Najdi/Saudi) rather
+# than arb_Arab, and Chinese may come back as yue_Hani (Cantonese). That
+# fidelity is the point of the model and is worth keeping - it is free
+# text-side dialect identification. But most consumers (a TTS voice picker, a
+# translation target, an OVOS session lang) want the macrolanguage tag they
+# know how to act on, and would treat "ajp-Arab" as an unsupported language.
+#
+# So both are available: detect() can collapse, detect_raw() never does.
+# ---------------------------------------------------------------------------
+
+VARIETY_TO_MACRO: Dict[str, str] = {
+    # Arabic
+    "arb": "ar", "ars": "ar", "apc": "ar", "ajp": "ar", "aeb": "ar",
+    "ary": "ar", "arz": "ar", "acm": "ar", "afb": "ar", "arq": "ar",
+    "shu": "ar", "apd": "ar", "ayl": "ar",
+    # Chinese
+    "cmn": "zh", "yue": "zh", "wuu": "zh", "hak": "zh", "nan": "zh",
+    "gan": "zh", "cjy": "zh", "cdo": "zh", "hsn": "zh", "lzh": "zh",
+    # other macrolanguages GlotLID splits
+    "pes": "fa", "prs": "fa",           # Iranian / Dari Persian
+    "azj": "az", "azb": "az",           # North / South Azerbaijani
+    "uzn": "uz", "uzs": "uz",           # Northern / Southern Uzbek
+    "khk": "mn",                        # Halh Mongolian
+    "zsm": "ms", "lvs": "lv", "ydd": "yi", "swh": "sw",
+    "nob": "no", "nno": "no",           # Bokmal / Nynorsk
+    "plt": "mg", "gaz": "om", "npi": "ne", "pbt": "ps", "als": "sq",
+    "ekk": "et", "knc": "kr", "kmr": "ku", "ckb": "ku",
+}
+
+
+def collapse_variety(tag: str) -> str:
+    """
+    Collapse a variety tag onto its macrolanguage, keeping any script subtag.
+
+    ``ajp-Arab`` -> ``ar``, ``yue-Hani`` -> ``zh-Hani``, ``pt`` -> ``pt``.
+    Tags that are not known varieties are returned unchanged.
+    """
+    if not tag:
+        return tag
+    primary, _, rest = tag.partition("-")
+    macro = VARIETY_TO_MACRO.get(primary)
+    if not macro:
+        return tag
+    # a script subtag is only worth keeping if it still disambiguates
+    if rest and macro in _ALWAYS_KEEP_SCRIPT:
+        return f"{macro}-{rest}"
+    return macro
