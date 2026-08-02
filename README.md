@@ -446,6 +446,50 @@ search reorders the KV cache by parent-beam index at every step, which is the
 one genuinely fiddly part and is tested against an independent numpy beam
 search over a toy ONNX graph.
 
+## The model registry is generated
+
+`linguonnx/model_index/translate.json` and `lid.json` are **generated**, not
+edited by hand. Exports land in the `TigreGotico` HuggingFace org faster than
+anyone can copy file lists into JSON, and a stale registry is not a cosmetic
+problem: a missing entry makes a language pair route the long way round, and a
+wrong entry makes the router pick a model that cannot do the pair and answer
+fluently in the wrong language.
+
+```bash
+python scripts/sync_registry.py            # rewrite both registries from the Hub
+python scripts/sync_registry.py --check    # exit 1 if the committed JSON drifted
+```
+
+`--check` writes nothing and is the CI guard. It prints which entries are new
+and which are stale, so "someone published a model and forgot the registry"
+shows up as a failing check instead of a silent gap.
+
+Everything the Hub can answer is read from the Hub: the architecture from the
+repo's own `config.json` and tokenizer files, the licence from `cardData` (and,
+for the many opus-mt exports whose cards have no YAML front matter, from the
+`**License:**` line in the README body), the covered language set from the
+model's own `special_tokens_map.json`, and the size from the blob sizes of the
+files the entry actually references.
+
+Two things the script refuses to guess:
+
+- **Group models.** A repo named `opus-mt-en-pl-onnx` is an export of
+  `opus-mt-en-sla`, which serves several Slavic languages from one decoder and
+  needs a `>>pol<<` prefix token on the input. The script cross-checks the repo
+  name against the base model named in the card; when the target side disagrees
+  it records the `target_token` the export was verified against, and skips the
+  repo entirely if the card does not show one. `TranslationModel.translate`
+  applies the token automatically.
+- **Bilingual fine-tunes of multilingual bases.** A fine-tune keeps the whole
+  base tokenizer, so `special_tokens_map.json` still lists all 100 (or 202)
+  languages long after the weights stopped serving them. Those need a verified
+  entry in `BILINGUAL_FINETUNES` stating the pair in the model's own codes, and
+  are skipped with a printed reason until someone adds one.
+
+Re-running on an unchanged Hub produces a byte-identical file. Hand-authored
+keys the script does not generate — a curated `notes`, a pinned default — are
+preserved across regeneration.
+
 ## Development
 
 ```bash

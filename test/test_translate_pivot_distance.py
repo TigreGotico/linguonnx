@@ -211,17 +211,42 @@ def test_translator_exposes_pivot_ranking():
 # --- the real registry -----------------------------------------------------
 
 @requires_o2i
-def test_real_registry_pivots_pt_to_eu_through_spanish_once_es_eu_exists():
-    """Skipped until ``opus-mt-es-eu``/``opus-mt-eu-es`` are exported.
+def test_real_registry_pivots_pt_to_eu_through_spanish_once_the_chain_exists():
+    """Skipped until *both* legs of pt -> es -> eu are dedicated models.
 
     The synthetic tests above pin the ranking logic whatever ships. This one
     pins the behaviour callers actually get, and starts asserting by itself the
     day the models land, instead of quietly staying vacuous.
+
+    Both legs matter. ``opus-mt-es-eu`` landed in the 2026-08 export run, but
+    there is still no ``opus-mt-pt-es``, so the Spanish pivot's first leg falls
+    back to M2M100 and ``prefer="dedicated"`` correctly rejects it in favour of
+    the all-dedicated pt -> en -> eu chain. Asserting on ``es->eu`` alone would
+    make this test demand a route the registry cannot honour.
     """
     from linguonnx import load_translator
     tx = load_translator(pivot_ranking="phonological")
-    if not any(c.covers("es", "eu") for c in tx.graph.capabilities):
-        pytest.skip("no es->eu capability in the registry yet")
+    dedicated = [c for c in tx.graph.capabilities if c.dedicated]
+    if not any(c.covers("es", "eu") for c in dedicated):
+        pytest.skip("no dedicated es->eu capability in the registry yet")
+    if not any(c.covers("pt", "es") for c in dedicated):
+        pytest.skip("no dedicated pt->es capability in the registry yet")
     route = tx.route("pt", "eu", prefer="dedicated")
     assert route.pivots == ("es",)
     assert route.pivot_basis == "phonological"
+
+
+@requires_o2i
+def test_pt_to_eu_prefers_an_all_dedicated_chain_over_a_multilingual_hop():
+    """Whatever the pivot, ``prefer="dedicated"`` must not pick up M2M100.
+
+    This is the assertion the test above cannot make while ``opus-mt-pt-es`` is
+    missing, and it is the one that actually protects Basque: M2M100 has no
+    Basque at all, so a route that reaches `eu` through it is silently wrong.
+    """
+    from linguonnx import load_translator
+    tx = load_translator(pivot_ranking="phonological")
+    route = tx.route("pt", "eu", prefer="dedicated")
+    for hop in route.hops:
+        assert tx.models[hop.model_id]["arch"] == "marian", (
+            f"{hop.model_id} is not a dedicated pair model")

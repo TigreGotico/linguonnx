@@ -129,7 +129,13 @@ PIVOT_RANKINGS: Tuple[str, ...] = ("auto", "phonological", "table")
 
 #: Model codes that are not valid language tags in any standard. M2M100 calls
 #: Northern Sotho ``ns``, which is a two-letter code ISO never assigned.
-MODEL_CODE_ALIASES: Dict[str, str] = {"ns": "nso"}
+MODEL_CODE_ALIASES: Dict[str, str] = {
+    "ns": "nso",
+    # Projecte Aina added a token for Aranese to NLLB and called it
+    # "arn_Latn" - which ISO already assigns to Mapudungun. Mapped here so the
+    # routing graph sees Occitan and never offers the model for Mapudungun.
+    "arn_Latn": "oc",
+}
 
 
 def normalize_tag(tag: str) -> str:

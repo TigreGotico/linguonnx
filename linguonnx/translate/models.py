@@ -143,6 +143,13 @@ class TranslationModel:
                   target_token: Optional[str] = None) -> str:
         if not text.strip():
             return ""
+        # A multi-target Marian group model (opus-mt-en-sla and friends) picks
+        # its target language from a prefix token, and picks it *wrong* when
+        # the token is absent - fluently, with nothing raised. The registry
+        # records the token the export was verified against; an explicit
+        # caller argument still wins.
+        if target_token is None:
+            target_token = self.entry.get("target_token")
         if self.arch == "marian":
             input_ids = self.tokenizer.encode(text, target_token=target_token)
             forced_bos = None

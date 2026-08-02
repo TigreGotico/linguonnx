@@ -1,132 +1,132 @@
 {
   "glotlid": {
-    "model_id": "glotlid",
+    "engine": "fasttext-onnx",
     "hf_repo": "TigreGotico/glotlid-onnx",
+    "license": "Apache-2.0",
+    "loss": "softmax",
+    "model_id": "glotlid",
+    "num_labels": 2102,
     "onnx_file": "glotlid.onnx",
+    "precision": "fp32",
     "side_files": {
       "vocab": "vocab.txt",
       "labels": "labels.json",
       "config": "config.json"
     },
-    "license": "Apache-2.0",
-    "engine": "fasttext-onnx",
-    "loss": "softmax",
-    "num_labels": 2102,
-    "size_mb": 1680,
-    "precision": "fp32"
+    "size_mb": 1681
   },
   "glotlid-int8": {
-    "model_id": "glotlid-int8",
+    "engine": "fasttext-onnx",
     "hf_repo": "TigreGotico/glotlid-onnx",
+    "license": "Apache-2.0",
+    "loss": "softmax",
+    "model_id": "glotlid-int8",
+    "num_labels": 2102,
     "onnx_file": "glotlid.int8.onnx",
+    "precision": "int8",
     "side_files": {
       "vocab": "vocab.txt",
       "labels": "labels.json",
       "config": "config.json"
     },
-    "license": "Apache-2.0",
-    "engine": "fasttext-onnx",
-    "loss": "softmax",
-    "num_labels": 2102,
-    "size_mb": 419,
-    "precision": "int8"
+    "size_mb": 425
   },
   "lid176": {
-    "model_id": "lid176",
+    "engine": "fasttext-onnx",
     "hf_repo": "TigreGotico/lid176-onnx",
+    "license": "CC-BY-SA-3.0",
+    "loss": "hs",
+    "model_id": "lid176",
+    "num_labels": 176,
     "onnx_file": "lid176.onnx",
+    "precision": "fp32",
     "side_files": {
       "vocab": "vocab.txt",
       "labels": "labels.json",
       "config": "config.json",
       "hs_tree": "hs_tree.json"
     },
-    "license": "CC-BY-SA-3.0",
-    "engine": "fasttext-onnx",
-    "loss": "hs",
-    "num_labels": 176,
-    "size_mb": 125,
-    "precision": "fp32"
+    "size_mb": 131
   },
   "lid176-int8": {
-    "model_id": "lid176-int8",
+    "engine": "fasttext-onnx",
     "hf_repo": "TigreGotico/lid176-onnx",
+    "license": "CC-BY-SA-3.0",
+    "loss": "hs",
+    "model_id": "lid176-int8",
+    "num_labels": 176,
     "onnx_file": "lid176.int8.onnx",
+    "precision": "int8",
     "side_files": {
       "vocab": "vocab.txt",
       "labels": "labels.json",
       "config": "config.json",
       "hs_tree": "hs_tree.json"
     },
-    "license": "CC-BY-SA-3.0",
-    "engine": "fasttext-onnx",
-    "loss": "hs",
-    "num_labels": 176,
-    "size_mb": 31,
-    "precision": "int8"
+    "size_mb": 33
   },
   "openlid": {
-    "model_id": "openlid",
+    "engine": "fasttext-onnx",
     "hf_repo": "TigreGotico/openlid-onnx",
+    "license": "GPL-3.0",
+    "loss": "softmax",
+    "model_id": "openlid",
+    "num_labels": 201,
     "onnx_file": "openlid.onnx",
+    "precision": "fp32",
     "side_files": {
       "vocab": "vocab.txt",
       "labels": "labels.json",
       "config": "config.json"
     },
-    "license": "GPL-3.0",
-    "engine": "fasttext-onnx",
-    "loss": "softmax",
-    "num_labels": 201,
-    "size_mb": 1177,
-    "precision": "fp32"
+    "size_mb": 1232
   },
   "openlid-int8": {
-    "model_id": "openlid-int8",
+    "engine": "fasttext-onnx",
     "hf_repo": "TigreGotico/openlid-onnx",
+    "license": "GPL-3.0",
+    "loss": "softmax",
+    "model_id": "openlid-int8",
+    "num_labels": 201,
     "onnx_file": "openlid.int8.onnx",
+    "precision": "int8",
     "side_files": {
       "vocab": "vocab.txt",
       "labels": "labels.json",
       "config": "config.json"
     },
-    "license": "GPL-3.0",
-    "engine": "fasttext-onnx",
-    "loss": "softmax",
-    "num_labels": 201,
-    "size_mb": 293,
-    "precision": "int8"
+    "size_mb": 310
   },
   "openlid-v2": {
-    "model_id": "openlid-v2",
+    "engine": "fasttext-onnx",
     "hf_repo": "TigreGotico/openlid-v2-onnx",
+    "license": "GPL-3.0",
+    "loss": "softmax",
+    "model_id": "openlid-v2",
+    "num_labels": 200,
     "onnx_file": "openlid-v2.onnx",
+    "precision": "fp32",
     "side_files": {
       "vocab": "vocab.txt",
       "labels": "labels.json",
       "config": "config.json"
     },
-    "license": "GPL-3.0",
-    "engine": "fasttext-onnx",
-    "loss": "softmax",
-    "num_labels": 200,
-    "size_mb": 1157,
-    "precision": "fp32"
+    "size_mb": 1216
   },
   "openlid-v2-int8": {
-    "model_id": "openlid-v2-int8",
+    "engine": "fasttext-onnx",
     "hf_repo": "TigreGotico/openlid-v2-onnx",
+    "license": "GPL-3.0",
+    "loss": "softmax",
+    "model_id": "openlid-v2-int8",
+    "num_labels": 200,
     "onnx_file": "openlid-v2.int8.onnx",
+    "precision": "int8",
     "side_files": {
       "vocab": "vocab.txt",
       "labels": "labels.json",
       "config": "config.json"
     },
-    "license": "GPL-3.0",
-    "engine": "fasttext-onnx",
-    "loss": "softmax",
-    "num_labels": 200,
-    "size_mb": 290,
-    "precision": "int8"
+    "size_mb": 305
   }
 }
