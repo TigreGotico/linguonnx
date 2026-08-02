@@ -14,4 +14,15 @@ def load_detector(model_id: str = "glotlid-int8"):
     return LanguageDetector(model_id=model_id)
 
 
-__all__ = ["load_detector", "__version__"]
+def load_translator(*args, **kwargs):
+    """Build a translator over the registry in ``linguonnx/model_index/translate.json``.
+
+    See :func:`linguonnx.translate.load_translator` for the full signature. The
+    default graph is every permissive-licensed int8 model - M2M100-418M plus
+    the opus-mt bilingual pairs - routed by fewest hops, capped at two.
+    """
+    from linguonnx.translate import load_translator as _load
+    return _load(*args, **kwargs)
+
+
+__all__ = ["load_detector", "load_translator", "__version__"]
