@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0a1](https://github.com/TigreGotico/linguonnx/tree/0.4.0a1) (2026-08-02)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.3.0a1...0.4.0a1)
+
+**Merged pull requests:**
+
+- feat: generate the model registry from the HuggingFace API [\#12](https://github.com/TigreGotico/linguonnx/pull/12) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.3.0a1](https://github.com/TigreGotico/linguonnx/tree/0.3.0a1) (2026-08-02)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.2.0a1...0.3.0a1)
