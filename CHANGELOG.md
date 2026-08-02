@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0a1](https://github.com/TigreGotico/linguonnx/tree/0.6.0a1) (2026-08-02)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.4a2...0.6.0a1)
+
+**Merged pull requests:**
+
+- feat: run IndicTrans2 and OpenNMT-BPE models instead of only routing them [\#27](https://github.com/TigreGotico/linguonnx/pull/27) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.5.4a2](https://github.com/TigreGotico/linguonnx/tree/0.5.4a2) (2026-08-02)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.4a1...0.5.4a2)
