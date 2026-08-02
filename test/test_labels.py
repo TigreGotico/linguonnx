@@ -1,6 +1,6 @@
 import pytest
 
-from lingonnx.detect.labels import LabelMapper, parse_label, to_bcp47
+from linguonnx.detect.labels import LabelMapper, parse_label, to_bcp47
 
 
 def test_parse_label_strips_fasttext_prefix():
@@ -100,22 +100,22 @@ class TestCollapseVariety:
     """Varieties fold onto the macrolanguage a caller can act on."""
 
     def test_arabic_varieties_collapse(self):
-        from lingonnx.detect.labels import collapse_variety
+        from linguonnx.detect.labels import collapse_variety
         for tag in ("ajp-Arab", "ars-Arab", "arz-Arab", "ary-Arab", "arb-Arab"):
             assert collapse_variety(tag) == "ar", tag
 
     def test_chinese_keeps_script_when_collapsed(self):
-        from lingonnx.detect.labels import collapse_variety
+        from linguonnx.detect.labels import collapse_variety
         assert collapse_variety("yue-Hani") == "zh-Hani"
         assert collapse_variety("cmn-Hans") == "zh-Hans"
 
     def test_non_variety_unchanged(self):
-        from lingonnx.detect.labels import collapse_variety
+        from linguonnx.detect.labels import collapse_variety
         for tag in ("pt", "gl", "eu", "ast", "sr-Cyrl"):
             assert collapse_variety(tag) == tag
 
     def test_empty_and_unknown(self):
-        from lingonnx.detect.labels import collapse_variety
+        from linguonnx.detect.labels import collapse_variety
         assert collapse_variety("") == ""
         assert collapse_variety("xyz") == "xyz"
 
@@ -124,13 +124,13 @@ class TestBareLabelShape:
     """lid.176 emits bare ISO codes with no script subtag."""
 
     def test_split_label_accepts_both_shapes(self):
-        from lingonnx.detect.labels import split_label
+        from linguonnx.detect.labels import split_label
         assert split_label("__label__pt") == ("pt", None)
         assert split_label("glg") == ("glg", None)
         assert split_label("__label__glg_Latn") == ("glg", "Latn")
 
     def test_split_label_rejects_junk(self):
-        from lingonnx.detect.labels import split_label
+        from linguonnx.detect.labels import split_label
         for bad in ("notalabel", "", "e", "_Latn", "eng_"):
             with pytest.raises(ValueError):
                 split_label(bad)
@@ -190,7 +190,7 @@ class TestStandardizeTagBehaviour:
 
     def test_uncollapsed_path_stays_faithful(self):
         # standardize_tag does not fold varieties; only collapse_variety does
-        from lingonnx.detect.labels import collapse_variety
+        from linguonnx.detect.labels import collapse_variety
         assert to_bcp47("ars_Arab") == "ars"
         assert to_bcp47("yue_Hani") == "yue-Hani"
         assert collapse_variety(to_bcp47("ars_Arab")) == "ar"
@@ -199,7 +199,7 @@ class TestStandardizeTagBehaviour:
 
     def test_invalid_label_warns_but_does_not_raise(self, caplog):
         import logging
-        from lingonnx.detect import labels as labels_mod
+        from linguonnx.detect import labels as labels_mod
         labels_mod._WARNED_UNKNOWN.clear()
         with caplog.at_level(logging.WARNING, logger=labels_mod.__name__):
             assert to_bcp47("xyz_Latn") == "xyz"

@@ -17,7 +17,7 @@ jobs:
     secrets: inherit
     with:
       branch: 'dev'
-      version_file: 'lingonnx/version.py'
+      version_file: 'linguonnx/version.py'
       update_changelog: true
       publish_prerelease: true
       propose_release: true

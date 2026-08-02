@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from lingonnx import model_manager
+from linguonnx import model_manager
 
 
 EXPECTED = {
@@ -40,7 +40,7 @@ def test_registry_entry_fields(model_id):
 
 def test_default_model_is_the_permissively_licensed_one():
     """GPL/CC-BY-SA models must never be what a caller gets without asking."""
-    from lingonnx.detect import DEFAULT_MODEL_ID
+    from linguonnx.detect import DEFAULT_MODEL_ID
 
     assert DEFAULT_MODEL_ID == "glotlid-int8"
     assert model_manager.registry_entry(DEFAULT_MODEL_ID)["license"] == "Apache-2.0"
@@ -81,7 +81,7 @@ def test_fetch_one_skips_download_when_already_cached(tmp_path):
     dest_dir.mkdir()
     (dest_dir / "vocab.txt").write_text("hello\n")
 
-    with patch("lingonnx.model_manager.hf_hub_download") as mock_dl:
+    with patch("linguonnx.model_manager.hf_hub_download") as mock_dl:
         result = model_manager._fetch_one("some/repo", "vocab.txt", dest_dir)
 
     mock_dl.assert_not_called()
@@ -96,7 +96,7 @@ def test_fetch_one_redownloads_zero_byte_file(tmp_path):
     fake_downloaded = tmp_path / "blob_source"
     fake_downloaded.write_text("real content\n")
 
-    with patch("lingonnx.model_manager.hf_hub_download", return_value=str(fake_downloaded)) as mock_dl:
+    with patch("linguonnx.model_manager.hf_hub_download", return_value=str(fake_downloaded)) as mock_dl:
         result = model_manager._fetch_one("some/repo", "vocab.txt", dest_dir)
 
     mock_dl.assert_called_once()
@@ -109,7 +109,7 @@ def test_ensure_model_files_downloads_onnx_and_side_files(tmp_path, monkeypatch)
     fake_blob = tmp_path / "source_blob"
     fake_blob.write_text("x")
 
-    with patch("lingonnx.model_manager.hf_hub_download", return_value=str(fake_blob)) as mock_dl:
+    with patch("linguonnx.model_manager.hf_hub_download", return_value=str(fake_blob)) as mock_dl:
         paths = model_manager.ensure_model_files("glotlid-int8")
 
     assert paths["onnx_file"].name == "glotlid.int8.onnx"

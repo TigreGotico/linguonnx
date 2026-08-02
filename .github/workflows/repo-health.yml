@@ -10,4 +10,4 @@ jobs:
     uses: OpenVoiceOS/gh-automations/.github/workflows/repo-health.yml@dev
     secrets: inherit
     with:
-      version_file: 'lingonnx/version.py'
+      version_file: 'linguonnx/version.py'

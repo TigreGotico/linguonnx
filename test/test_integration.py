@@ -5,7 +5,7 @@ offline.
 
 import pytest
 
-from lingonnx import load_detector
+from linguonnx import load_detector
 
 pytestmark = pytest.mark.network
 
@@ -137,7 +137,7 @@ def test_openlid_emits_script_suffixed_labels(openlid):
 
 def test_openlid_v2_registry_entry_loads_labels_only():
     """v2 is a 1.1 GB download; check the registry wiring, not the weights."""
-    from lingonnx import model_manager
+    from linguonnx import model_manager
 
     entry = model_manager.registry_entry("openlid-v2-int8")
     assert entry["hf_repo"] == "TigreGotico/openlid-v2-onnx"

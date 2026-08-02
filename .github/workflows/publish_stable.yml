@@ -15,7 +15,7 @@ jobs:
     secrets: inherit
     with:
       branch: 'master'
-      version_file: 'lingonnx/version.py'
+      version_file: 'linguonnx/version.py'
       publish_pypi: true
       sync_dev: true
       publish_release: true

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from lingonnx.detect import LanguageDetector
+from linguonnx.detect import LanguageDetector
 
 LABELS = ["__label__eng_Latn", "__label__por_Latn", "__label__glg_Latn"]
 
@@ -37,11 +37,11 @@ def mocked_detector(tmp_path):
     # eng_Latn wins with high confidence
     fake_session.run.return_value = [np.array([0.9, 0.05, 0.05], dtype=np.float32)]
 
-    with patch("lingonnx.detect.model_manager.registry_entry",
+    with patch("linguonnx.detect.model_manager.registry_entry",
                return_value={"num_labels": 3}), \
-         patch("lingonnx.detect.model_manager.ensure_model_files",
+         patch("linguonnx.detect.model_manager.ensure_model_files",
                return_value=paths), \
-         patch("lingonnx.detect.ort.InferenceSession", return_value=fake_session):
+         patch("linguonnx.detect.ort.InferenceSession", return_value=fake_session):
         detector = LanguageDetector(model_id="glotlid-int8")
     return detector, fake_session
 
@@ -120,15 +120,15 @@ def _make_detector(paths, entry, output):
     fake_session.get_outputs.return_value[0].name = "node_probs"
     fake_session.run.return_value = [np.asarray(output, dtype=np.float32)]
 
-    with patch("lingonnx.detect.model_manager.registry_entry", return_value=entry), \
-         patch("lingonnx.detect.model_manager.ensure_model_files", return_value=paths), \
-         patch("lingonnx.detect.ort.InferenceSession", return_value=fake_session):
+    with patch("linguonnx.detect.model_manager.registry_entry", return_value=entry), \
+         patch("linguonnx.detect.model_manager.ensure_model_files", return_value=paths), \
+         patch("linguonnx.detect.ort.InferenceSession", return_value=fake_session):
         return LanguageDetector(model_id="fake"), fake_session
 
 
 class TestHSCombiner:
     def test_path_walk_matches_hand_computed_probabilities(self):
-        from lingonnx.detect.hs import HSCombiner
+        from linguonnx.detect.hs import HSCombiner
 
         combine = HSCombiner(
             paths=[[1], [0, 1], [0, 1]],
@@ -142,7 +142,7 @@ class TestHSCombiner:
         assert got == pytest.approx([0.2, 0.2, 0.6], abs=1e-6)
 
     def test_probabilities_sum_to_one_over_a_full_tree(self):
-        from lingonnx.detect.hs import HSCombiner
+        from linguonnx.detect.hs import HSCombiner
 
         combine = HSCombiner.from_counts([50, 30, 15, 5])
         rng = np.random.default_rng(0)
@@ -150,7 +150,7 @@ class TestHSCombiner:
         assert combine(node_probs).sum() == pytest.approx(1.0, abs=1e-9)
 
     def test_build_tree_shapes_and_determinism(self):
-        from lingonnx.detect.hs import build_tree
+        from linguonnx.detect.hs import build_tree
 
         paths, codes = build_tree([100, 40, 40, 20, 1])
         assert len(paths) == len(codes) == 5
@@ -162,7 +162,7 @@ class TestHSCombiner:
         assert build_tree([100, 40, 40, 20, 1]) == (paths, codes)
 
     def test_deep_path_does_not_underflow(self):
-        from lingonnx.detect.hs import HSCombiner
+        from linguonnx.detect.hs import HSCombiner
 
         combine = HSCombiner.from_counts([2 ** i for i in range(40)])
         probs = combine(np.full(39, 0.5))
@@ -170,7 +170,7 @@ class TestHSCombiner:
         assert probs.sum() == pytest.approx(1.0, abs=1e-9)
 
     def test_from_file(self, tmp_path):
-        from lingonnx.detect.hs import HSCombiner
+        from linguonnx.detect.hs import HSCombiner
 
         paths = _write_fake_hs_model_files(tmp_path)
         combine = HSCombiner.from_file(paths["hs_tree"])
