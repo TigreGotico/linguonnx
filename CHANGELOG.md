@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.4a2](https://github.com/TigreGotico/linguonnx/tree/0.5.4a2) (2026-08-02)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.4a1...0.5.4a2)
+
+**Merged pull requests:**
+
+- fix: validate a caller-supplied route before executing it [\#25](https://github.com/TigreGotico/linguonnx/pull/25) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.5.4a1](https://github.com/TigreGotico/linguonnx/tree/0.5.4a1) (2026-08-02)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.3a1...0.5.4a1)
