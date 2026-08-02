@@ -261,3 +261,35 @@ def test_noncommercial_opt_in_reaches_kabuverdianu():
     tx = load_translator(include_noncommercial=True)
     route = tx.route("pt", "kea")
     assert any("nllb" in hop.model_id for hop in route.hops)
+
+
+def test_supplied_route_cannot_run_a_directional_model_backwards():
+    """`route=` escapes the scoring policy, not correctness.
+
+    A one-directional model (IndicTrans2 en->indic, the nos-coda pairs,
+    liv4ever) has both languages in its code map, so a hand-built backwards
+    hop tokenises and decodes happily and returns fluent text translated the
+    wrong way round. Nothing would raise, which is why a supplied route is
+    validated rather than trusted.
+    """
+    import pytest as _pytest
+    from linguonnx.translate.graph import (Capability, Hop, InvalidRouteError,
+                                           Route, TranslationGraph)
+
+    one_way = Capability(
+        model_id="fake-en-xx", arch="marian", license="apache-2.0",
+        license_tier="permissive", size_mb=1,
+        src_languages=frozenset({"en"}), tgt_languages=frozenset({"xx"}))
+    graph = TranslationGraph([one_way])
+
+    def hop(src, tgt):
+        return Hop(model_id="fake-en-xx", src=src, tgt=tgt, arch="marian",
+                   license="apache-2.0", license_tier="permissive",
+                   size_mb=1, dedicated=True)
+
+    forwards = Route(src="en", tgt="xx", hops=(hop("en", "xx"),))
+    assert graph.validate_route(forwards) is forwards
+
+    backwards = Route(src="xx", tgt="en", hops=(hop("xx", "en"),))
+    with _pytest.raises(InvalidRouteError):
+        graph.validate_route(backwards)

@@ -184,6 +184,19 @@ class Translator:
             evicted._decoder = None
             evicted._tokenizer = None
 
+    def _reject_unselected(self, model_id: str) -> None:
+        """Refuse a model this translator did not select, and say why.
+
+        The routing graph can only report such a model as unknown, because it
+        never saw it. This layer knows the difference between "no such model"
+        and "filtered out", and naming the flag is the difference between a
+        caller fixing their call and a caller assuming the model is missing.
+        """
+        raise ValueError(
+            f"{model_id!r} is not in this translator's models. "
+            f"It is filtered out (see include_noncommercial=, precision= "
+            f"and models= on load_translator) or it does not exist.")
+
     def model(self, model_id: str) -> TranslationModel:
         """The loaded model for ``model_id``, building it on first use.
 
@@ -198,10 +211,7 @@ class Translator:
 
         entry = self._entries.get(model_id)
         if entry is None:
-            raise ValueError(
-                f"{model_id!r} is not in this translator's models. "
-                f"It is filtered out (see include_noncommercial=, precision= "
-                f"and models= on load_translator) or it does not exist.")
+            self._reject_unselected(model_id)
 
         # One lock per model id, so a cold 2 GB load blocks only the callers
         # who want that same model. Without it, two threads on the same cold
@@ -265,7 +275,20 @@ class Translator:
         if model is not None:
             chosen = self._pinned_route(model, src, tgt)
         elif route is not None:
-            chosen = route
+            # A caller-supplied route is the documented escape hatch from the
+            # scoring policy, not from correctness. Without validation a
+            # hand-built hop can run a one-directional model backwards --
+            # IndicTrans2 en->indic, the nos-coda pairs, liv4ever -- and both
+            # tags resolve in the model's code map, so it translates the wrong
+            # way round fluently, with nothing raised.
+            #
+            # Selection is checked first, and deliberately: the graph can only
+            # report an excluded model as unknown, while this layer knows *why*
+            # it is absent and can name the flag that would allow it.
+            for hop in route.hops:
+                if hop.model_id not in self._entries:
+                    self._reject_unselected(hop.model_id)
+            chosen = self.graph.validate_route(route)
         else:
             if src is None or tgt is None:
                 raise ValueError("give src= and tgt=, or a route=, or a model=")
