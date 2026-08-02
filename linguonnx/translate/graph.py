@@ -386,6 +386,14 @@ class TranslationGraph:
                              ordered: List[str]) -> List[str]:
         """Reorder an existing candidate list by ``src->pivot->tgt`` distance.
 
+        The score is ``(max(leg, leg), sum(legs), table_index)``, worst leg
+        first. Output through a pivot is bottlenecked by the **worse** of the
+        two legs, so a candidate that is very close to the source cannot buy
+        its way past a bad second leg: ranking on the sum alone would put
+        ``gl`` ahead of ``en`` for ``es->ru``, because ``es->gl`` is tiny. The
+        sum breaks ties as total path cost, and the table position breaks the
+        rest, so the order stays stable.
+
         The candidate *set* is untouched - this only changes the order, so the
         search stays exactly as bounded as it was. A pivot that
         :mod:`orthography2ipa` does not know scores ``None``, which keeps its
@@ -397,8 +405,8 @@ class TranslationGraph:
             first = _distance.pair_distance(src, lang)
             second = _distance.pair_distance(lang, tgt)
             if first is None or second is None:
-                return (1, float(index), index)
-            return (0, first + second, index)
+                return (1, float(index), 0.0, index)
+            return (0, max(first, second), first + second, index)
 
         return [lang for _, lang in sorted(enumerate(ordered), key=key)]
 

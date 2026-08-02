@@ -330,12 +330,24 @@ tx.route("pt", "eu").pivot_basis             # 'phonological', or 'table'
 | `"phonological"` | demand the package; raise `ValueError` without it |
 | `"table"` | curated order only, even when the package is installed |
 
-Candidates are scored by `distance(src, pivot) + distance(pivot, tgt)`, lower
-first, using
-`orthography2ipa.distance.phonological_distance(...).combined`. For example
-`pt->es` is 0.21 against `pt->en` 0.32, and `es->eu` is 0.25 against `en->eu`
-0.45, so Spanish wins the Basque pivot on measurement rather than on the
-table's say-so.
+Each candidate gets two leg distances, `src -> pivot` and `pivot -> tgt`, from
+`orthography2ipa.distance.phonological_distance(...).combined`. They are ranked
+by **the worse of the two legs first**, then by the total, then by table
+position:
+
+```python
+(max(first_leg, second_leg), first_leg + second_leg, table_index)
+```
+
+Output through a pivot is bottlenecked by the worse leg, so a candidate that
+happens to sit very close to the source cannot buy its way past a bad second
+leg. Ranking on the total alone would pick Galician as the `es -> ru` pivot,
+purely because `es->gl` is 0.10; the worst-leg rule picks Ukrainian, whose leg
+into Russian is 0.23. For `pt -> eu` Spanish wins either way: its worst leg is
+0.25 against English's 0.45.
+
+The total is a tiebreak rather than the primary key, and both are judgement
+calls that a benchmark could overturn.
 
 Three limits are deliberate:
 

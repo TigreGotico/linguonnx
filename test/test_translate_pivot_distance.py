@@ -60,6 +60,15 @@ requires_o2i = pytest.mark.skipif(
     not distance.available(), reason="orthography2ipa is not installed")
 
 
+def _score(src, pivot, tgt):
+    """The ranking key: worst leg first, then the total, as the graph scores it."""
+    first = distance.pair_distance(src, pivot)
+    second = distance.pair_distance(pivot, tgt)
+    if first is None or second is None:
+        return None
+    return (max(first, second), first + second)
+
+
 # --- phonological ranking --------------------------------------------------
 
 @requires_o2i
@@ -90,16 +99,24 @@ def test_gl_to_ca_pivots_through_spanish():
 
 
 @requires_o2i
-def test_pt_to_ru_ranks_candidates_by_summed_distance():
+def test_candidates_are_ranked_worst_leg_first():
     graph = build(pivot_ranking="phonological")
     candidates = graph._pivot_candidates("pt", "ru")
-    scored = [(distance.pair_distance("pt", c) + distance.pair_distance(c, "ru"), c)
-              for c in candidates
-              if distance.pair_distance("pt", c) is not None
-              and distance.pair_distance(c, "ru") is not None]
-    assert scored == sorted(scored, key=lambda s: s[0]) or \
-        [c for _, c in scored] == [c for _, c in sorted(scored)]
-    assert candidates[0] == min(scored)[1]
+    scores = [_score("pt", c, "ru") for c in candidates]
+    known = [s for s in scores if s is not None]
+    assert known == sorted(known)
+
+
+@requires_o2i
+def test_a_short_first_leg_cannot_hide_a_bad_second_leg():
+    """``es->ru``: ranking on the total picks Galician, which is only close to
+    the *source*. Ranking on the worst leg picks Ukrainian, which is the leg
+    into Russian that actually carries the meaning."""
+    gl, uk = _score("es", "gl", "ru"), _score("es", "uk", "ru")
+    assert gl[1] < uk[1]        # gl wins on the total, 0.40 against 0.51
+    assert uk[0] < gl[0]        # uk wins on the worst leg, 0.27 against 0.31
+    assert TranslationGraph._rank_phonologically(
+        "es", "ru", ["gl", "uk"]) == ["uk", "gl"]
 
 
 @requires_o2i
@@ -189,3 +206,22 @@ def test_translator_exposes_pivot_ranking():
     tx = load_translator(pivot_ranking="table")
     assert tx.pivot_ranking == "table"
     assert tx.route("pt", "en").pivot_basis == "table"
+
+
+# --- the real registry -----------------------------------------------------
+
+@requires_o2i
+def test_real_registry_pivots_pt_to_eu_through_spanish_once_es_eu_exists():
+    """Skipped until ``opus-mt-es-eu``/``opus-mt-eu-es`` are exported.
+
+    The synthetic tests above pin the ranking logic whatever ships. This one
+    pins the behaviour callers actually get, and starts asserting by itself the
+    day the models land, instead of quietly staying vacuous.
+    """
+    from linguonnx import load_translator
+    tx = load_translator(pivot_ranking="phonological")
+    if not any(c.covers("es", "eu") for c in tx.graph.capabilities):
+        pytest.skip("no es->eu capability in the registry yet")
+    route = tx.route("pt", "eu", prefer="dedicated")
+    assert route.pivots == ("es",)
+    assert route.pivot_basis == "phonological"
