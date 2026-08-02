@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.4a1](https://github.com/TigreGotico/linguonnx/tree/0.5.4a1) (2026-08-02)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.3a1...0.5.4a1)
+
+**Merged pull requests:**
+
+- fix: make routing agree with what translation can execute [\#23](https://github.com/TigreGotico/linguonnx/pull/23) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.5.3a1](https://github.com/TigreGotico/linguonnx/tree/0.5.3a1) (2026-08-02)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.2a1...0.5.3a1)
