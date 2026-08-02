@@ -18,6 +18,8 @@ Routing is explained in :mod:`linguonnx.translate.graph`, the decode loop in
 from __future__ import annotations
 
 import logging
+import threading
+from collections import OrderedDict
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 from linguonnx.model_manager import list_models
@@ -31,6 +33,13 @@ LOG = logging.getLogger(__name__)
 
 __all__ = ["Translator", "load_translator", "Route", "Hop", "NoRouteError",
            "GenerationConfig"]
+
+#: How many loaded models a Translator keeps alive at once. The full default
+#: graph is 73 models / ~25 GB, so an unbounded cache converges on the whole
+#: registry in a long-lived server and gets the process OOM-killed; it then
+#: restarts cold and pays every download again. Four keeps a two-hop route and
+#: its neighbours warm while staying inside a few GB.
+DEFAULT_MODEL_CACHE_SIZE = 4
 
 
 def _select_entries(precision: Optional[str], include_noncommercial: bool,
@@ -65,13 +74,21 @@ class Translator:
                  max_routes: int = 10,
                  pivot_ranking: str = "auto",
                  num_beams: int = 4, max_new_tokens: int = 128,
-                 length_penalty: float = 1.0, no_repeat_ngram_size: int = 0):
+                 length_penalty: float = 1.0, no_repeat_ngram_size: int = 0,
+                 model_cache_size: int = DEFAULT_MODEL_CACHE_SIZE):
         self._entries = entries
         self.graph = TranslationGraph(
             [capability_from_entry(e) for e in entries.values()],
             pivot_preference=pivot_preference, prefer=prefer,
             max_hops=max_hops, max_routes=max_routes,
             pivot_ranking=pivot_ranking)
+        if pivot_ranking == "auto" and self.graph.pivot_ranking != "phonological":
+            # `auto` degrades silently when orthography2ipa is absent, and the
+            # two bases can pick different pivots - so two hosts in one fleet
+            # would return different translations with nothing to explain it.
+            LOG.warning("pivot_ranking='auto' fell back to %r: orthography2ipa "
+                        "is not installed (pip install linguonnx[distance])",
+                        self.graph.pivot_ranking)
         # Capabilities the licence filter left out, so a failed lookup can say
         # "a non-commercial model covers this" instead of looking unsupported.
         chosen = set(entries)
@@ -86,7 +103,16 @@ class Translator:
             max_new_tokens=max_new_tokens, num_beams=num_beams,
             length_penalty=length_penalty,
             no_repeat_ngram_size=no_repeat_ngram_size)
-        self._loaded: Dict[str, TranslationModel] = {}
+        if model_cache_size < 1:
+            raise ValueError("model_cache_size must be at least 1")
+        self._cache_size = model_cache_size
+        self._loaded: "OrderedDict[str, TranslationModel]" = OrderedDict()
+        # `_cache_lock` guards the cache bookkeeping only and is never held
+        # across a load. The per-model locks in `_load_locks` are what a cold
+        # load holds, so building model A does not block a caller who needs
+        # model B.
+        self._cache_lock = threading.Lock()
+        self._load_locks: Dict[str, threading.Lock] = {}
 
     # -- introspection ----------------------------------------------------
 
@@ -131,11 +157,71 @@ class Translator:
 
     # -- models -----------------------------------------------------------
 
+    @property
+    def loaded_models(self) -> List[str]:
+        """Ids currently holding ONNX sessions, least recently used first."""
+        with self._cache_lock:
+            return list(self._loaded)
+
+    def _touch(self, model_id: str) -> Optional[TranslationModel]:
+        """The cached model, moved to the most-recent end. None if not cached."""
+        with self._cache_lock:
+            model = self._loaded.get(model_id)
+            if model is not None:
+                self._loaded.move_to_end(model_id)
+            return model
+
+    def _evict_down_to_size(self) -> None:
+        while len(self._loaded) > self._cache_size:
+            model_id, evicted = self._loaded.popitem(last=False)
+            LOG.debug("evicting %s from the model cache (limit %d)",
+                      model_id, self._cache_size)
+            # Dropping the dict entry is not enough on its own: a caller may
+            # still hold the TranslationModel it got back from `model()`, and
+            # the three InferenceSessions hang off the decoder. Clearing them
+            # here releases the memory now; both attributes are lazy, so a
+            # caller holding the object simply reloads on next use.
+            evicted._decoder = None
+            evicted._tokenizer = None
+
     def model(self, model_id: str) -> TranslationModel:
-        if model_id not in self._loaded:
-            entry = self._entries.get(model_id)
-            self._loaded[model_id] = TranslationModel(model_id, entry)
-        return self._loaded[model_id]
+        """The loaded model for ``model_id``, building it on first use.
+
+        Only ids inside this translator's own selection are loadable. Falling
+        back to the full registry here would let a caller-supplied ``route=``
+        translate through a model the licence filter excluded, which is exactly
+        what ``include_noncommercial=False`` promises will not happen.
+        """
+        cached = self._touch(model_id)
+        if cached is not None:
+            return cached
+
+        entry = self._entries.get(model_id)
+        if entry is None:
+            raise ValueError(
+                f"{model_id!r} is not in this translator's models. "
+                f"It is filtered out (see include_noncommercial=, precision= "
+                f"and models= on load_translator) or it does not exist.")
+
+        # One lock per model id, so a cold 2 GB load blocks only the callers
+        # who want that same model. Without it, two threads on the same cold
+        # model each build three InferenceSessions and one set is orphaned.
+        with self._cache_lock:
+            lock = self._load_locks.setdefault(model_id, threading.Lock())
+        with lock:
+            # Re-check: another thread may have finished the load while this
+            # one waited on the lock.
+            cached = self._touch(model_id)
+            if cached is not None:
+                return cached
+            LOG.info("loading translation model %s (%s, %s MB)", model_id,
+                     entry["arch"], entry["size_mb"])
+            model = TranslationModel(model_id, entry)
+            with self._cache_lock:
+                self._loaded[model_id] = model
+                self._loaded.move_to_end(model_id)
+                self._evict_down_to_size()
+            return model
 
     # -- translation ------------------------------------------------------
 
@@ -185,6 +271,13 @@ class Translator:
                 raise ValueError("give src= and tgt=, or a route=, or a model=")
             chosen = self.route(src, tgt, max_hops=max_hops, prefer=prefer)
 
+        # The route is the single thing an operator needs to explain a bad
+        # translation: which models ran, in which order, and through which
+        # pivot.
+        LOG.info("translating %s -> %s via %s", chosen.src, chosen.tgt,
+                 " | ".join(f"{hop.model_id}:{hop.src}->{hop.tgt}"
+                            for hop in chosen.hops))
+
         out = text
         for hop in chosen.hops:
             out = self.model(hop.model_id).translate(
@@ -225,7 +318,8 @@ def load_translator(models: Optional[Sequence[str]] = None,
                     num_beams: int = 4,
                     max_new_tokens: int = 128,
                     length_penalty: float = 1.0,
-                    no_repeat_ngram_size: int = 0) -> Translator:
+                    no_repeat_ngram_size: int = 0,
+                    model_cache_size: int = DEFAULT_MODEL_CACHE_SIZE) -> Translator:
     """Build a :class:`Translator` over the registry.
 
     The default graph is **every permissive-licensed int8 model**: M2M100-418M
@@ -251,6 +345,10 @@ def load_translator(models: Optional[Sequence[str]] = None,
         ``"phonological"`` demands the package and raises without it;
         ``"table"`` ignores it. ``Route.pivot_basis`` reports which was used.
     :param num_beams: 4 by default; 1 is greedy and about 4x faster.
+    :param model_cache_size: how many loaded models to keep alive at once,
+        least-recently-used evicted first. The whole default graph is ~25 GB,
+        so an unbounded cache is an OOM kill in any long-lived server that
+        routes over many language pairs.
     """
     if model is not None:
         models = [model] if models is None else list(models) + [model]
@@ -262,4 +360,5 @@ def load_translator(models: Optional[Sequence[str]] = None,
                       pivot_ranking=pivot_ranking,
                       num_beams=num_beams, max_new_tokens=max_new_tokens,
                       length_penalty=length_penalty,
-                      no_repeat_ngram_size=no_repeat_ngram_size)
+                      no_repeat_ngram_size=no_repeat_ngram_size,
+                      model_cache_size=model_cache_size)

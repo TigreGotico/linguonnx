@@ -55,6 +55,24 @@ print(tx.route("pt", "kea").model_ids)   # ('nllb-600M-int8',)
 print(tx.route("es", "oc").model_ids)    # ('aina-es-oc-int8',)
 ```
 
+### The filter holds at load time, not only at routing time
+
+A translator loads only the models it was built over. Naming an excluded model
+in a `route=` or a `model=` raises, rather than loading it and translating
+through it:
+
+```python
+tx = load_translator()                       # permissive models only
+tx.translate("bom dia", src="pt", tgt="kea", model="nllb-600M-int8")
+# ValueError: 'nllb-600M-int8' is not in this translator's models. It is
+# filtered out (see include_noncommercial=, precision= and models= on
+# load_translator) or it does not exist.
+```
+
+This is what makes `include_noncommercial=False` a guarantee about the output
+rather than a preference about routing. If you want the model, ask for it —
+with `include_noncommercial=True`, or by naming it in `models=`.
+
 ## What a route tells you
 
 Every `Route` carries the licence of every hop, and a tier for the chain as a

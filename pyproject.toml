@@ -13,11 +13,13 @@ authors = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-    "onnxruntime",
-    "numpy",
-    "huggingface_hub",
-    "langcodes",
-    "sentencepiece",
+    # Floors, not pins: the oldest release each of these is known to work on.
+    # Without them the manifest permits a resolution nobody has ever tested.
+    "onnxruntime>=1.16.0",
+    "numpy>=1.21.0",
+    "huggingface_hub>=0.20.0",  # stable `revision=` handling in hf_hub_download
+    "langcodes>=3.3.0",
+    "sentencepiece>=0.1.99",
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -29,8 +31,12 @@ classifiers = [
 [project.optional-dependencies]
 # Linguistic distance for pivot-language ranking. Optional on purpose: without
 # it the routing graph uses its curated pivot table instead.
-distance = ["orthography2ipa"]
-test = ["pytest", "onnx"]
+distance = ["orthography2ipa>=0.1.0"]
+# `onnx` is only used by the tests, but the floor is a security floor, not a
+# feature one: CVE-2022-25882 (<1.13.0) is directory traversal through the
+# external-data `location` field, and CVE-2024-5187 (<1.16.0) is a second path
+# traversal. This library downloads external-data models, so both are live.
+test = ["pytest>=7.0", "onnx>=1.16.0"]
 
 [project.urls]
 Homepage = "https://github.com/TigreGotico/linguonnx"
