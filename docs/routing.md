@@ -131,10 +131,15 @@ it:
 tx = load_translator()
 for route in tx.routes("pt", "ru")[:3]:   # every viable route, ranked
     print(route)
+```
 
+Take one and hand it back, or skip routing altogether by naming a model:
+
+<!-- doc-check: skip runs a 1.2 GB M2M100 download -->
+```python
 chosen = tx.routes("pt", "ru")[1]
-# tx.translate("olá", route=chosen)                     # run it verbatim
-# tx.translate("olá", model="m2m100-418M-int8", src="pt", tgt="ru")  # pin a model
+tx.translate("olá", route=chosen)                                  # verbatim
+tx.translate("olá", model="m2m100-418M-int8", src="pt", tgt="ru")  # pinned
 ```
 
 `routes()` is bounded on purpose. It returns the top 10 by default (`limit=`),

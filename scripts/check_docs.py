@@ -66,11 +66,19 @@ def blocks(path: Path) -> List[Block]:
     return out
 
 
+def label(path: Path) -> str:
+    """A repo-relative path when the file is inside the repo, else as given."""
+    try:
+        return str(path.resolve().relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
 def check(path: Path, verbose: bool) -> int:
     namespace = {"__name__": "__doc_check__"}
     failures = 0
     for block in blocks(path):
-        where = f"{path.relative_to(REPO_ROOT)}:{block.line}"
+        where = f"{label(path)}:{block.line}"
         if block.directive == "norun":
             print(f"  norun {where}")
             continue
@@ -103,12 +111,12 @@ def main() -> int:
         for path in paths:
             for block in blocks(path):
                 mark = block.directive or "run"
-                print(f"{path.relative_to(REPO_ROOT)}:{block.line}\t{mark}")
+                print(f"{label(path)}:{block.line}\t{mark}")
         return 0
 
     failures = 0
     for path in paths:
-        print(path.relative_to(REPO_ROOT))
+        print(label(path))
         failures += check(path, args.verbose)
     print()
     print("all documented samples ran" if not failures
