@@ -4,7 +4,7 @@ an ONNX graph that does the embedding-average + matmul + softmax.
 Models trained with hierarchical softmax (``loss=hs``, e.g. fastText's
 classic ``lid.176``) end in ``Sigmoid`` over Huffman-tree nodes instead, and
 need one more Python step to turn node scores into label probabilities; see
-:mod:`lingonnx.detect.hs`. Which path a model takes is decided by its
+:mod:`linguonnx.detect.hs`. Which path a model takes is decided by its
 declared loss, never by its name.
 """
 
@@ -17,10 +17,10 @@ from typing import Dict, Optional
 import numpy as np
 import onnxruntime as ort
 
-from lingonnx import model_manager
-from lingonnx.detect.hashing import GlotLIDFeaturizer
-from lingonnx.detect.hs import HSCombiner
-from lingonnx.detect.labels import LABEL_PREFIX, LabelMapper, collapse_variety
+from linguonnx import model_manager
+from linguonnx.detect.hashing import GlotLIDFeaturizer
+from linguonnx.detect.hs import HSCombiner
+from linguonnx.detect.labels import LABEL_PREFIX, LabelMapper, collapse_variety
 
 # GlotLID is the default on purpose: it is the only Apache-2.0 model in the
 # registry. OpenLID v1/v2 are GPL-3.0 and lid.176 is CC-BY-SA-3.0, so a user

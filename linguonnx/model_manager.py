@@ -1,6 +1,6 @@
-"""Download + local cache for lingonnx models.
+"""Download + local cache for linguonnx models.
 
-Models are cached under ``~/.cache/lingonnx/models/<model_id>/<filename>``.
+Models are cached under ``~/.cache/linguonnx/models/<model_id>/<filename>``.
 Downloads go through ``huggingface_hub.hf_hub_download`` (which does its own
 resumable/verified download into HF's blob cache) and are then copied into
 our cache path atomically: written to a ``.part`` sibling file and
@@ -19,7 +19,7 @@ from typing import Any, Dict
 
 from huggingface_hub import hf_hub_download
 
-CACHE_ROOT = Path.home() / ".cache" / "lingonnx"
+CACHE_ROOT = Path.home() / ".cache" / "linguonnx"
 MODELS_DIR = CACHE_ROOT / "models"
 REGISTRY_PATH = Path(__file__).parent / "model_index" / "lid.json"
 

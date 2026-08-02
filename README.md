@@ -1,23 +1,23 @@
-# lingonnx
+# linguonnx
 
 CPU-first language technology models on ONNX Runtime, in the spirit of
 [`onnx-asr`](https://github.com/istupakov/onnx-asr) (speech recognition) and
 [`phoonnx`](https://github.com/TigreGotico/phoonnx) (text-to-speech).
 
-This release covers language identification (`lingonnx.detect`), built on the
+This release covers language identification (`linguonnx.detect`), built on the
 TigreGotico ONNX exports of four fastText classifiers: GlotLID, fastText's
 classic lid.176, OpenLID and OpenLID-v2. Translation
-(`lingonnx.translate`) is planned as a sibling package under the same
-`lingonnx` namespace; it does not exist yet.
+(`linguonnx.translate`) is planned as a sibling package under the same
+`linguonnx` namespace; it does not exist yet.
 
 ## Install
 
 ```bash
-pip install lingonnx
+pip install linguonnx
 ```
 
 Models download from HuggingFace on first use and are cached under
-`~/.cache/lingonnx/models/<model_id>/`.
+`~/.cache/linguonnx/models/<model_id>/`.
 
 ## How the model split works
 
@@ -34,7 +34,7 @@ input_ids: int64[num_features]  ->  probs: float32[num_labels]
 
 What ONNX *can't* do portably is fastText's own preprocessing: tokenizing
 text and hashing character n-grams into `input_ids`. That half stays in
-Python, in `lingonnx/detect/hashing.py`, vendored from the reference
+Python, in `linguonnx/detect/hashing.py`, vendored from the reference
 implementation published alongside the ONNX weights
 (`glotlid_hash.py` in the HuggingFace repo; every model in the registry uses
 the same hashing, differing only in the `nwords`/`minn`/`maxn`/`bucket`
@@ -48,7 +48,7 @@ the wrong bucket if you "fix" that.
 ## API
 
 ```python
-from lingonnx import load_detector
+from linguonnx import load_detector
 
 det = load_detector()                 # glotlid-int8; downloads on first use
 det = load_detector("lid176-int8")    # or openlid-int8, openlid-v2-int8, ...
@@ -113,7 +113,7 @@ only Apache-2.0 model here.
 **OpenLID and OpenLID-v2 are GPL-3.0**, inherited from the upstream models.
 If your project cares about licence compatibility, do not use them - stay on
 GlotLID. lid.176 is CC-BY-SA-3.0, which has its own share-alike condition.
-`lingonnx` itself is Apache-2.0 and downloads no model you did not name.
+`linguonnx` itself is Apache-2.0 and downloads no model you did not name.
 
 `glotlid-int8` is the default precision as well as the default family: the
 HuggingFace repo's own parity testing found identical top-1 decisions against
@@ -126,8 +126,8 @@ publisher's 59-language set), so use `lid176` fp32 when 125 MB is affordable.
 
 GlotLID, OpenLID and OpenLID-v2 emit `iso3_Script` labels (`eng_Latn`,
 `glg_Latn`, `zho_Hans`). lid.176 emits bare ISO codes with no script
-(`en`, `gl`, `pt`). `lingonnx` maps both to BCP-47 tags via
-`lingonnx.detect.labels`; see that module's docstring for the exact rules.
+(`en`, `gl`, `pt`). `linguonnx` maps both to BCP-47 tags via
+`linguonnx.detect.labels`; see that module's docstring for the exact rules.
 
 ## Hierarchical softmax
 
@@ -140,7 +140,7 @@ frequencies, and a label's probability is the product of the sigmoid (or
 0% agreement with fastText.
 
 So the lid.176 ONNX graph ends in `Sigmoid` over the Huffman nodes, and
-`lingonnx.detect.hs` walks the paths in Python (the tree is precomputed into
+`linguonnx.detect.hs` walks the paths in Python (the tree is precomputed into
 `hs_tree.json` at export time, and `build_tree()` reproduces the construction
 from label counts). Which path a model takes is decided by the `loss` field on
 its registry entry, falling back to the `loss` in its own `config.json` and
@@ -157,8 +157,8 @@ text using only characters shared between scripts resolves to `zh-Hani`, not
 
 ## Translation (planned)
 
-`lingonnx.translate` is not implemented yet. The package layout leaves room
-for it beside `lingonnx.detect` without restructuring anything already
+`linguonnx.translate` is not implemented yet. The package layout leaves room
+for it beside `linguonnx.detect` without restructuring anything already
 shipped.
 
 ## Development

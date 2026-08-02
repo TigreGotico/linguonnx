@@ -1,6 +1,6 @@
 """fastText LID label <-> BCP-47 mapping.
 
-The models lingonnx ships use two label shapes:
+The models linguonnx ships use two label shapes:
 
 - ``eng_Latn`` / ``__label__eng_Latn`` - an ISO 639-3 code, an underscore, an
   ISO 15924 script code. GlotLID, OpenLID and OpenLID-v2 use this shape.
