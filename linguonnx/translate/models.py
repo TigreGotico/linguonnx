@@ -54,6 +54,8 @@ def capability_from_entry(entry: Dict) -> Capability:
     """
     langs = frozenset(normalize_tag(code) for code in entry.get("languages", ()))
     pair = entry.get("pair")
+    src_langs = entry.get("src_languages")
+    tgt_langs = entry.get("tgt_languages")
     return Capability(
         model_id=entry["model_id"],
         arch=entry["arch"],
@@ -62,6 +64,10 @@ def capability_from_entry(entry: Dict) -> Capability:
         size_mb=int(entry["size_mb"]),
         languages=langs,
         pair=(normalize_tag(pair[0]), normalize_tag(pair[1])) if pair else None,
+        src_languages=frozenset(normalize_tag(c) for c in src_langs)
+            if src_langs is not None else None,
+        tgt_languages=frozenset(normalize_tag(c) for c in tgt_langs)
+            if tgt_langs is not None else None,
     )
 
 
@@ -81,9 +87,19 @@ class TranslationModel:
         self._to_native: Dict[str, str] = {}
         for code in self.entry.get("languages", ()):
             self._to_native.setdefault(normalize_tag(code), code)
+        for code in (self.entry.get("src_languages") or ()):
+            self._to_native.setdefault(normalize_tag(code), code)
+        for code in (self.entry.get("tgt_languages") or ()):
+            self._to_native.setdefault(normalize_tag(code), code)
         if self.capability.pair:
             for native, tag in zip(self.entry["pair"], self.capability.pair):
                 self._to_native.setdefault(tag, native)
+        # A hand-verified fix-up for a model whose own code collides with a
+        # different language's ISO tag (liv4ever-mt's `<2li>` means Livonian,
+        # not Limburgish - see MARIAN_MULTILINGUAL_OVERRIDES in
+        # scripts/sync_registry.py). Applied last, so it always wins.
+        for tag, native in (self.entry.get("native_codes") or {}).items():
+            self._to_native[tag] = native
 
     # -- lazy loading -----------------------------------------------------
 
@@ -143,6 +159,17 @@ class TranslationModel:
                   target_token: Optional[str] = None) -> str:
         if not text.strip():
             return ""
+        if self.arch in ("indictrans2", "opennmt-bpe"):
+            # Both need a preprocessing pipeline this library does not vendor:
+            # IndicTrans2's IndicProcessor (sentence splitting, script
+            # normalisation/transliteration) and OpenNMT's Moses+subword-nmt
+            # BPE. Registered for routing - `Translator.route()` never loads a
+            # model - but raising here beats the alternative of guessing at a
+            # tokenisation scheme and translating fluently into the wrong
+            # words.
+            raise NotImplementedError(
+                f"{self.model_id} ({self.arch}) is registered for routing "
+                f"only; its inference pipeline is not implemented yet")
         # A multi-target Marian group model (opus-mt-en-sla and friends) picks
         # its target language from a prefix token, and picks it *wrong* when
         # the token is absent - fluently, with nothing raised. The registry
@@ -150,8 +177,19 @@ class TranslationModel:
         # caller argument still wins.
         if target_token is None:
             target_token = self.entry.get("target_token")
+        if target_token is None and self.arch in ("marian", "madlad") \
+                and not self.capability.pair:
+            # A multilingual model that picks its target with a `<2xx>`
+            # prefix token (MADLAD, liv4ever-mt) rather than a forced
+            # decoder-start id: the token is built per call from `tgt`.
+            template = self.entry.get("target_token_template")
+            if template:
+                target_token = template.format(code=self.native_code(tgt))
         if self.arch == "marian":
             input_ids = self.tokenizer.encode(text, target_token=target_token)
+            forced_bos = None
+        elif self.arch == "madlad":
+            input_ids = self.tokenizer.encode(text, prefix=target_token)
             forced_bos = None
         else:
             input_ids = self.tokenizer.encode(text, self.native_code(src))

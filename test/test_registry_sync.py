@@ -49,7 +49,8 @@ def test_translate_entry_is_complete(model_id):
         assert key in entry, f"{model_id} is missing {key!r}"
     assert entry["model_id"] == model_id
     assert entry["hf_repo"].startswith("TigreGotico/")
-    assert entry["arch"] in ("marian", "m2m100", "nllb")
+    assert entry["arch"] in (
+        "marian", "m2m100", "nllb", "madlad", "indictrans2", "opennmt-bpe")
     assert entry["precision"] in ("fp32", "int8")
     assert entry["size_mb"] > 0
 
@@ -86,6 +87,9 @@ def test_translate_entry_carries_side_files_its_tokenizer_needs(model_id):
         "marian": {"source_spm", "target_spm", "vocab", "config"},
         "m2m100": {"spm", "config", "special_tokens_map", "vocab"},
         "nllb": {"spm", "config", "special_tokens_map"},
+        "madlad": {"spm", "config"},
+        "indictrans2": {"spm_src", "spm_tgt", "dict_src", "dict_tgt", "config"},
+        "opennmt-bpe": {"vocab", "config", "bpe_code"},
     }[entry["arch"]]
     assert required <= set(side), \
         f"{model_id} ({entry['arch']}) is missing {required - set(side)}"
@@ -105,13 +109,24 @@ def test_lid_entry_is_complete(model_id):
 
 
 def test_every_entry_declares_exactly_one_kind_of_coverage():
-    """A model is either a pair or a covering set, never both and never neither."""
+    """A model is a pair, an any-to-any set, or a directional set - never
+    zero of those and never more than one."""
     for model_id, entry in TRANSLATE.items():
         has_pair = "pair" in entry
         has_set = bool(entry.get("languages"))
-        assert has_pair != has_set, (
-            f"{model_id} declares "
-            f"{'both a pair and a language set' if has_pair else 'no coverage'}")
+        has_directional = bool(entry.get("src_languages") or entry.get("tgt_languages"))
+        kinds = sum((has_pair, has_set, has_directional))
+        assert kinds == 1, (
+            f"{model_id} declares {kinds} kinds of coverage "
+            f"(pair={has_pair}, languages={has_set}, directional={has_directional})")
+
+
+def test_directional_entries_declare_both_sides():
+    """A one-directional covering-set model needs both a source and a target set."""
+    for model_id, entry in TRANSLATE.items():
+        if "src_languages" in entry or "tgt_languages" in entry:
+            assert entry.get("src_languages"), f"{model_id} has no src_languages"
+            assert entry.get("tgt_languages"), f"{model_id} has no tgt_languages"
 
 
 # ---------------------------------------------------------------------------
@@ -137,12 +152,12 @@ def test_no_m2m100_entry_claims_basque():
 
 
 def test_basque_is_served_only_by_models_that_actually_have_it():
-    """Whatever claims `eu` must be an opus-mt pair or NLLB, never M2M100."""
+    """Whatever claims `eu` must be a model that actually ships it, never M2M100."""
     for model_id, entry in TRANSLATE.items():
         endpoints = {normalize_tag(c) for c in entry.get("pair", ())}
         endpoints |= {normalize_tag(c) for c in entry.get("languages", ())}
         if "eu" in endpoints:
-            assert entry["arch"] in ("marian", "nllb"), \
+            assert entry["arch"] in ("marian", "nllb", "madlad"), \
                 f"{model_id} claims Basque with arch {entry['arch']}"
 
 
@@ -227,6 +242,62 @@ def test_noncommercial_models_exist_but_are_opt_in():
     assert "non-commercial" in tiers, "NLLB should still be in the registry"
     opt_in = load_translator(include_noncommercial=True)
     assert len(opt_in.models) > len(load_translator().models)
+
+
+def test_pt_to_mwl_resolves_via_madlad(translator):
+    """Mirandese: only MADLAD carries it; a wrong claim would silently drop it."""
+    route = translator.route("pt", "mwl")
+    assert route.hops[-1].model_id.startswith("madlad400-3b-mt")
+
+
+def test_pt_to_kea_resolves_via_nllb():
+    """Kabuverdianu: NLLB-only, and only reachable opted in (CC-BY-NC-4.0)."""
+    translator = load_translator(include_noncommercial=True)
+    route = translator.route("pt", "kea")
+    assert route.hops[-1].model_id.startswith("nllb-600M")
+
+
+def test_en_to_an_resolves_aragonese(translator):
+    route = translator.route("en", "an")
+    assert route.hops[-1].tgt == "an"
+
+
+def test_hi_to_ta_resolves_direct_via_indictrans2_indic_indic(translator):
+    """Hindi -> Tamil must not detour through English.
+
+    indictrans2-indic-indic is the only model with both languages on the
+    Indic side; routing it through en-indic + indic-en would silently add a
+    pivot hop this direct model makes unnecessary.
+    """
+    route = translator.route("hi", "ta")
+    assert route.n_hops == 1, route
+    assert route.hops[0].model_id.startswith("indictrans2-indic-indic")
+
+
+def test_indictrans2_en_indic_never_serves_indic_to_english(translator):
+    """en-indic is eng_Latn -> {indic}, one-way; the reverse must use indic-en."""
+    model_id = next(m for m in TRANSLATE if m.startswith("indictrans2-en-indic"))
+    entry = TRANSLATE[model_id]
+    from linguonnx.translate.models import capability_from_entry
+
+    cap = capability_from_entry(entry)
+    assert cap.covers("en", "hi")
+    assert not cap.covers("hi", "en")
+    for route in translator.routes("hi", "en", limit=50):
+        for hop in route.hops:
+            assert not hop.model_id.startswith("indictrans2-en-indic"), (
+                f"{route} runs {model_id} backwards")
+
+
+def test_nos_coda_model_never_serves_its_reverse_direction(translator):
+    """nos-coda_iacobus-en-gl is English -> Galician only, never gl -> en."""
+    model_id = next(m for m in TRANSLATE if m.startswith("nos-coda_iacobus-en-gl"))
+    entry = TRANSLATE[model_id]
+    assert tuple(entry["pair"]) == ("en", "gl")
+    for route in translator.routes("gl", "en", limit=50):
+        for hop in route.hops:
+            assert not hop.model_id.startswith("nos-coda_iacobus-en-gl"), (
+                f"{route} runs {model_id} backwards")
 
 
 def test_general_default_is_m2m100_418m_int8():

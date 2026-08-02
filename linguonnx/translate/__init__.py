@@ -72,6 +72,16 @@ class Translator:
             pivot_preference=pivot_preference, prefer=prefer,
             max_hops=max_hops, max_routes=max_routes,
             pivot_ranking=pivot_ranking)
+        # Capabilities the licence filter left out, so a failed lookup can say
+        # "a non-commercial model covers this" instead of looking unsupported.
+        chosen = set(entries)
+        self.graph.excluded_capabilities = [
+            capability_from_entry(e)
+            for model_id, e in list_models(kind="translate").items()
+            if model_id not in chosen
+            and e.get("license_tier") == "non-commercial"
+            and e.get("precision") == entries[next(iter(entries))]["precision"]
+        ] if entries else []
         self.generation = GenerationConfig(
             max_new_tokens=max_new_tokens, num_beams=num_beams,
             length_penalty=length_penalty,
