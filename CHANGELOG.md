@@ -1,28 +1,12 @@
 # Changelog
 
-## [0.4.0a1](https://github.com/TigreGotico/linguonnx/tree/0.4.0a1) (2026-08-02)
+## [0.5.1a1](https://github.com/TigreGotico/linguonnx/tree/0.5.1a1) (2026-08-02)
 
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.3.0a1...0.4.0a1)
-
-**Merged pull requests:**
-
-- feat: generate the model registry from the HuggingFace API [\#12](https://github.com/TigreGotico/linguonnx/pull/12) ([JarbasAl](https://github.com/JarbasAl))
-
-## [0.3.0a1](https://github.com/TigreGotico/linguonnx/tree/0.3.0a1) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.2.0a1...0.3.0a1)
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0...0.5.1a1)
 
 **Merged pull requests:**
 
-- feat: rank translation pivots by phonological distance [\#10](https://github.com/TigreGotico/linguonnx/pull/10) ([JarbasAl](https://github.com/JarbasAl))
-
-## [0.2.0a1](https://github.com/TigreGotico/linguonnx/tree/0.2.0a1) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.2.0...0.2.0a1)
-
-**Merged pull requests:**
-
-- Release 0.2.0a1 [\#9](https://github.com/TigreGotico/linguonnx/pull/9) ([github-actions[bot]](https://github.com/apps/github-actions))
+- docs: split README into docs/, add examples, record short-text caveat [\#17](https://github.com/TigreGotico/linguonnx/pull/17) ([JarbasAl](https://github.com/JarbasAl))
 
 
 
