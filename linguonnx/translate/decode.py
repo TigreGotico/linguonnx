@@ -1,0 +1,292 @@
+"""Encoder-decoder generation on raw ONNX graphs, with numpy only.
+
+`optimum` and `transformers.generate()` would do this, but both import torch,
+and the point of linguonnx is `onnxruntime` + `numpy` + `sentencepiece`. So the
+loop is written out here.
+
+The three graphs
+----------------
+
+``encoder_model.onnx``
+    ``input_ids, attention_mask -> last_hidden_state``. Runs once.
+
+``decoder_model.onnx`` (step 0, no cache)
+    ``input_ids, encoder_hidden_states, encoder_attention_mask -> logits`` plus
+    a full set of ``present.*`` key/value tensors, self-attention *and*
+    cross-attention.
+
+``decoder_with_past_model.onnx`` (every later step)
+    Takes one token, plus every cached key/value as ``past_key_values.*``, and
+    returns ``logits`` plus new ``present.*`` for the self-attention entries
+    only. The cross-attention entries do not change after step 0 - the encoder
+    output they were computed from is fixed - so they are threaded straight
+    through from the step-0 outputs.
+
+Cache wiring is done **by name**, not by position: every
+``past_key_values.<i>.<attn>.<kv>`` input is matched to the graph output of the
+same name with ``past_key_values`` swapped for ``present``. Nothing assumes a
+layer count, an attention-head layout, or that the two decoder graphs order
+their tensors the same way. If a graph ever turns up with a naming scheme this
+does not cover, :class:`Seq2SeqDecoder` raises at load time instead of
+producing silent garbage.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Sequence, Tuple
+
+import numpy as np
+
+__all__ = ["Seq2SeqDecoder", "GenerationConfig"]
+
+
+@dataclass
+class GenerationConfig:
+    """Decoding knobs. ``num_beams=1`` means greedy."""
+
+    max_new_tokens: int = 128
+    num_beams: int = 4
+    length_penalty: float = 1.0
+    no_repeat_ngram_size: int = 0
+    early_stopping: bool = True
+
+
+def _log_softmax(x: np.ndarray) -> np.ndarray:
+    x = x - x.max(axis=-1, keepdims=True)
+    return x - np.log(np.exp(x).sum(axis=-1, keepdims=True))
+
+
+def _banned_ngram_tokens(sequence: Sequence[int], ngram_size: int) -> List[int]:
+    """Tokens that would close a repeat of an n-gram already in ``sequence``."""
+    if ngram_size <= 0 or len(sequence) < ngram_size:
+        return []
+    prefix = tuple(sequence[-(ngram_size - 1):]) if ngram_size > 1 else ()
+    banned = []
+    for i in range(len(sequence) - ngram_size + 1):
+        window = tuple(sequence[i:i + ngram_size])
+        if window[:-1] == prefix:
+            banned.append(window[-1])
+    return banned
+
+
+class Seq2SeqDecoder:
+    """Greedy and beam-search generation over three ONNX Runtime sessions."""
+
+    def __init__(self, encoder_session, decoder_session, decoder_past_session,
+                 eos_id: int, pad_id: int, decoder_start_id: int):
+        self.encoder = encoder_session
+        self.decoder = decoder_session
+        self.decoder_past = decoder_past_session
+        self.eos_id = eos_id
+        self.pad_id = pad_id
+        self.decoder_start_id = decoder_start_id
+
+        self._enc_inputs = [i.name for i in self.encoder.get_inputs()]
+        self._enc_output = self.encoder.get_outputs()[0].name
+        self._dec_inputs = [i.name for i in self.decoder.get_inputs()]
+        self._dec_outputs = [o.name for o in self.decoder.get_outputs()]
+        self._past_inputs = [i.name for i in self.decoder_past.get_inputs()]
+        self._past_outputs = [o.name for o in self.decoder_past.get_outputs()]
+
+        self._logits_name = self._pick(self._dec_outputs, "logits")
+        self._hidden_input = self._pick(self._dec_inputs, "encoder_hidden_states")
+        self._enc_mask_input = self._pick(self._dec_inputs, "encoder_attention_mask")
+        self._dec_ids_input = self._pick(self._dec_inputs, "input_ids")
+        self._past_ids_input = self._pick(self._past_inputs, "input_ids")
+        self._past_mask_input = self._pick(self._past_inputs, "encoder_attention_mask")
+
+        # past_key_values.<i>.<attn>.<kv>  <->  present.<i>.<attn>.<kv>
+        self._cache_names = [n for n in self._past_inputs
+                             if n.startswith("past_key_values.")]
+        self._present_for: Dict[str, str] = {}
+        produced = set(self._dec_outputs) | set(self._past_outputs)
+        for name in self._cache_names:
+            present = name.replace("past_key_values.", "present.", 1)
+            if present not in produced:
+                raise ValueError(
+                    f"decoder cache input {name!r} has no matching graph output "
+                    f"{present!r}; this decoder uses a key/value naming scheme "
+                    f"linguonnx does not know how to wire")
+            self._present_for[name] = present
+        # Only these are refreshed each step; the rest are cross-attention and
+        # stay at their step-0 value.
+        self._refreshed = {name for name, present in self._present_for.items()
+                           if present in self._past_outputs}
+
+    @staticmethod
+    def _pick(names: Sequence[str], wanted: str) -> str:
+        if wanted in names:
+            return wanted
+        matches = [n for n in names if n.endswith(wanted)]
+        if len(matches) == 1:
+            return matches[0]
+        raise ValueError(f"cannot find input/output {wanted!r} among {list(names)}")
+
+    # -- graph calls ------------------------------------------------------
+
+    def _encode(self, input_ids: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        mask = np.ones_like(input_ids, dtype=np.int64)
+        feeds = {"input_ids": input_ids, "attention_mask": mask}
+        feeds = {name: feeds[name] for name in self._enc_inputs}
+        hidden = self.encoder.run([self._enc_output], feeds)[0]
+        return hidden, mask
+
+    def _first_step(self, hidden: np.ndarray, mask: np.ndarray,
+                    token: int) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
+        feeds = {
+            self._dec_ids_input: np.array([[token]], dtype=np.int64),
+            self._hidden_input: hidden,
+            self._enc_mask_input: mask,
+        }
+        outputs = self.decoder.run(self._dec_outputs, feeds)
+        named = dict(zip(self._dec_outputs, outputs))
+        cache = {name: named[self._present_for[name]] for name in self._cache_names}
+        return named[self._logits_name][:, -1, :], cache
+
+    def _step(self, tokens: np.ndarray, mask: np.ndarray,
+              cache: Dict[str, np.ndarray]) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
+        feeds = dict(cache)
+        feeds[self._past_ids_input] = tokens
+        feeds[self._past_mask_input] = mask
+        outputs = self.decoder_past.run(self._past_outputs, feeds)
+        named = dict(zip(self._past_outputs, outputs))
+        new_cache = dict(cache)
+        for name in self._refreshed:
+            new_cache[name] = named[self._present_for[name]]
+        return named[self._logits_name][:, -1, :], new_cache
+
+    @staticmethod
+    def _expand(array: np.ndarray, n: int) -> np.ndarray:
+        return np.repeat(array, n, axis=0)
+
+    def _reorder(self, cache: Dict[str, np.ndarray],
+                 index: np.ndarray) -> Dict[str, np.ndarray]:
+        """Beam search's one genuinely fiddly step: keep the cache aligned.
+
+        After the top-k selection each surviving beam may descend from *any*
+        previous beam, so every cached tensor's batch dimension is gathered by
+        the parent-beam index. Cross-attention entries are reordered too - they
+        are per-beam rows even though their content is constant per input.
+        """
+        return {name: value[index] for name, value in cache.items()}
+
+    # -- generation -------------------------------------------------------
+
+    def generate(self, input_ids: Sequence[int],
+                 forced_bos_token_id: Optional[int] = None,
+                 config: Optional[GenerationConfig] = None) -> List[int]:
+        config = config or GenerationConfig()
+        ids = np.asarray([list(input_ids)], dtype=np.int64)
+        if config.num_beams <= 1:
+            return self._greedy(ids, forced_bos_token_id, config)
+        return self._beam(ids, forced_bos_token_id, config)
+
+    def _greedy(self, input_ids: np.ndarray, forced_bos: Optional[int],
+                config: GenerationConfig) -> List[int]:
+        hidden, mask = self._encode(input_ids)
+        logits, cache = self._first_step(hidden, mask, self.decoder_start_id)
+
+        generated: List[int] = []
+        for step in range(config.max_new_tokens):
+            if step == 0 and forced_bos is not None:
+                token = forced_bos
+            else:
+                scores = logits[0].astype(np.float64)
+                for banned in _banned_ngram_tokens(generated, config.no_repeat_ngram_size):
+                    scores[banned] = -np.inf
+                token = int(np.argmax(scores))
+            if token == self.eos_id:
+                break
+            generated.append(token)
+            if step == config.max_new_tokens - 1:
+                break
+            logits, cache = self._step(
+                np.array([[token]], dtype=np.int64), mask, cache)
+        return generated
+
+    def _beam(self, input_ids: np.ndarray, forced_bos: Optional[int],
+              config: GenerationConfig) -> List[int]:
+        beams = config.num_beams
+        hidden, mask = self._encode(input_ids)
+        logits, cache = self._first_step(hidden, mask, self.decoder_start_id)
+
+        # Expand the single step-0 result into `beams` identical rows. Only the
+        # first beam starts alive: with identical rows, an all-zero score vector
+        # would make the top-k pick the same token `beams` times.
+        cache = {name: self._expand(value, beams) for name, value in cache.items()}
+        mask = self._expand(mask, beams)
+        logits = self._expand(logits, beams)
+
+        scores = np.full(beams, -np.inf, dtype=np.float64)
+        scores[0] = 0.0
+        sequences: List[List[int]] = [[] for _ in range(beams)]
+        finished: List[Tuple[float, List[int]]] = []
+
+        for step in range(config.max_new_tokens):
+            logprobs = _log_softmax(logits.astype(np.float64))
+            if step == 0 and forced_bos is not None:
+                forced = np.full_like(logprobs, -np.inf)
+                forced[:, forced_bos] = 0.0
+                logprobs = forced
+            if config.no_repeat_ngram_size:
+                for beam, sequence in enumerate(sequences):
+                    for banned in _banned_ngram_tokens(sequence, config.no_repeat_ngram_size):
+                        logprobs[beam, banned] = -np.inf
+
+            total = scores[:, None] + logprobs
+            flat = total.ravel()
+            # 2*beams candidates so that `beams` survivors remain even if every
+            # other candidate ends the sentence on this step.
+            take = min(2 * beams, flat.size)
+            top = np.argpartition(-flat, take - 1)[:take]
+            top = top[np.argsort(-flat[top])]
+
+            next_scores, next_tokens, next_parents, next_seqs = [], [], [], []
+            vocab = logprobs.shape[1]
+            for index in top:
+                parent, token = int(index // vocab), int(index % vocab)
+                score = float(flat[index])
+                if not np.isfinite(score):
+                    continue
+                sequence = sequences[parent]
+                if token == self.eos_id:
+                    if sequence:
+                        length = max(len(sequence), 1) ** config.length_penalty
+                        finished.append((score / length, list(sequence)))
+                    continue
+                if len(next_tokens) < beams:
+                    next_scores.append(score)
+                    next_tokens.append(token)
+                    next_parents.append(parent)
+                    next_seqs.append(sequence + [token])
+                # No early break: the beam set can be full while EOS candidates
+                # are still further down the ranking, and those are exactly the
+                # finished hypotheses this loop exists to collect.
+
+            if not next_tokens:
+                break
+            if config.early_stopping and len(finished) >= beams:
+                break
+            while len(next_tokens) < beams:  # pad a collapsed beam set
+                next_scores.append(-np.inf)
+                next_tokens.append(self.pad_id)
+                next_parents.append(next_parents[0])
+                next_seqs.append(list(next_seqs[0]))
+
+            scores = np.asarray(next_scores, dtype=np.float64)
+            sequences = next_seqs
+            cache = self._reorder(cache, np.asarray(next_parents, dtype=np.int64))
+            if step == config.max_new_tokens - 1:
+                break
+            logits, cache = self._step(
+                np.asarray(next_tokens, dtype=np.int64)[:, None], mask, cache)
+
+        if finished:
+            return max(finished, key=lambda item: item[0])[1]
+        # Nothing hit EOS inside the budget: hand back the best live beam.
+        alive = [(scores[i] / max(len(sequences[i]), 1) ** config.length_penalty, i)
+                 for i in range(beams) if np.isfinite(scores[i])]
+        if not alive:
+            return []
+        return sequences[max(alive)[1]]
