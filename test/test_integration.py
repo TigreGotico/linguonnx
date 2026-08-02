@@ -60,3 +60,85 @@ def test_detect_raw_returns_native_glotlid_label(detector):
     label, conf = detector.detect_raw("Ola, bo dia. Como estas ti hoxe?")
     assert label.endswith("_Latn")
     assert 0.0 < conf <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# lid.176 (hierarchical softmax) and OpenLID (softmax, iso3_Script labels)
+#
+# These samples are written with their real diacritics. lid.176 is a small
+# 16-dimension model and leans on accented characters to separate the
+# Romance languages; strip them and "Ola, como estas hoje" is called Spanish.
+# ---------------------------------------------------------------------------
+
+MULTILINGUAL_SAMPLES = [
+    ("Olá, como estás hoje? Espero que esteja tudo bem contigo.", "pt"),
+    ("Ola, bo día. Como estás ti hoxe? Espero que todo vaia ben.", "gl"),
+    ("Bon dia, com estàs avui? Espero que tot vagi bé.", "ca"),
+    ("Kaixo, zer moduz zaude gaur?", "eu"),
+    ("Hola, ¿cómo estás hoy?", "es"),
+    ("Hello, how are you today?", "en"),
+    ("Привет, как у тебя дела сегодня?", "ru"),
+    ("أعلنت وزارة الخارجية اليوم عن اتفاقية جديدة بين البلدين.", "ar"),
+    ("Bonjour, comment allez-vous aujourd'hui?", "fr"),
+    ("Guten Tag, wie geht es Ihnen heute?", "de"),
+]
+
+
+@pytest.fixture(scope="module")
+def lid176():
+    return load_detector("lid176-int8")
+
+
+@pytest.fixture(scope="module")
+def openlid():
+    return load_detector("openlid-int8")
+
+
+@pytest.mark.parametrize("text,expected", MULTILINGUAL_SAMPLES)
+def test_lid176_detects_real_samples(lid176, text, expected):
+    got = lid176.detect(text)
+    assert got == expected, f"{text!r} -> {got}, expected {expected}"
+
+
+@pytest.mark.parametrize("text,expected", MULTILINGUAL_SAMPLES)
+def test_openlid_detects_real_samples(openlid, text, expected):
+    got = openlid.detect(text)
+    assert got == expected, f"{text!r} -> {got}, expected {expected}"
+
+
+def test_lid176_uses_the_hierarchical_softmax_path(lid176):
+    assert lid176.loss == "hs"
+    assert lid176._hs_combiner is not None
+
+
+def test_lid176_probabilities_are_a_distribution(lid176):
+    """The HS path must produce a normalized distribution, not raw sigmoids.
+
+    Without the Huffman path walk the graph's 176 sigmoid outputs sum to
+    something arbitrary (~88 for a 50/50 model) and the argmax is meaningless.
+    """
+    probs = lid176._probs("Hello, how are you today?")
+    assert probs.sum() == pytest.approx(1.0, abs=1e-6)
+    assert probs.max() > 0.9
+
+
+def test_lid176_emits_bare_labels(lid176):
+    label, conf = lid176.detect_raw("Ola, bo día. Como estás ti hoxe?")
+    assert label == "gl"          # no script suffix, unlike GlotLID/OpenLID
+    assert 0.0 < conf <= 1.0
+
+
+def test_openlid_emits_script_suffixed_labels(openlid):
+    label, conf = openlid.detect_raw("Ola, bo día. Como estás ti hoxe?")
+    assert label == "glg_Latn"
+    assert 0.0 < conf <= 1.0
+    assert openlid.loss == "softmax"
+
+
+def test_openlid_v2_registry_entry_loads_labels_only():
+    """v2 is a 1.1 GB download; check the registry wiring, not the weights."""
+    from lingonnx import model_manager
+
+    entry = model_manager.registry_entry("openlid-v2-int8")
+    assert entry["hf_repo"] == "TigreGotico/openlid-v2-onnx"
+    assert entry["license"] == "GPL-3.0"
