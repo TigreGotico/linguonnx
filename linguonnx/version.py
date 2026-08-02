@@ -11,7 +11,7 @@ if VERSION_ALPHA:
     __version__ += f"a{VERSION_ALPHA}"
 # START_VERSION_BLOCK
 VERSION_MAJOR = 0
-VERSION_MINOR = 3
+VERSION_MINOR = 4
 VERSION_BUILD = 0
 VERSION_ALPHA = 1
 # END_VERSION_BLOCK# Version block follows OVOS/phoonnx/onnx-asr convention: plain module-level
