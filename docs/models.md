@@ -78,12 +78,72 @@ print(len(list_models(kind="translate")), len(list_models(kind="lid")))
 # 150 8
 ```
 
+## The download cache
+
 Files are cached under `~/.cache/linguonnx/models/<model_id>/`. Downloads go
 through `huggingface_hub.hf_hub_download`, which does its own resumable and
 checksummed download, and are then copied into the cache atomically — written
-to a `.part` sibling and `os.replace`'d into place, so a killed process never
+to a temp sibling and `os.replace`'d into place, so a killed process never
 leaves a truncated file at the final path. A zero-byte file there is always
 treated as "not cached" and fetched again.
+
+The temp name is unique per process and per call. That is what makes the
+guarantee hold when two workers cold-start the same model at the same time:
+they write to different temp files, and the second `os.replace` publishes a
+complete file. A shared temp name lets them interleave, and the result is a
+corrupt file that is not zero bytes — which no later run would notice.
+
+A registry filename must stay inside its model's cache directory. Absolute
+paths and `..` components are refused, so an edited registry file cannot turn
+a download into a write anywhere else on the host.
+
+### Pinning and verification
+
+If a registry entry carries a `revision` (a commit SHA — HuggingFace tags and
+branches are mutable, so they pin nothing), it is passed to the hub, and every
+client then fetches the same bytes. If an entry carries a `sha256` map, each
+downloaded file is verified against it and a mismatch raises before anything is
+published to the cache. Both fields are optional and no entry carries them yet;
+`scripts/sync_registry.py` has to start emitting them.
+
+### Download budget and warm-up
+
+A cold fetch bigger than `LINGUONNX_MAX_DOWNLOAD_MB` raises
+`DownloadTooLargeError` instead of holding a request thread for an hour on a
+slow link. The default of 8192 refuses nothing in the current registry; set it
+lower on a server where the request path must stay predictable. `0` disables
+the check. A warm cache never trips it.
+
+To keep downloads off the request path entirely, warm the cache at startup:
+
+```python
+from linguonnx.model_manager import prefetch
+
+prefetch("glotlid-int8")
+prefetch("opus-mt-pt-en-int8", kind="translate")
+```
+
+`prefetch()` ignores the budget, because it does not run in a request.
+
+### How many models stay loaded
+
+A `Translator` keeps at most `model_cache_size` loaded models alive, four by
+default, and evicts the least recently used one. Eviction releases that model's
+three ONNX sessions.
+
+The bound matters because the whole default graph is 73 models and about
+25 GB. Without it, a long-lived server that routes over many language pairs
+converges on loading all of them, gets OOM-killed, restarts cold, and pays
+every download again.
+
+```python
+tx = load_translator(model_cache_size=8)   # more RAM, fewer reloads
+print(tx.loaded_models)                    # least recently used first
+```
+
+Raise it when one process serves a few hot pairs and has the RAM; lower it on a
+small device. An evicted model reloads from the disk cache on next use, so
+eviction costs session-build time, not a download.
 
 ## Keeping it in sync
 
