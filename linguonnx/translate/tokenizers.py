@@ -32,6 +32,7 @@ from typing import Dict, List, Optional, Sequence
 import sentencepiece as spm
 
 __all__ = ["normalize_punctuation", "SpmSeq2SeqTokenizer", "MarianTokenizer",
+           "T5SpmTokenizer", "IndicTransTokenizer", "OpenNmtBpeTokenizer",
            "load_tokenizer"]
 
 
@@ -262,7 +263,146 @@ class T5SpmTokenizer:
         return self.sp.DecodePieces(pieces)
 
 
-def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str]):
+class IndicTransTokenizer:
+    """IndicTrans2. Two SentencePiece models and two plain JSON dictionaries.
+
+    Source and target are separate vocabularies, so encoding and decoding do
+    not share a table. Encoding is ``[src_tag, tgt_tag] + pieces + [</s>]``,
+    with the two tags taken from the *already preprocessed* string - they are
+    prefixed by :class:`~linguonnx.translate._indic_processor.IndicProcessor`,
+    not here, because the text they describe has to be normalised the same way
+    the tags claim.
+
+    This is a port of AI4Bharat's ``tokenization_indictrans.py``, which
+    linguonnx cannot use directly: it is remote code loaded through
+    ``trust_remote_code`` and subclasses ``PreTrainedTokenizer``. The logic it
+    contains is four lines of SentencePiece plus two dict lookups, reproduced
+    below.
+    """
+
+    #: The models ship a frozen sinusoidal position table of this size, so an
+    #: input longer than this cannot be embedded at all.
+    MAX_POSITIONS = 256
+
+    def __init__(self, src_spm, tgt_spm, src_vocab, tgt_vocab,
+                 unk_token: str = "<unk>", pad_token: str = "<pad>",
+                 eos_token: str = "</s>", bos_token: str = "<s>"):
+        self.spm_source = _load_spm(src_spm)
+        self.spm_target = _load_spm(tgt_spm)
+        self.src_encoder: Dict[str, int] = _load_json(src_vocab)
+        self.tgt_encoder: Dict[str, int] = _load_json(tgt_vocab)
+        self.tgt_decoder = {i: t for t, i in self.tgt_encoder.items()}
+        self.unk_id = self.src_encoder[unk_token]
+        self.pad_id = self.src_encoder[pad_token]
+        self.eos_id = self.src_encoder[eos_token]
+        self.bos_id = self.src_encoder[bos_token]
+        self._specials = {self.src_encoder[t] for t in
+                          (unk_token, pad_token, eos_token, bos_token)}
+
+    def encode(self, tagged_text: str) -> List[int]:
+        """``"hin_Deva eng_Latn नमस्ते"`` -> ids, tags included.
+
+        The tags are split off the front and looked up as whole vocabulary
+        entries; they must not go through SentencePiece, which would shred
+        ``hin_Deva`` into pieces the model has never seen in that position.
+        """
+        parts = tagged_text.split(" ", 2)
+        if len(parts) < 3:
+            raise ValueError(
+                "IndicTrans2 input must start with a source and a target tag, "
+                f"as '<src_tag> <tgt_tag> <text>'; got {tagged_text!r}")
+        src_tag, tgt_tag, text = parts
+        pieces = [src_tag, tgt_tag] + self.spm_source.EncodeAsPieces(text)
+        return [self.src_encoder.get(p, self.unk_id) for p in pieces] + [self.eos_id]
+
+    def decode(self, ids: Sequence[int]) -> str:
+        """Ids -> text, still tokenised and still in Devanagari.
+
+        Turning that back into the target script is
+        :meth:`IndicProcessor.postprocess`'s job, not this method's.
+        """
+        pieces = [self.tgt_decoder.get(i, "<unk>") for i in ids
+                  if i not in self._specials]
+        return "".join(pieces).replace("▁", " ").strip()
+
+
+class OpenNmtBpeTokenizer:
+    """Proxecto Nós ``nos-coda_iacobus``. Moses tokenisation + subword-nmt BPE.
+
+    OpenNMT-py keeps **separate source and target vocabularies**. The export
+    concatenates them as ``[target | source]``, so an encoder input id is a
+    source index plus ``source_offset`` while a decoder output id indexes the
+    target half directly. Getting that offset wrong does not raise; it silently
+    feeds the model a different sentence.
+
+    ``<unk>`` is kept in the output on purpose. Upstream ``onmt_translate``
+    hides it with ``-replace_unk``, which copies the aligned source word using
+    the decoder's cross-attention weights. Those weights are not outputs of the
+    exported graph, so the substitution cannot be reproduced - and inventing a
+    replacement would be a guess presented as a translation. See
+    ``docs/translate.md``.
+    """
+
+    def __init__(self, vocab_path, bpe_code_path, src_lang: str, tgt_lang: str):
+        meta = _load_json(vocab_path)
+        self.source_vocab: List[str] = meta["source_vocab"]
+        self.target_vocab: List[str] = meta["target_vocab"]
+        self.source_offset: int = int(meta["source_offset"])
+        self.source_index = {token: i for i, token in enumerate(self.source_vocab)}
+        self.unk_id = int(meta.get("unk", 0))
+        self.pad_id = int(meta.get("pad", 1))
+        self.bos_id = int(meta.get("bos", 2))
+        self.eos_id = int(meta.get("eos", 3))
+        # `<unk>` is deliberately absent: it is a real, informative output.
+        self._specials = {self.pad_id, self.bos_id, self.eos_id}
+
+        sacremoses = _require_opennmt("sacremoses")
+        apply_bpe = _require_opennmt("subword_nmt.apply_bpe")
+        with open(bpe_code_path, encoding="utf-8") as handle:
+            self.bpe = apply_bpe.BPE(handle)
+        self.moses_tokenizer = sacremoses.MosesTokenizer(lang=src_lang)
+        self.moses_detokenizer = sacremoses.MosesDetokenizer(lang=tgt_lang)
+
+    def encode(self, text: str) -> List[int]:
+        """Moses-tokenise, BPE-segment, look up, offset. No EOS is appended.
+
+        OpenNMT-py does not put ``</s>`` on the source side, and the export
+        preserves that, so neither does this.
+        """
+        tokens = self.bpe.process_line(
+            " ".join(self.moses_tokenizer.tokenize(text, escape=False))).split()
+        return [self.source_index.get(t, self.unk_id) + self.source_offset
+                for t in tokens]
+
+    def decode(self, ids: Sequence[int]) -> str:
+        """Ids -> text: drop BPE continuation markers, then Moses-detokenise.
+
+        The merge marker is stripped with ``@\\s*`` rather than
+        ``replace("@@ ", "")``. That is the upstream ``sed 's/@\\s*//g'`` rule,
+        and the two are *not* equivalent: a word-final ``@@`` before
+        punctuation loses its marker under the naive form and glues two words
+        together.
+        """
+        pieces = [self.target_vocab[i] for i in ids
+                  if i not in self._specials and 0 <= i < len(self.target_vocab)]
+        merged = re.sub(r"@\s*", "", " ".join(pieces))
+        return self.moses_detokenizer.detokenize(merged.split())
+
+
+def _require_opennmt(module: str):
+    """Import an OpenNMT preprocessing dependency, or name the extra."""
+    import importlib
+    try:
+        return importlib.import_module(module)
+    except ImportError as exc:
+        raise ImportError(
+            f"OpenNMT-BPE preprocessing needs {module!r}, which is not "
+            f"installed. Install the extra: "
+            f"pip install 'linguonnx[opennmt]'") from exc
+
+
+def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str],
+                   pair: Optional[Sequence[str]] = None):
     """Build the right tokenizer for ``arch`` from the downloaded ``files``."""
     if arch == "marian":
         return MarianTokenizer(files["source_spm"], files["target_spm"], files["vocab"])
@@ -273,4 +413,12 @@ def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str])
         return SpmSeq2SeqTokenizer(files["spm"], lang_codes, fairseq_offset=1)
     if arch == "madlad":
         return T5SpmTokenizer(files["spm"])
+    if arch == "indictrans2":
+        return IndicTransTokenizer(files["spm_src"], files["spm_tgt"],
+                                   files["dict_src"], files["dict_tgt"])
+    if arch == "opennmt-bpe":
+        if not pair:
+            raise ValueError("opennmt-bpe models are bilingual; `pair` is required")
+        return OpenNmtBpeTokenizer(files["vocab"], files["bpe_code"],
+                                   src_lang=pair[0], tgt_lang=pair[1])
     raise ValueError(f"unknown architecture {arch!r}")

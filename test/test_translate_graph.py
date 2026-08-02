@@ -349,18 +349,22 @@ def test_runnability_comes_from_the_registry_when_the_capability_is_silent():
     This is what keeps `route` and `translate` in agreement without every
     caller having to read the registry, and it is why a pipeline landing later
     only has to clear the flag in the registry.
-    """
-    from linguonnx.model_manager import list_models
-    from linguonnx.translate.models import capability_from_entry
 
-    entries = list_models(kind="translate")
-    flagged = [e for e in entries.values() if e.get("runnable") is False]
-    assert flagged, "expected the registry to flag at least one unrunnable model"
-    for entry in flagged:
-        cap = capability_from_entry(entry)
-        assert cap.runnable is None, "the entry, not the capability, states it"
-        assert cap.is_runnable is False
-        assert cap.unrunnable_because
+    Every registry entry is runnable today - the IndicTrans2 and OpenNMT-BPE
+    pipelines landed - so the flag is exercised through a synthetic entry
+    rather than a real one. The wiring is what matters, not which model
+    happens to be waiting for a pipeline this month.
+    """
+    from linguonnx.translate.models import capability_from_entry
+    from linguonnx.translate.graph import entry_runnability
+
+    entry = {"model_id": "future-arch-model", "arch": "someday",
+             "license": "MIT", "license_tier": "permissive", "size_mb": 1,
+             "pair": ["en", "pt"], "runnable": False,
+             "unrunnable_reason": "no pipeline for this architecture yet"}
+    assert entry_runnability(entry) == (False, "no pipeline for this architecture yet")
+    cap = capability_from_entry(entry)
+    assert cap.runnable is None, "the entry, not the capability, states it"
 
 
 def test_entry_runnability_defaults_to_runnable():

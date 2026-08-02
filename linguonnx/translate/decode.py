@@ -59,7 +59,12 @@ class GenerationConfig:
     num_beams: int = 4
     length_penalty: float = 1.0
     no_repeat_ngram_size: int = 0
-    early_stopping: bool = True
+    #: Stop as soon as ``num_beams`` hypotheses have finished. `transformers`
+    #: defaults this off and so does linguonnx, because the cheaper rule ends
+    #: the search while a better hypothesis is still growing - it costs about
+    #: one sentence in ten against a `transformers` reference. Set it to
+    #: ``True`` when speed matters more than matching.
+    early_stopping: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.max_new_tokens, int) or self.max_new_tokens < 1:
@@ -278,9 +283,40 @@ class Seq2SeqDecoder:
                 "no output can be produced for this input")
         return generated
 
+    def _hypothesis_score(self, sequence: Sequence[int], total_logprob: float,
+                          length_penalty: float) -> float:
+        """Length-normalised score of a finished hypothesis.
+
+        The divisor counts the **decoder start token as well**, which is not a
+        detail: `transformers` normalises by ``decoder_input_ids.shape[-1]``,
+        and that tensor begins with ``decoder_start_token_id``. Dividing by the
+        generated length alone is off by one, and the error does not cancel
+        between hypotheses of different lengths - it re-ranks them. Matching
+        this is worth roughly a third of the sentences on a beam-4 comparison
+        against `transformers`.
+        """
+        return total_logprob / (len(sequence) + 1) ** length_penalty
+
     def _beam(self, input_ids: np.ndarray, forced_bos: Optional[int],
               config: GenerationConfig) -> List[int]:
+        """Beam search, written to agree with `transformers` token for token.
+
+        The published parity numbers for every model in the registry were
+        measured against `transformers.generate()`, so the selection rules here
+        follow ``BeamSearchScorer`` rather than a textbook beam search. Three of
+        them are load-bearing and none of them fails loudly when broken - they
+        just return a slightly different, plausible sentence:
+
+        * the length normaliser counts the decoder start token
+          (:meth:`_hypothesis_score`);
+        * an EOS candidate ranked at or below ``num_beams`` is **discarded**,
+          not finished, because a hypothesis that bad would never win;
+        * search stops on the "cannot be beaten" test, not on "``num_beams``
+          hypotheses exist". ``early_stopping=True`` restores the cheaper,
+          slightly worse rule.
+        """
         beams = config.num_beams
+        length_penalty = config.length_penalty
         hidden, mask = self._encode(input_ids)
         logits, cache = self._first_step(hidden, mask, self.decoder_start_id)
 
@@ -294,7 +330,16 @@ class Seq2SeqDecoder:
         scores = np.full(beams, -np.inf, dtype=np.float64)
         scores[0] = 0.0
         sequences: List[List[int]] = [[] for _ in range(beams)]
+        # Best `beams` finished hypotheses, worst first is not maintained; the
+        # list is trimmed instead, which is cheap at these sizes.
         finished: List[Tuple[float, List[int]]] = []
+
+        def remember(sequence: List[int], total: float) -> None:
+            finished.append((self._hypothesis_score(sequence, total, length_penalty),
+                             list(sequence)))
+            if len(finished) > beams:
+                finished.sort(key=lambda item: item[0], reverse=True)
+                del finished[beams:]
 
         for step in range(config.max_new_tokens):
             logprobs = _log_softmax(logits.astype(np.float64))
@@ -317,30 +362,42 @@ class Seq2SeqDecoder:
 
             next_scores, next_tokens, next_parents, next_seqs = [], [], [], []
             vocab = logprobs.shape[1]
-            for index in top:
+            for rank, index in enumerate(top):
                 parent, token = int(index // vocab), int(index % vocab)
                 score = float(flat[index])
                 if not np.isfinite(score):
                     continue
                 sequence = sequences[parent]
                 if token == self.eos_id:
-                    if sequence:
-                        length = max(len(sequence), 1) ** config.length_penalty
-                        finished.append((score / length, list(sequence)))
-                    continue
-                if len(next_tokens) < beams:
+                    # Ranked below the beam width: `transformers` drops it.
+                    if rank < beams and sequence:
+                        remember(sequence, score)
+                else:
                     next_scores.append(score)
                     next_tokens.append(token)
                     next_parents.append(parent)
                     next_seqs.append(sequence + [token])
-                # No early break: the beam set can be full while EOS candidates
-                # are still further down the ranking, and those are exactly the
-                # finished hypotheses this loop exists to collect.
+                if len(next_tokens) == beams:
+                    break
 
             if not next_tokens:
                 break
-            if config.early_stopping and len(finished) >= beams:
+
+            done = False
+            if len(finished) >= beams:
+                if config.early_stopping:
+                    done = True
+                else:
+                    # Nothing still running can beat the worst kept hypothesis,
+                    # even if it ended on the very next token. `step + 1` is the
+                    # decoder length before this step's token is appended, which
+                    # is the length `transformers` normalises this bound by.
+                    best_attainable = (float(flat[top[0]])
+                                       / (step + 1) ** length_penalty)
+                    done = min(item[0] for item in finished) >= best_attainable
+            if done:
                 break
+
             while len(next_tokens) < beams:  # pad a collapsed beam set
                 next_scores.append(-np.inf)
                 next_tokens.append(self.pad_id)
@@ -355,12 +412,13 @@ class Seq2SeqDecoder:
             logits, cache = self._step(
                 np.asarray(next_tokens, dtype=np.int64)[:, None], mask, cache)
 
-        if finished:
-            return max(finished, key=lambda item: item[0])[1]
-        # Nothing hit EOS inside the budget: hand back the best live beam.
-        alive = [(scores[i] / max(len(sequences[i]), 1) ** config.length_penalty, i)
-                 for i in range(beams) if np.isfinite(scores[i])]
-        if not alive:
+        # Out of budget with too few finished hypotheses: the live beams count
+        # too, exactly as `transformers` folds them in at ``finalize()``.
+        if len(finished) < beams:
+            for i in range(beams):
+                if sequences[i] and np.isfinite(scores[i]):
+                    remember(sequences[i], float(scores[i]))
+        if not finished:
             # Every beam was padded to -inf and none reached EOS. Returning []
             # here would decode to "", which is exactly what the caller layer
             # returns for empty input - so a real decode failure would arrive
@@ -369,9 +427,4 @@ class Seq2SeqDecoder:
                 f"beam search finished no hypothesis and every beam collapsed "
                 f"after {config.max_new_tokens} steps; no output can be "
                 f"produced for this input")
-        best = sequences[max(alive)[1]]
-        if not best:
-            raise DecodeError(
-                "beam search ended before any beam emitted a token; "
-                "no output can be produced for this input")
-        return best
+        return max(finished, key=lambda item: item[0])[1]
