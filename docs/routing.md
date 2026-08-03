@@ -107,17 +107,20 @@ the tuple's first two elements; it does not run a different search.
 
 | `prefer=` | key |
 |---|---|
-| `"fewest_hops"` (default) | `(hops, multilingual_hops, licence_tier, pivot_rank, size, model_ids)` |
-| `"dedicated"` | `(multilingual_hops, hops, licence_tier, pivot_rank, size, model_ids)` |
+| `"fewest_hops"` (default) | `(hops, multilingual_hops, non_specialist_hops, recency, licence_tier, pivot_rank, size, model_ids)` |
+| `"dedicated"` | `(multilingual_hops, hops, non_specialist_hops, recency, licence_tier, pivot_rank, size, model_ids)` |
 
 Read in order, that means:
 
 1. **Hop count or dedication**, depending on the policy.
 2. **A dedicated bilingual model beats a multilingual one for the same pair.**
    `en -> pt` picks `opus-mt-en-pt` over M2M100, under both policies.
-3. **Licence tier**: permissive before share-alike before non-commercial.
-4. **Pivot preference**: a linguistically closer pivot before a further one.
-5. **Smaller model**, then model id, so the ranking is deterministic and the
+3. **Specialist provenance**: the institution that owns the language beats a
+   generalist that merely covers it. See "Specialist provenance" below.
+4. **Recency**: the more recently published upstream model, as a last resort.
+5. **Licence tier**: permissive before share-alike before non-commercial.
+6. **Pivot preference**: a linguistically closer pivot before a further one.
+7. **Smaller model**, then model id, so the ranking is deterministic and the
    same registry always produces the same answer.
 
 **The hop-count-versus-dedication tradeoff is unmeasured for this model set.**
@@ -152,6 +155,108 @@ Basque to a general multilingual model would have dropped it entirely, so the
 dedicated `opus-mt-*-eu` and `mt-hitz-*-eu` models are what make it reachable
 under `prefer="dedicated"`, and MADLAD is what makes it a single hop by
 default.
+
+## Specialist provenance
+
+Being *covered* by a model and being *owned* by an institution that studies
+the language are different facts, and the plain cost-ordering tiers above
+cannot see the difference: "dedicated beats multilingual" only asks whether a
+model *is* the pair, not who built it or how well. A big multilingual model
+that lists Basque as one of a hundred codes is, in that sense, on equal
+footing with HiTZ - the institute whose entire remit is Basque - the moment
+both happen to be dedicated (or both multilingual) for the same pair.
+
+`SPECIALIST_MAP` in `linguonnx/translate/graph.py` names, for a handful of
+languages, the institution that is *the* specialist for it:
+
+| Language(s) | Institution |
+|---|---|
+| Basque (`eu`) | HiTZ |
+| Galician (`gl`), Asturian (`ast`) | Proxecto Nós |
+| Catalan (`ca`), Aragonese (`an`), Occitan/Aranese (`oc`) | Projecte AINA |
+| Indic block (`hi`, `bn`, `ta`, `te`, `ml`, `mr`, `gu`, `pa`, `ur`, `sa`, and the rest of the IndicTrans2 set) | AI4Bharat |
+| West-African pairs (`bam`, `bbj`, `fon`, `ewe`, `mos`) | Masakhane |
+| Estonian and Finno-Ugric minority languages (`et`, `vro`, `sma`) | TartuNLP |
+| Livonian (`liv`) | liv4ever |
+
+A model's registry entry carries `provenance_org` when it is a fine-tune or
+export from one of these institutions (see `PROVENANCE_BY_PREFIX` in
+`scripts/sync_registry.py`, derived from the model_id prefix, not guessed
+from the card). `TranslationGraph` checks that against `SPECIALIST_MAP` for
+the specific `src`/`tgt` being routed - `is_specialist_for(org, src, tgt)` -
+so a specialist institution's own model into some third pivot language does
+not count as "specialist" for that leg; only its claim on the language(s) the
+table names does.
+
+This is a **default policy, not a wall** - consistent with the rest of this
+module's design (see "Choosing the path yourself" below). It only ever breaks
+a tie between routes that already tied on hop count and dedicated-vs-
+multilingual status. A generalist still wins, and is still used, whenever no
+specialist model covers the pair at all - Basque is served by MADLAD or
+M2M100 just fine when no HiTZ model is in the graph. And a hand-built `Route`
+passed to `translate(route=...)` or resolved from an explicit `models=[...]`
+runs exactly as given: nothing here second-guesses a caller who already knows
+which model they want. The ranking is inspectable, not just applied: every
+`Hop` carries `.specialist`, `.provenance_org`, and `.release_date`, and
+`Route.specialist_hops` / `Route.n_non_specialist_hops` summarise them, so a
+caller can see *why* a route won without re-deriving it from the registry.
+
+### The rule behind the table, not just the table
+
+Two languages in the table are shipped by **two** of these institutions, and
+which one wins looks arbitrary until you read it as one rule, not two special
+cases:
+
+> **Ties between specialist institutions break on the geographical proximity
+> of the institution to the language.**
+
+- **`ast` (Asturian) -> Proxecto Nós, not Projecte AINA.** Both institutions
+  publish an `es -> ast` model. Asturian sits on the Galician-Portuguese
+  continuum - Eonavian (Galician-Asturian) is spoken across the Navia-Eo
+  border strip between Asturias and Galicia - so the Galician institute is
+  the geographically adjacent one, and it wins.
+- **`an` (Aragonese) -> Projecte AINA, not Proxecto Nós.** Both institutions
+  ship an `es -> an` model too (`aina-translator-es-an`, `nos-mt-es-arg`).
+  Aragonese borders Catalonia and shares the Aragon-Catalan transitional
+  dialect zone (the *Franja Oriental*), so the Catalan institute is the
+  adjacent one here instead, and it wins.
+
+Without this written down, a future maintainer who notices "Nós ships an
+Aragonese model and it's losing to AINA" - or the mirror image for Asturian -
+will read it as a routing bug and "fix" it into an inconsistency: whichever
+institution ships a pair should just win, symmetrically. It is deliberately
+*not* symmetric. Proximity is the rule; `eu -> HiTZ`, the Indic block ->
+AI4Bharat, and the rest of the table are the unambiguous cases where only one
+institution is geographically anywhere near the language at all. `ast` and
+`an` are where the rule actually has to do work, which is exactly why they
+are the two entries worth writing a rule down for.
+
+### Recency: a last resort, and only ever upstream
+
+Below specialist provenance sits one more tie-break: the more recently
+published model wins, consulted only once hop count, dedication, and
+specialist provenance have all already tied.
+
+"Recently published" means the **upstream** model's own creation date -
+`Capability.release_date`, sourced by hand from each institution's *source*
+repository on the Hub (`HiTZ/mt-hitz-es-eu`, `projecte-aina/...`,
+`ai4bharat/...`, and so on), never this project's own `TigreGotico` mirror.
+That distinction matters because it is a trap otherwise: every mirror this
+project exports gets a fresh `lastModified` the day it is exported, so if the
+mirror's own timestamp were used, re-uploading *any* model - fixing a
+licence tag, adding an int8 variant, nothing to do with quality - would
+silently promote it over everything else on recency alone. The registry
+field is deliberately populated from the upstream repo's `createdAt`, once,
+by hand, and the sync script documents exactly where each date came from
+(`PROVENANCE_BY_PREFIX` in `scripts/sync_registry.py`).
+
+Not every institution's date has been verified yet - Proxecto Nós's
+`proxectonos` org repos and TartuNLP's `smugri` model are undated as of this
+writing, rather than guessed. An undated model sorts as if it were
+infinitely old, so it never wins a recency comparison and never blocks a
+route for a reason it has no evidence for; it just stops competing on this
+one tier and falls through to licence and size, same as before this feature
+existed.
 
 ## Hop cap
 
