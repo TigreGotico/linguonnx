@@ -80,7 +80,14 @@ print(len(list_models(kind="translate")), len(list_models(kind="lid")))
 
 ## The download cache
 
-Files are cached under `~/.cache/linguonnx/models/<model_id>/`. Downloads go
+Files are cached under `$LINGUONNX_CACHE/models/<model_id>/`, defaulting to
+`~/.cache/linguonnx`. The variable is read once at import, so set it before
+importing linguonnx. Point it at bulk storage on a server: the whole
+translation registry is well over 100 GB, and a symlink at `~/.cache/linguonnx`
+is not a substitute — it is invisible to anyone reading the code and the root
+disk fills up the moment it goes missing or a service runs as another user.
+
+Downloads go
 through `huggingface_hub.hf_hub_download`, which does its own resumable and
 checksummed download, and are then copied into the cache atomically — written
 to a temp sibling and `os.replace`'d into place, so a killed process never

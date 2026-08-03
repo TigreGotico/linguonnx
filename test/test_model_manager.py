@@ -158,3 +158,51 @@ class TestIsCached:
 
     def test_an_unknown_model_is_not_cached(self):
         assert model_manager.is_cached("no-such-model", kind="translate") is False
+
+
+class TestCacheRoot:
+    """``LINGUONNX_CACHE`` relocates the model cache.
+
+    The default puts tens of gigabytes of weights under ``$HOME``, which on a
+    server is usually the small root volume. Before this variable existed the
+    only fix was a symlink at ``~/.cache/linguonnx`` - invisible in the code,
+    and silently back to filling the root disk the moment it went missing.
+    """
+
+    def test_unset_uses_the_home_default(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("LINGUONNX_CACHE", raising=False)
+        monkeypatch.setattr(model_manager.Path, "home", lambda: tmp_path)
+        assert model_manager._cache_root() == tmp_path / ".cache" / "linguonnx"
+
+    def test_set_relocates_the_cache(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("LINGUONNX_CACHE", str(tmp_path / "bulk"))
+        assert model_manager._cache_root() == tmp_path / "bulk"
+
+    def test_tilde_is_expanded(self, monkeypatch, tmp_path):
+        # A compose file or systemd unit passes a literal string; nothing
+        # expands `~` on the way in, so an unexpanded tilde would otherwise
+        # create a directory actually named "~".
+        monkeypatch.setenv("LINGUONNX_CACHE", "~/bulk/linguonnx")
+        # expanduser() reads $HOME, not Path.home(), so the env is what matters
+        monkeypatch.setenv("HOME", str(tmp_path))
+        assert model_manager._cache_root() == tmp_path / "bulk" / "linguonnx"
+
+    @pytest.mark.parametrize("value", ["", "   ", "\t\n"])
+    def test_blank_is_treated_as_unset(self, monkeypatch, tmp_path, value):
+        # `LINGUONNX_CACHE=` in a compose file, or an unexpanded shell
+        # variable, must not cache into the process's working directory.
+        monkeypatch.setenv("LINGUONNX_CACHE", value)
+        monkeypatch.setattr(model_manager.Path, "home", lambda: tmp_path)
+        assert model_manager._cache_root() == tmp_path / ".cache" / "linguonnx"
+
+    def test_models_dir_hangs_off_the_root(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("LINGUONNX_CACHE", str(tmp_path / "bulk"))
+        root = model_manager._cache_root()
+        assert root / "models" == tmp_path / "bulk" / "models"
+
+    def test_relative_path_is_kept_relative(self, monkeypatch):
+        # Not resolved against cwd on purpose: resolving would freeze the
+        # working directory at import time, which is a worse surprise than a
+        # relative path behaving relatively.
+        monkeypatch.setenv("LINGUONNX_CACHE", "var/cache/linguonnx")
+        assert model_manager._cache_root() == Path("var/cache/linguonnx")
