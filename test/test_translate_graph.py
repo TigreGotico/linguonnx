@@ -541,6 +541,100 @@ def test_a_region_subtag_routes_as_its_language(graph):
     assert graph.route("pt-BR", "en").hops[0].model_id == "opus-pt-en"
 
 
+# --- separator/script normalisation (redundant-spelling collapse) ---------
+
+@pytest.mark.parametrize("underscore, hyphen", [
+    ("ace_Arab", "ace-Arab"),
+    ("bjn_Arab", "bjn-Arab"),
+    ("crh_Latn", "crh-Latn"),
+    ("ko_Hang", "ko-Hang"),
+    ("zh_Hant", "zh-Hant"),
+])
+def test_underscore_and_hyphen_script_suffixes_are_the_same_node(underscore, hyphen):
+    """FLORES `xxx_Yyyy` and a hand-written `xxx-Yyyy` name the same node.
+
+    Only the separator differs; a caller (or a registry entry) spelling it
+    either way must land on one graph node, not two.
+    """
+    assert normalize_tag(underscore) == normalize_tag(hyphen)
+
+
+def test_a_region_subtag_is_not_mistaken_for_a_script_suffix():
+    """`fr-CA`/`az-RU`/`fa-AF` are region subtags, not script suffixes.
+
+    Unifying the separator must not touch these: a 2-letter region code does
+    not have the shape of an ISO 15924 script (4 letters, titlecase), so they
+    are routed through `langcodes` exactly as before.
+    """
+    assert normalize_tag("fr-CA") == "fr-CA"
+    assert normalize_tag("az-RU") == "az-RU"
+    assert normalize_tag("fa-AF") == "fa-AF"
+
+
+@pytest.mark.parametrize("tag, expected", [
+    ("crh", "crh"), ("crh_Latn", "crh"), ("crh-Latn", "crh"),
+    ("ko", "ko"), ("ko_Hang", "ko"), ("ko-Hang", "ko"),
+    ("pbt_Arab", "ps"), ("pbt-Arab", "ps"),
+    ("pes_Arab", "fa"), ("swh_Latn", "sw"), ("uzn_Latn", "uz"),
+    ("khk_Cyrl", "mn"), ("azj_Latn", "az"), ("zsm_Latn", "ms"),
+])
+def test_known_script_default_and_macro_overrides_collapse(tag, expected):
+    """Codes where CLDR has no/stale script data, and NLLB-only individual
+    codes for a macrolanguage every other model calls by its 2-letter code,
+    collapse onto the node the rest of the graph already uses."""
+    assert normalize_tag(tag) == expected
+
+
+@pytest.mark.parametrize("bare, latn", [
+    ("bg", "bg-Latn"), ("el", "el-Latn"), ("bn", "bn-Latn"), ("gom", "gom-Latn"),
+])
+def test_romanised_variants_of_non_latin_languages_stay_distinct(bare, latn):
+    """`bg_Latn`/`el_Latn`/`bn_Latn`/`gom_Latn` are MADLAD's genuine romanised
+    transliteration targets, not a spelling variant of the native-script
+    language. A caller asking for `bg` wants Cyrillic; collapsing these two
+    nodes would silently reroute them to the wrong model output."""
+    assert normalize_tag(bare) != normalize_tag(latn)
+    assert normalize_tag(bare) != normalize_tag(latn.replace("-Latn", "_Latn"))
+
+
+def test_nb_and_nn_stay_distinct_written_standards():
+    """Bokmal and Nynorsk are two actively maintained standards, not a
+    macrolanguage/dialect split - kept apart like zh-Hans/zh-Hant, not
+    collapsed onto `no` the way NLLB's other individual-language codes are."""
+    assert normalize_tag("nob_Latn") != normalize_tag("nno_Latn")
+    assert normalize_tag("nob_Latn") == "nb"
+    assert normalize_tag("nno_Latn") == "nn"
+
+
+def test_ks_arab_and_ks_deva_stay_distinct():
+    """Kashmiri is genuinely biscriptal (Perso-Arabic and Devanagari, both in
+    active use) - the script subtag is informative and must survive."""
+    assert normalize_tag("kas_Arab") == "ks"
+    assert normalize_tag("kas_Deva") == "ks-Deva"
+    assert normalize_tag("kas_Arab") != normalize_tag("kas_Deva")
+
+
+def test_registry_has_no_undeclared_duplicate_language_spellings():
+    """No two raw values committed to translate.json normalise to the same
+    tag inside the same capability's language set - that would mean the
+    registry itself, not just ad-hoc caller input, still carries a redundant
+    spelling `normalize_tag` was supposed to collapse before it was written.
+    """
+    from linguonnx.model_manager import list_models
+
+    for model_id, entry in list_models(kind="translate").items():
+        for key in ("languages", "src_languages", "tgt_languages"):
+            values = entry.get(key)
+            if not values:
+                continue
+            normalized = [normalize_tag(v) for v in values]
+            assert len(normalized) == len(set(normalized)), (
+                f"{model_id}.{key} has redundant spellings: {values}")
+        pair = entry.get("pair")
+        if pair:
+            assert normalize_tag(pair[0]) != normalize_tag(pair[1]) or pair[0] == pair[1]
+
+
 # --- asymmetric capabilities ----------------------------------------------
 
 SRC_ONLY = Capability(model_id="src-only", arch="m2m100", license="MIT",
