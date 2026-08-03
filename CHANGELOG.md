@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.3a1](https://github.com/TigreGotico/linguonnx/tree/0.8.3a1) (2026-08-03)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.2a2...0.8.3a1)
+
+**Merged pull requests:**
+
+- fix: address M2M100 language tokens by name, not by list position [\#60](https://github.com/TigreGotico/linguonnx/pull/60) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.8.2a2](https://github.com/TigreGotico/linguonnx/tree/0.8.2a2) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.2a1...0.8.2a2)
