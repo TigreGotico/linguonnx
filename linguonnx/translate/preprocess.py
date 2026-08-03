@@ -123,6 +123,12 @@ class SpmLangTokenPipeline(Pipeline):
             model.tokenizer.encode(text, model.native_code(src)), model)
 
     def forced_bos(self, model, tgt):
+        # The export's own generation config outranks a tag lookup when it
+        # names a target: a bilingual fine-tune whose target language has no
+        # token of its own can only be addressed by the id upstream chose.
+        declared = model.declared_forced_bos_token_id
+        if declared is not None:
+            return declared
         return model.tokenizer.lang_id(model.native_code(tgt))
 
     def decode(self, model, ids, src, tgt):
