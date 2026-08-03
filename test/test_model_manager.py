@@ -120,3 +120,41 @@ def test_ensure_model_files_downloads_onnx_and_side_files(tmp_path, monkeypatch)
     for path in paths.values():
         assert path.exists()
         assert path.stat().st_size > 0
+
+
+class TestIsCached:
+    """`is_cached` answers "would this cost a download?" without doing one."""
+
+    ENTRY = {
+        "model_id": "m", "hf_repo": "x/m", "onnx_file": "model.onnx",
+        "side_files": {"config": "config.json"},
+    }
+
+    def _registry(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(model_manager, "MODELS_DIR", tmp_path)
+        monkeypatch.setattr(model_manager, "registry_entry",
+                            lambda model_id, kind="lid": self.ENTRY)
+
+    def test_a_model_with_every_file_present_is_cached(self, tmp_path, monkeypatch):
+        self._registry(monkeypatch, tmp_path)
+        (tmp_path / "m").mkdir()
+        for name in ("model.onnx", "config.json"):
+            (tmp_path / "m" / name).write_bytes(b"x")
+        assert model_manager.is_cached("m", kind="translate") is True
+
+    def test_a_model_missing_one_file_is_not_cached(self, tmp_path, monkeypatch):
+        self._registry(monkeypatch, tmp_path)
+        (tmp_path / "m").mkdir()
+        (tmp_path / "m" / "model.onnx").write_bytes(b"x")
+        assert model_manager.is_cached("m", kind="translate") is False
+
+    def test_a_zero_byte_file_is_not_cached(self, tmp_path, monkeypatch):
+        """The same rule the fetch path uses, so the two cannot disagree."""
+        self._registry(monkeypatch, tmp_path)
+        (tmp_path / "m").mkdir()
+        (tmp_path / "m" / "model.onnx").write_bytes(b"")
+        (tmp_path / "m" / "config.json").write_bytes(b"x")
+        assert model_manager.is_cached("m", kind="translate") is False
+
+    def test_an_unknown_model_is_not_cached(self):
+        assert model_manager.is_cached("no-such-model", kind="translate") is False

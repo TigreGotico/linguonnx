@@ -24,9 +24,9 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 from linguonnx.model_manager import list_models
 from linguonnx.translate.decode import GenerationConfig
-from linguonnx.translate.graph import (DEFAULT_PIVOT_PREFERENCE, Capability,
-                                       Hop, NoRouteError, Route,
-                                       TranslationGraph, normalize_tag)
+from linguonnx.translate.graph import (DEFAULT_PIVOT_PREFERENCE, UNSET,
+                                       Capability, Hop, NoRouteError, Route,
+                                       TranslationGraph, _Unset, normalize_tag)
 from linguonnx.translate.models import TranslationModel, capability_from_entry
 
 LOG = logging.getLogger(__name__)
@@ -73,6 +73,8 @@ class Translator:
                  pivot_preference: Sequence[str] = DEFAULT_PIVOT_PREFERENCE,
                  max_routes: int = 10,
                  pivot_ranking: str = "auto",
+                 max_model_mb: Union[int, None, _Unset] = UNSET,
+                 count_cached_as_free: bool = True,
                  num_beams: int = 4, max_new_tokens: int = 128,
                  length_penalty: float = 1.0, no_repeat_ngram_size: int = 0,
                  model_cache_size: int = DEFAULT_MODEL_CACHE_SIZE):
@@ -81,7 +83,8 @@ class Translator:
             [capability_from_entry(e) for e in entries.values()],
             pivot_preference=pivot_preference, prefer=prefer,
             max_hops=max_hops, max_routes=max_routes,
-            pivot_ranking=pivot_ranking)
+            pivot_ranking=pivot_ranking, max_model_mb=max_model_mb,
+            count_cached_as_free=count_cached_as_free)
         if pivot_ranking == "auto" and self.graph.pivot_ranking != "phonological":
             # `auto` degrades silently when orthography2ipa is absent, and the
             # two bases can pick different pivots - so two hosts in one fleet
@@ -135,25 +138,46 @@ class Translator:
         return self.graph.max_hops
 
     @property
+    def max_model_mb(self) -> Optional[int]:
+        """The per-model size budget in force, or ``None`` for no budget."""
+        return self.graph.max_model_mb
+
+    @property
+    def count_cached_as_free(self) -> bool:
+        """Whether a model already on disk is exempt from :attr:`max_model_mb`."""
+        return self.graph.count_cached_as_free
+
+    @property
     def pivot_ranking(self) -> str:
         """The pivot ranking in force, ``"phonological"`` or ``"table"``."""
         return self.graph.pivot_ranking
 
     def route(self, src: str, tgt: str, max_hops: Optional[int] = None,
-              prefer: Optional[str] = None) -> Route:
+              prefer: Optional[str] = None,
+              max_model_mb: Union[int, None, _Unset] = UNSET,
+              count_cached_as_free: Optional[bool] = None) -> Route:
         """The best route, without translating. Raises :class:`NoRouteError`."""
-        return self.graph.route(src, tgt, max_hops=max_hops, prefer=prefer)
+        return self.graph.route(src, tgt, max_hops=max_hops, prefer=prefer,
+                                max_model_mb=max_model_mb,
+                                count_cached_as_free=count_cached_as_free)
 
     def routes(self, src: str, tgt: str, max_hops: Optional[int] = None,
                prefer: Optional[str] = None,
-               limit: Optional[int] = None) -> List[Route]:
+               limit: Optional[int] = None,
+               max_model_mb: Union[int, None, _Unset] = UNSET,
+               count_cached_as_free: Optional[bool] = None) -> List[Route]:
         """Every viable route, ranked best-first. Bounded; see the graph docstring."""
         return self.graph.routes(src, tgt, max_hops=max_hops, prefer=prefer,
-                                 limit=limit)
+                                 limit=limit, max_model_mb=max_model_mb,
+                                 count_cached_as_free=count_cached_as_free)
 
     def can_translate(self, src: str, tgt: str,
-                      max_hops: Optional[int] = None) -> bool:
-        return self.graph.can_translate(src, tgt, max_hops=max_hops)
+                      max_hops: Optional[int] = None,
+                      max_model_mb: Union[int, None, _Unset] = UNSET,
+                      count_cached_as_free: Optional[bool] = None) -> bool:
+        return self.graph.can_translate(
+            src, tgt, max_hops=max_hops, max_model_mb=max_model_mb,
+            count_cached_as_free=count_cached_as_free)
 
     # -- models -----------------------------------------------------------
 
@@ -242,6 +266,8 @@ class Translator:
                   return_route: bool = False,
                   max_hops: Optional[int] = None,
                   prefer: Optional[str] = None,
+                  max_model_mb: Union[int, None, _Unset] = UNSET,
+                  count_cached_as_free: Optional[bool] = None,
                   num_beams: Optional[int] = None,
                   max_new_tokens: Optional[int] = None,
                   target_token: Optional[str] = None
@@ -292,7 +318,9 @@ class Translator:
         else:
             if src is None or tgt is None:
                 raise ValueError("give src= and tgt=, or a route=, or a model=")
-            chosen = self.route(src, tgt, max_hops=max_hops, prefer=prefer)
+            chosen = self.route(src, tgt, max_hops=max_hops, prefer=prefer,
+                                max_model_mb=max_model_mb,
+                                count_cached_as_free=count_cached_as_free)
 
         # The route is the single thing an operator needs to explain a bad
         # translation: which models ran, in which order, and through which
@@ -338,6 +366,8 @@ def load_translator(models: Optional[Sequence[str]] = None,
                     pivot_preference: Sequence[str] = DEFAULT_PIVOT_PREFERENCE,
                     max_routes: int = 10,
                     pivot_ranking: str = "auto",
+                    max_model_mb: Union[int, None, _Unset] = UNSET,
+                    count_cached_as_free: bool = True,
                     num_beams: int = 4,
                     max_new_tokens: int = 128,
                     length_penalty: float = 1.0,
@@ -367,6 +397,15 @@ def load_translator(models: Optional[Sequence[str]] = None,
         linguonnx[distance]`` - and by the curated table otherwise.
         ``"phonological"`` demands the package and raises without it;
         ``"table"`` ignores it. ``Route.pivot_basis`` reports which was used.
+    :param max_model_mb: largest single model routing may use, in MB. Unset
+        reads ``LINGUONNX_MAX_MODEL_MB``; ``None`` is no budget. A pair that a
+        big multilingual model served in one hop is then served by a chain of
+        small ones, so coverage survives a budget that latency does not.
+    :param count_cached_as_free: whether a model already in the local cache is
+        exempt from ``max_model_mb``. True (default) reads the budget as "do
+        not **download** more than this", which is the metered-connection
+        reading; False reads it as "do not **use** a model bigger than this",
+        which is the small-disk one.
     :param num_beams: 4 by default; 1 is greedy and about 4x faster.
     :param model_cache_size: how many loaded models to keep alive at once,
         least-recently-used evicted first. The whole default graph is ~25 GB,
@@ -380,7 +419,8 @@ def load_translator(models: Optional[Sequence[str]] = None,
         raise ValueError("no translation models matched the given filters")
     return Translator(entries, prefer=prefer, max_hops=max_hops,
                       pivot_preference=pivot_preference, max_routes=max_routes,
-                      pivot_ranking=pivot_ranking,
+                      pivot_ranking=pivot_ranking, max_model_mb=max_model_mb,
+                      count_cached_as_free=count_cached_as_free,
                       num_beams=num_beams, max_new_tokens=max_new_tokens,
                       length_penalty=length_penalty,
                       no_repeat_ngram_size=no_repeat_ngram_size,

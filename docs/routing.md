@@ -172,6 +172,160 @@ rule as the constructor: `route(src, tgt, max_hops=0)` raises `ValueError`. A
 route with no hops translates nothing, so there is no reading of `0` worth
 guessing at.
 
+## Size budget
+
+`max_model_mb` is the largest single model routing may put on a route. A model
+over the budget is left out, and the router looks for a chain of smaller ones
+instead of failing.
+
+<!-- doc-check: norun the second line's answer depends on the local cache -->
+```python
+tx = load_translator(max_model_mb=500)
+print(tx.route("pt", "ru").model_ids)
+# ('opus-mt-pt-en-int8', 'opus-mt-en-ru-int8')
+```
+
+Without the budget that pair is one hop through `m2m100-418M-int8`, 1207 MB.
+With it, two Marian models of 172 MB and 169 MB do the same work through
+English: 341 MB fetched instead of 1207 MB, at two encoder-decoder passes
+instead of one. That is the trade the budget exists to make, and it is the
+reason the budget does not simply refuse the pair.
+
+The budget is per **model**, not per route. Six 100 MB hops pass a 500 MB
+budget; one 600 MB model does not. The number bounds what a single fetch can
+cost, which is the thing that fails on a slow link.
+
+### Download cost, not memory cost
+
+By default `count_cached_as_free=True`, and a model already in
+`~/.cache/linguonnx` passes the budget however big it is. Nothing is
+downloaded to find that out — the cache directory is inspected, the hub is
+never contacted.
+
+The two settings answer two different questions:
+
+| | reading | set |
+|---|---|---|
+| `count_cached_as_free=True` (default) | "do not **download** more than this" | metered or slow connection |
+| `count_cached_as_free=False` | "do not **use** a model bigger than this" | small disk, or a memory ceiling |
+
+So `prefetch("madlad400-3b-mt-int8", kind="translate")` at startup keeps MADLAD
+routable under a 500 MB budget: the download it was excluded for has already
+been paid. Under `count_cached_as_free=False` it stays excluded, because there
+the number is about the model, not the fetch.
+
+The default is `True` because the budget is a *download* budget: refusing a
+model already on disk costs quality and saves nothing.
+
+### What a budget costs in coverage
+
+Over the default selection — permissive, int8, 73 models — with an empty cache:
+
+| `max_model_mb` | models kept | languages routable |
+|---|---|---|
+| none | 73 | 459 |
+| 2000 | 71 | 121 |
+| 1000 | 69 | 57 |
+| 500 | 62 | 54 |
+| 300 | 56 | 29 |
+
+The model column and the language column tell different stories, and the second
+one is the one to plan against. A 500 MB budget drops 11 of 73 models, but
+those 11 include `madlad400-3b-mt-int8` (4945 MB), `m2m100-1.2B-int8` (2344 MB)
+and `m2m100-418M-int8` (1207 MB), and the big multilingual models are where the
+long tail of languages lives. MADLAD is the only model in the registry with
+Chuvash at all; no chain of small models replaces it, because there is no small
+model on either side of it.
+
+What survives is what has bilingual models: the ~50 languages opus-mt, mt-hitz
+and the Iberian pairs cover between them. `pt -> ru`, `nl -> fi`, `pt -> eu`
+all still route under 500 MB, as chains. `de -> ja` does not, because nothing
+under 500 MB has Japanese.
+
+So a budget is not a way to shrink the registry evenly. It keeps the
+well-served pairs and drops the tail, and `available_languages` says which is
+which:
+
+```python
+tx = load_translator(max_model_mb=500, count_cached_as_free=False)
+print(len(tx.available_languages))       # 54
+print(tx.can_translate("pt", "ru"))      # True — via a chain
+print(tx.can_translate("de", "ja"))      # False — no small model has Japanese
+```
+
+`available_languages` is filtered by the budget for the same reason it is
+filtered by runnability: a caller reads it as "these are the languages I can
+ask for", and it has to answer for the models `route()` will actually use.
+
+### The budget and the hop cap interact
+
+A budget can make a one-hop route impossible where one existed, and the chain
+that replaces it needs a hop. Both caps came from the caller, so neither is
+raised on the caller's behalf — `NoRouteError` names the one that bound
+instead:
+
+```
+no route from 'pt' to 'ru' within 1 hop(s) (max_hops=1: only direct models
+were considered); a 2-hop route exists, so raise max_hops to use it -- the 500
+MB size cap (max_model_mb) excluded the model(s) that would serve this:
+m2m100-418M-int8 (1207 MB). Raise the cap, allow more hops so smaller models
+can be chained, or prefetch the model so the download is already paid for
+```
+
+Both constraints are reported when both are true. When neither is — when the
+pair is simply not covered — the budget is not mentioned at all, and the
+licence and runnability hints say what covers the pair elsewhere.
+
+### Per call, and from the environment
+
+`max_model_mb` and `count_cached_as_free` override per call, the way `max_hops`
+and `prefer` do. Omitting a keyword inherits the translator's value; passing
+`max_model_mb=None` lifts the budget for that one call, because `None` already
+means "no budget" and cannot also mean "inherit".
+
+<!-- doc-check: norun the answers depend on what this host has cached -->
+```python
+tx = load_translator(max_model_mb=500)
+tx.route("pt", "ru")                        # inherits the 500 MB budget
+tx.route("pt", "ru", max_model_mb=2000)     # this call only
+tx.route("pt", "ru", max_model_mb=None)     # no budget for this call
+tx.route("pt", "ru", count_cached_as_free=False)
+```
+
+`LINGUONNX_MAX_MODEL_MB` sets the default, alongside the other bounds in
+`linguonnx/limits.py`, so an operator can impose it on a deployment without
+patching the caller. An explicit `max_model_mb=` argument, including
+`max_model_mb=None`, overrules it.
+
+Routing is the only thing the budget governs. `translate(model=...)` pins a
+model and bypasses routing entirely, and it stays pinned; the download bound
+that protects that path is `LINGUONNX_MAX_DOWNLOAD_MB`, in
+`linguonnx/model_manager.py`.
+
+### What a route costs to fetch
+
+A `Route` reports the download it implies, so a caller choosing between routes
+can see it rather than infer it from `size_mb`:
+
+<!-- doc-check: norun the split depends on what this host has cached -->
+```python
+for route in tx.routes("pt", "ru")[:3]:
+    print(route.model_ids, route.download_size_mb, route.cached_size_mb)
+# ('m2m100-418M-int8',)                        1207   0
+# ('opus-mt-pt-en-int8', 'opus-mt-en-ru-int8')    0 341
+```
+
+`download_size_mb` is what is missing, `cached_size_mb` is what is already on
+disk, and `models_size_mb` is their sum. All three count each **model** once,
+so a route that uses one multilingual model for two hops counts it once —
+unlike `total_size_mb`, which is a per-hop sum because it is a cost proxy in
+the route ranking, where a model used twice is used twice.
+
+Fetch cost does not enter the ranking. It changes with the cache, and a
+translator that reordered its routes as models were downloaded would give two
+hosts in one fleet different answers with nothing to explain it. The number is
+reported so the caller can decide; it is not decided for them.
+
 ## Choosing the path yourself
 
 The cost model is a default, not a verdict. There are three ways to overrule

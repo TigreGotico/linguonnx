@@ -137,6 +137,8 @@ converges on loading all of them, gets OOM-killed, restarts cold, and pays
 every download again.
 
 ```python
+from linguonnx import load_translator
+
 tx = load_translator(model_cache_size=8)   # more RAM, fewer reloads
 print(tx.loaded_models)                    # least recently used first
 ```
@@ -177,7 +179,7 @@ Everything the Hub can answer is read from the Hub, never typed out:
 | `license` | `cardData.license` when the card has YAML front matter, else the `**License:**` line in the README body — most opus-mt exports have no front matter. |
 | `languages` | `additional_special_tokens` in the model's own `special_tokens_map.json`. |
 | `pair` | The repo name, cross-checked against the base model named in the card. |
-| `size_mb` | Summed blob sizes of the files the entry actually references. |
+| `size_mb` | Summed blob sizes of the files the entry actually references. Load-bearing twice over: it breaks ties in the route ranking, and it is what `max_model_mb` compares against, so an entry that under-reports its size gets routed onto hosts that cannot afford it. See [routing](routing.md#size-budget). |
 | `runnable` | Written as `false`, with an `unrunnable_reason`, for an architecture whose inference pipeline this library does not implement. The router excludes those models. Delete the architecture from `UNRUNNABLE_ARCHS` in the script when its pipeline lands. |
 
 There is no third fallback for the licence. A repo whose licence cannot be read
