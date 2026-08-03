@@ -20,6 +20,8 @@
       "arn_Latn"
     ],
     "precision": "fp32",
+    "provenance_org": "Projecte AINA",
+    "release_date": "2024-02-09",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
@@ -50,6 +52,8 @@
       "arn_Latn"
     ],
     "precision": "int8",
+    "provenance_org": "Projecte AINA",
+    "release_date": "2024-02-09",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",
       "config": "int8/config.json",
@@ -416,6 +420,8 @@
       "zh"
     ],
     "precision": "fp32",
+    "provenance_org": "Projecte AINA",
+    "release_date": "2024-02-09",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
@@ -444,6 +450,8 @@
       "zh"
     ],
     "precision": "int8",
+    "provenance_org": "Projecte AINA",
+    "release_date": "2024-02-09",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",
       "config": "int8/config.json",
@@ -587,6 +595,8 @@
       "arg_Latn"
     ],
     "precision": "fp32",
+    "provenance_org": "Projecte AINA",
+    "release_date": "2024-02-09",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
@@ -613,6 +623,8 @@
       "arg_Latn"
     ],
     "precision": "int8",
+    "provenance_org": "Projecte AINA",
+    "release_date": "2024-02-09",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",
       "config": "int8/config.json",
@@ -642,6 +654,8 @@
       "ast_Latn"
     ],
     "precision": "fp32",
+    "provenance_org": "Projecte AINA",
+    "release_date": "2024-02-09",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
@@ -672,6 +686,8 @@
       "ast_Latn"
     ],
     "precision": "int8",
+    "provenance_org": "Projecte AINA",
+    "release_date": "2024-02-09",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",
       "config": "int8/config.json",
@@ -1010,6 +1026,8 @@
       "ca"
     ],
     "precision": "fp32",
+    "provenance_org": "Projecte AINA",
+    "release_date": "2024-02-09",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
@@ -1038,6 +1056,8 @@
       "ca"
     ],
     "precision": "int8",
+    "provenance_org": "Projecte AINA",
+    "release_date": "2024-02-09",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",
       "config": "int8/config.json",
@@ -1061,6 +1081,8 @@
     "license_tier": "permissive",
     "model_id": "indictrans2-en-indic-dist-200M",
     "precision": "fp32",
+    "provenance_org": "AI4Bharat",
+    "release_date": "2023-09-12",
     "side_files": {
       "spm_src": "model.SRC",
       "spm_tgt": "model.TGT",
@@ -1115,6 +1137,8 @@
     "license_tier": "permissive",
     "model_id": "indictrans2-en-indic-dist-200M-int8",
     "precision": "int8",
+    "provenance_org": "AI4Bharat",
+    "release_date": "2023-09-12",
     "side_files": {
       "spm_src": "int8/model.SRC",
       "spm_tgt": "int8/model.TGT",
@@ -1169,6 +1193,8 @@
     "license_tier": "permissive",
     "model_id": "indictrans2-indic-en-dist-200M",
     "precision": "fp32",
+    "provenance_org": "AI4Bharat",
+    "release_date": "2023-09-12",
     "side_files": {
       "spm_src": "model.SRC",
       "spm_tgt": "model.TGT",
@@ -1223,6 +1249,8 @@
     "license_tier": "permissive",
     "model_id": "indictrans2-indic-en-dist-200M-int8",
     "precision": "int8",
+    "provenance_org": "AI4Bharat",
+    "release_date": "2023-09-12",
     "side_files": {
       "spm_src": "int8/model.SRC",
       "spm_tgt": "int8/model.TGT",
@@ -1277,6 +1305,8 @@
     "license_tier": "permissive",
     "model_id": "indictrans2-indic-indic-dist-320M",
     "precision": "fp32",
+    "provenance_org": "AI4Bharat",
+    "release_date": "2023-09-12",
     "side_files": {
       "spm_src": "model.SRC",
       "spm_tgt": "model.TGT",
@@ -1355,6 +1385,8 @@
     "license_tier": "permissive",
     "model_id": "indictrans2-indic-indic-dist-320M-int8",
     "precision": "int8",
+    "provenance_org": "AI4Bharat",
+    "release_date": "2023-09-12",
     "side_files": {
       "spm_src": "int8/model.SRC",
       "spm_tgt": "int8/model.TGT",
@@ -1442,6 +1474,8 @@
       "liv": "li"
     },
     "precision": "fp32",
+    "provenance_org": "liv4ever",
+    "release_date": "2022-03-10",
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -1474,6 +1508,8 @@
       "liv": "li"
     },
     "precision": "int8",
+    "provenance_org": "liv4ever",
+    "release_date": "2022-03-10",
     "side_files": {
       "source_spm": "int8/source.spm",
       "target_spm": "int8/target.spm",
@@ -2015,6 +2051,7 @@
     },
     "notes": "TartuNLP Finno-Ugric fine-tune of M2M100-418M. Coverage is the card's eight languages, not the 104 tokens the base tokenizer still carries.",
     "precision": "fp32",
+    "provenance_org": "TartuNLP",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
@@ -2052,6 +2089,7 @@
     },
     "notes": "TartuNLP Finno-Ugric fine-tune of M2M100-418M. Coverage is the card's eight languages, not the 104 tokens the base tokenizer still carries.",
     "precision": "int8",
+    "provenance_org": "TartuNLP",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",
       "config": "int8/config.json",
@@ -2080,6 +2118,8 @@
       "fr"
     ],
     "precision": "fp32",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
@@ -2108,6 +2148,8 @@
       "fr"
     ],
     "precision": "int8",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",
       "config": "int8/config.json",
@@ -2136,6 +2178,8 @@
       "fr"
     ],
     "precision": "fp32",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
@@ -2164,6 +2208,8 @@
       "fr"
     ],
     "precision": "int8",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",
       "config": "int8/config.json",
@@ -2248,6 +2294,8 @@
       "fr"
     ],
     "precision": "fp32",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
@@ -2276,6 +2324,8 @@
       "fr"
     ],
     "precision": "int8",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",
       "config": "int8/config.json",
@@ -2304,6 +2354,8 @@
       "bam"
     ],
     "precision": "fp32",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
@@ -2332,6 +2384,8 @@
       "bam"
     ],
     "precision": "int8",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",
       "config": "int8/config.json",
@@ -2360,6 +2414,8 @@
       "bbj"
     ],
     "precision": "fp32",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
@@ -2388,6 +2444,8 @@
       "bbj"
     ],
     "precision": "int8",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",
       "config": "int8/config.json",
@@ -2416,6 +2474,8 @@
       "ewe"
     ],
     "precision": "fp32",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
@@ -2444,6 +2504,8 @@
       "ewe"
     ],
     "precision": "int8",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",
       "config": "int8/config.json",
@@ -2472,6 +2534,8 @@
       "fon"
     ],
     "precision": "fp32",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
@@ -2500,6 +2564,8 @@
       "fon"
     ],
     "precision": "int8",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",
       "config": "int8/config.json",
@@ -2528,6 +2594,8 @@
       "mos"
     ],
     "precision": "fp32",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
@@ -2556,6 +2624,8 @@
       "mos"
     ],
     "precision": "int8",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",
       "config": "int8/config.json",
@@ -2584,6 +2654,8 @@
       "fr"
     ],
     "precision": "fp32",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
@@ -2612,6 +2684,8 @@
       "fr"
     ],
     "precision": "int8",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",
       "config": "int8/config.json",
@@ -3586,6 +3660,8 @@
       "eu"
     ],
     "precision": "fp32",
+    "provenance_org": "HiTZ",
+    "release_date": "2024-06-17",
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -3613,6 +3689,8 @@
       "eu"
     ],
     "precision": "int8",
+    "provenance_org": "HiTZ",
+    "release_date": "2024-06-17",
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -3640,6 +3718,8 @@
       "eu"
     ],
     "precision": "fp32",
+    "provenance_org": "HiTZ",
+    "release_date": "2024-06-17",
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -3667,6 +3747,8 @@
       "eu"
     ],
     "precision": "int8",
+    "provenance_org": "HiTZ",
+    "release_date": "2024-06-17",
     "side_files": {
       "source_spm": "int8/source.spm",
       "target_spm": "int8/target.spm",
@@ -3694,6 +3776,8 @@
       "eu"
     ],
     "precision": "fp32",
+    "provenance_org": "HiTZ",
+    "release_date": "2024-06-17",
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -3721,6 +3805,8 @@
       "eu"
     ],
     "precision": "int8",
+    "provenance_org": "HiTZ",
+    "release_date": "2024-06-17",
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -3748,6 +3834,8 @@
       "en"
     ],
     "precision": "fp32",
+    "provenance_org": "HiTZ",
+    "release_date": "2024-06-17",
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -3775,6 +3863,8 @@
       "en"
     ],
     "precision": "int8",
+    "provenance_org": "HiTZ",
+    "release_date": "2024-06-17",
     "side_files": {
       "source_spm": "int8/source.spm",
       "target_spm": "int8/target.spm",
@@ -3802,6 +3892,8 @@
       "es"
     ],
     "precision": "fp32",
+    "provenance_org": "HiTZ",
+    "release_date": "2024-06-17",
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -3829,6 +3921,8 @@
       "es"
     ],
     "precision": "int8",
+    "provenance_org": "HiTZ",
+    "release_date": "2024-06-17",
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -3856,6 +3950,8 @@
       "eu"
     ],
     "precision": "fp32",
+    "provenance_org": "HiTZ",
+    "release_date": "2024-06-17",
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -3883,6 +3979,8 @@
       "eu"
     ],
     "precision": "int8",
+    "provenance_org": "HiTZ",
+    "release_date": "2024-06-17",
     "side_files": {
       "source_spm": "int8/source.spm",
       "target_spm": "int8/target.spm",
@@ -4366,6 +4464,7 @@
       "es"
     ],
     "precision": "fp32",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "vocab": "onmt_vocab.json",
       "config": "config.json",
@@ -4392,6 +4491,7 @@
       "es"
     ],
     "precision": "int8",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "vocab": "int8/onmt_vocab.json",
       "config": "int8/config.json",
@@ -4418,6 +4518,7 @@
       "gl"
     ],
     "precision": "fp32",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "vocab": "onmt_vocab.json",
       "config": "config.json",
@@ -4444,6 +4545,7 @@
       "gl"
     ],
     "precision": "int8",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "vocab": "int8/onmt_vocab.json",
       "config": "int8/config.json",
@@ -4470,6 +4572,7 @@
       "pt"
     ],
     "precision": "fp32",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "vocab": "onmt_vocab.json",
       "config": "config.json",
@@ -4496,6 +4599,7 @@
       "pt"
     ],
     "precision": "int8",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "vocab": "int8/onmt_vocab.json",
       "config": "int8/config.json",
@@ -4522,6 +4626,7 @@
       "gl"
     ],
     "precision": "fp32",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "vocab": "onmt_vocab.json",
       "config": "config.json",
@@ -4548,6 +4653,7 @@
       "gl"
     ],
     "precision": "int8",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "vocab": "int8/onmt_vocab.json",
       "config": "int8/config.json",
@@ -4574,6 +4680,7 @@
       "pt"
     ],
     "precision": "fp32",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "vocab": "onmt_vocab.json",
       "config": "config.json",
@@ -4600,6 +4707,7 @@
       "pt"
     ],
     "precision": "int8",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "vocab": "int8/onmt_vocab.json",
       "config": "int8/config.json",
@@ -4626,6 +4734,7 @@
       "gl"
     ],
     "precision": "fp32",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "vocab": "onmt_vocab.json",
       "config": "config.json",
@@ -4652,6 +4761,7 @@
       "gl"
     ],
     "precision": "int8",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "vocab": "int8/onmt_vocab.json",
       "config": "int8/config.json",
@@ -4678,6 +4788,7 @@
       "gl"
     ],
     "precision": "fp32",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "config": "config.json",
       "generation_config": "generation_config.json",
@@ -4704,6 +4815,7 @@
       "gl"
     ],
     "precision": "int8",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
@@ -4730,6 +4842,7 @@
       "an"
     ],
     "precision": "fp32",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "config": "config.json",
       "generation_config": "generation_config.json",
@@ -4756,6 +4869,7 @@
       "an"
     ],
     "precision": "int8",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
@@ -4782,6 +4896,7 @@
       "oc"
     ],
     "precision": "fp32",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "config": "config.json",
       "generation_config": "generation_config.json",
@@ -4808,6 +4923,7 @@
       "oc"
     ],
     "precision": "int8",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
@@ -4834,6 +4950,7 @@
       "ast"
     ],
     "precision": "fp32",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "config": "config.json",
       "generation_config": "generation_config.json",
@@ -4860,6 +4977,7 @@
       "ast"
     ],
     "precision": "int8",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
@@ -4886,6 +5004,7 @@
       "gl"
     ],
     "precision": "fp32",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "config": "config.json",
       "generation_config": "generation_config.json",
@@ -4912,6 +5031,7 @@
       "gl"
     ],
     "precision": "int8",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
@@ -4938,6 +5058,7 @@
       "en"
     ],
     "precision": "fp32",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "config": "config.json",
       "generation_config": "generation_config.json",
@@ -4964,6 +5085,7 @@
       "en"
     ],
     "precision": "int8",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
@@ -4990,6 +5112,7 @@
       "es"
     ],
     "precision": "fp32",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "config": "config.json",
       "generation_config": "generation_config.json",
@@ -5016,6 +5139,7 @@
       "es"
     ],
     "precision": "int8",
+    "provenance_org": "Proxecto Nós",
     "side_files": {
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",

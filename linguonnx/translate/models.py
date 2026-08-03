@@ -84,6 +84,8 @@ def capability_from_entry(entry: Dict) -> Capability:
             if src_langs is not None else None,
         tgt_languages=frozenset(normalize_tag(c) for c in tgt_langs)
             if tgt_langs is not None else None,
+        provenance_org=entry.get("provenance_org"),
+        release_date=entry.get("release_date"),
     )
 
 

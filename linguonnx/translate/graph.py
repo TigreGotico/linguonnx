@@ -54,9 +54,11 @@ Every candidate route is scored by a **tuple**, and the policy decides the
 order of the tuple's elements, not which code path runs. Two policies ship:
 
 ``prefer="fewest_hops"`` (default)
-    ``(n_hops, n_multilingual_hops, licence_tier, total_size_mb, model_ids)``
+    ``(n_hops, n_multilingual_hops, n_non_specialist_hops, recency,
+    licence_tier, total_size_mb, model_ids)``
 ``prefer="dedicated"``
-    ``(n_multilingual_hops, n_hops, licence_tier, total_size_mb, model_ids)``
+    ``(n_multilingual_hops, n_hops, n_non_specialist_hops, recency,
+    licence_tier, total_size_mb, model_ids)``
 
 Under ``fewest_hops`` a single multilingual hop always beats a two-hop
 bilingual chain. Under ``dedicated`` the two-hop chain of dedicated bilingual
@@ -66,6 +68,37 @@ choice - it never doubles latency or compounds error unless asked to.
 
 For the *same* pair at the *same* hop count a dedicated bilingual model always
 beats a multilingual one, under both policies.
+
+Specialist provenance and recency
+----------------------------------
+
+Two tiers sit between "dedicated beats multilingual" and the pre-existing
+licence/size tie-breaks:
+
+``n_non_specialist_hops``
+    Counts hops *not* served by the institution :data:`SPECIALIST_MAP` names
+    as the owner of the source or target language - HiTZ for Basque, Projecte
+    AINA for Catalan, and so on. Lower wins, so a route where the specialist
+    institution serves the specialist leg beats an otherwise-identical route
+    where a generalist multilingual model does, even though both "cover" the
+    pair. This is a tie-break, not a filter: it only ever chooses between
+    routes that already tied on hop count and dedicated/multilingual status,
+    so a generalist is still used - and still wins - when no specialist model
+    covers the pair at all, or when the caller pins ``route=``/``models=``.
+    See :func:`is_specialist_for` and :data:`SPECIALIST_MAP`; the geographic
+    reasoning behind two deliberate overlaps in that table (``ast`` and
+    ``an``) is in ``docs/routing.md``, not repeated here as a rule this module
+    enforces silently.
+``recency``
+    Last resort, consulted only once every earlier tier has tied. A more
+    recently published upstream model sorts first. "Recently published" is
+    the **upstream** model's own creation date (:attr:`Capability.release_date`,
+    a hand-curated registry field), never this project's own mirror
+    timestamp - re-uploading a mirror does not make the underlying weights
+    newer. A capability with no known upstream date sorts as if it were
+    infinitely old, so it never wins on recency and never blocks a route that
+    has no other reason to fail; see the module docstring in
+    ``scripts/sync_registry.py`` for where the date comes from.
 
 Search bounds
 -------------
@@ -98,6 +131,7 @@ from __future__ import annotations
 import itertools
 import logging
 from dataclasses import dataclass, field
+from datetime import date
 from functools import lru_cache
 from typing import (Dict, FrozenSet, Iterable, List, Optional, Sequence,
                     Tuple, Union)
@@ -121,9 +155,11 @@ __all__ = [
     "REGIONAL_PIVOTS",
     "PIVOT_RANKINGS",
     "LICENSE_TIERS",
+    "SPECIALIST_MAP",
     "UNSET",
     "normalize_tag",
     "entry_runnability",
+    "is_specialist_for",
 ]
 
 
@@ -194,6 +230,106 @@ MODEL_CODE_ALIASES: Dict[str, str] = {
     # routing graph sees Occitan and never offers the model for Mapudungun.
     "arn_Latn": "oc",
 }
+
+
+#: Institution that owns a language, for the specialist-provenance tie-break.
+#: Keyed on the graph's own node names (after :func:`normalize_tag`), so an
+#: entry here matches the same tag :meth:`TranslationGraph.route` resolves to,
+#: script suffixes included where the registry keeps them distinct (Kashmiri
+#: ``ks`` vs ``ks-Deva``, Sindhi ``sd`` vs ``sd-Deva``, Manipuri ``mni`` vs
+#: ``mni-Mtei``).
+#:
+#: This is a *default policy*, not a wall: it only ever breaks a tie between
+#: routes that already tied on hop count and dedicated/multilingual status
+#: (see :func:`is_specialist_for`), and an explicit ``route=`` or
+#: ``models=[...]`` from the caller always wins regardless of what is here.
+#:
+#: Two entries look inconsistent until you read them as *proximity*, not
+#: favouritism - both ``ast`` and ``an`` are shipped by two of these
+#: institutions, and the one that is geographically adjacent to the language
+#: wins:
+#:
+#: - ``ast`` (Asturian) -> Proxecto Nós, not AINA: Asturian sits on the
+#:   Galician continuum (Eonavian / Galician-Asturian across the Navia-Eo),
+#:   so the Galician institute is the adjacent one, not the Catalan one.
+#: - ``an`` (Aragonese) -> Projecte AINA, not Nós: Aragonese borders
+#:   Catalonia and shares the Aragon-Catalan transitional zone, so the
+#:   Catalan institute is the adjacent one, not the Galician one.
+#:
+#: See ``docs/routing.md`` for the full writeup - this comment is the short
+#: form, not the only place the rule is written down.
+SPECIALIST_MAP: Dict[str, str] = {
+    # Basque
+    "eu": "HiTZ",
+    # Galician-Portuguese continuum: Asturian by proximity, see above.
+    "gl": "Proxecto Nós",
+    "ast": "Proxecto Nós",
+    # Catalan + its transitional neighbours: Aragonese and Occitan/Aranese by
+    # proximity, see above. Occitan and Aranese are the same graph node
+    # (`MODEL_CODE_ALIASES` maps `arn_Latn` -> `oc`).
+    "ca": "Projecte AINA",
+    "an": "Projecte AINA",
+    "oc": "Projecte AINA",
+    # Indic block (AI4Bharat / IndicTrans2). Base tags as `normalize_tag`
+    # resolves the registry's FLORES-style codes to, including the
+    # script-qualified nodes the registry keeps distinct.
+    "as": "AI4Bharat", "bn": "AI4Bharat", "brx": "AI4Bharat",
+    "doi": "AI4Bharat", "gom": "AI4Bharat", "gu": "AI4Bharat",
+    "hi": "AI4Bharat", "kn": "AI4Bharat", "ks": "AI4Bharat",
+    "ks-Deva": "AI4Bharat", "mai": "AI4Bharat", "ml": "AI4Bharat",
+    "mni": "AI4Bharat", "mni-Mtei": "AI4Bharat", "mr": "AI4Bharat",
+    "npi": "AI4Bharat", "ory": "AI4Bharat", "pa": "AI4Bharat",
+    "sa": "AI4Bharat", "sat": "AI4Bharat", "sd": "AI4Bharat",
+    "sd-Deva": "AI4Bharat", "ta": "AI4Bharat", "te": "AI4Bharat",
+    "ur": "AI4Bharat",
+    # West-African pairs Masakhane trained and published themselves.
+    "bam": "Masakhane", "bbj": "Masakhane", "fon": "Masakhane",
+    "ewe": "Masakhane", "mos": "Masakhane",
+    # Finno-Ugric/smugri minority languages TartuNLP maintains, distinct from
+    # Livonian: liv4ever is the dedicated specialist for `liv` specifically
+    # (below), even though TartuNLP's own smugri model also covers it.
+    "et": "TartuNLP", "vro": "TartuNLP", "sma": "TartuNLP",
+    # Livonian: liv4ever is a smaller, more specific project than TartuNLP's
+    # general smugri model, and wins for `liv` even though both cover it.
+    "liv": "liv4ever",
+}
+
+
+def is_specialist_for(provenance_org: Optional[str], src: str, tgt: str) -> bool:
+    """Whether an org is *the* named specialist for either side of a pair.
+
+    Only one side needs to match - a specialist institution's own bilingual
+    model into a major pivot language (HiTZ's ``eu -> es``) is still "the
+    specialist" for the leg, even though Spanish itself has no single owner.
+    ``provenance_org=None`` (the default; most registry entries have no
+    specialist claim at all) is never a specialist for anything.
+    """
+    if not provenance_org:
+        return False
+    return SPECIALIST_MAP.get(src) == provenance_org \
+        or SPECIALIST_MAP.get(tgt) == provenance_org
+
+
+def _recency_sort_value(release_date: Optional[str]) -> float:
+    """Lower sorts first (more recent). Unknown degrades to "infinitely old".
+
+    ``release_date`` is the *upstream* model's own publish date - never this
+    project's own HF mirror timestamp, which is always close to "now" and so
+    would silently promote whatever was mirrored most recently (see the
+    module docstring's "Specialist provenance and recency" section). A date
+    this project could not verify is treated as worse than any known date,
+    never as a tie with "very recent": it must never win a recency
+    comparison it has no evidence for.
+    """
+    if not release_date:
+        return float("inf")
+    try:
+        year, month, day = (int(part) for part in release_date.split("-"))
+        return -date(year, month, day).toordinal()
+    except (TypeError, ValueError):
+        LOG.warning("unparseable release_date %r; treating as unknown",
+                    release_date)
+        return float("inf")
 
 
 def normalize_tag(tag: str, strict: bool = False) -> str:
@@ -329,6 +465,31 @@ class Capability:
     runnable: Optional[bool] = None
     #: Why it cannot run, for the error the caller finally sees.
     unrunnable_reason: Optional[str] = None
+    #: Upstream institution that trained/fine-tuned this model - "HiTZ",
+    #: "Projecte AINA", "Proxecto Nós", "AI4Bharat", "Masakhane", "TartuNLP",
+    #: "liv4ever" - or ``None`` for the common case of no specialist claim
+    #: (a plain OPUS-MT/NLLB/M2M100 export). Consulted only against
+    #: :data:`SPECIALIST_MAP`, via :func:`is_specialist_for`; it is not a
+    #: general "who made this" field and nothing here trusts it for anything
+    #: else.
+    provenance_org: Optional[str] = None
+    #: The **upstream** model's own publish date, ``"YYYY-MM-DD"``, or
+    #: ``None`` when this project could not verify one. Never this project's
+    #: own HF mirror timestamp - see :func:`_recency_sort_value`.
+    release_date: Optional[str] = None
+
+    @property
+    def is_specialist(self) -> bool:
+        """Whether :attr:`provenance_org` is a named specialist for *some*
+        language, without reference to a particular pair.
+
+        Route-time ranking uses :func:`is_specialist_for` against a specific
+        ``src``/``tgt`` instead - this is exposed for introspection, so a
+        caller inspecting the registry can ask "does this model claim any
+        specialist provenance at all" without a pair in hand.
+        """
+        return bool(self.provenance_org) and \
+            self.provenance_org in SPECIALIST_MAP.values()
 
     @property
     def is_cached(self) -> bool:
@@ -432,10 +593,25 @@ class Hop:
     license_tier: str
     size_mb: int
     dedicated: bool
+    #: True when this hop's model is the named specialist (per
+    #: :data:`SPECIALIST_MAP`) for ``src`` or ``tgt`` - the fact
+    #: :meth:`TranslationGraph.route` used to rank it, kept on the hop so a
+    #: caller can see *why* a route won without re-deriving it.
+    specialist: bool = False
+    #: The org named above, or ``None``. ``specialist`` is ``provenance_org
+    #: is not None and (specialist for src or tgt)``; this is kept alongside
+    #: it because a model can have provenance without being *the* specialist
+    #: for this particular pair (a HiTZ model translating es->fr, say).
+    provenance_org: Optional[str] = None
+    #: The upstream release date behind the recency tie-break, or ``None``.
+    release_date: Optional[str] = None
 
     def __str__(self) -> str:
         kind = "dedicated" if self.dedicated else "multilingual"
-        return f"{self.src}->{self.tgt} via {self.model_id} ({kind}, {self.license})"
+        tags = [kind, self.license]
+        if self.specialist:
+            tags.append(f"specialist:{self.provenance_org}")
+        return f"{self.src}->{self.tgt} via {self.model_id} ({', '.join(tags)})"
 
 
 @dataclass(frozen=True)
@@ -537,18 +713,46 @@ class Route:
     def n_multilingual_hops(self) -> int:
         return sum(0 if hop.dedicated else 1 for hop in self.hops)
 
+    @property
+    def n_non_specialist_hops(self) -> int:
+        """How many hops were *not* served by the pair's named specialist.
+
+        The specialist-provenance tie-break's own scoring term, kept on the
+        route so a caller can inspect it directly rather than recomputing it
+        from ``hops``. Zero on a route where every hop is a specialist for
+        the language it touches.
+        """
+        return sum(0 if hop.specialist else 1 for hop in self.hops)
+
+    @property
+    def specialist_hops(self) -> Tuple[Hop, ...]:
+        """The hops :attr:`n_non_specialist_hops` counted as *not* generic."""
+        return tuple(hop for hop in self.hops if hop.specialist)
+
     def __str__(self) -> str:
         chain = " | ".join(str(h) for h in self.hops)
         return f"[{self.src}->{self.tgt}, {self.n_hops} hop(s), prefer={self.prefer}] {chain}"
 
 
 def _route_key(route: Route, prefer: str) -> tuple:
-    """Score a route. Lower sorts first. The policy reorders the tuple only."""
+    """Score a route. Lower sorts first. The policy reorders the tuple only.
+
+    ``non_specialist`` and ``recency`` sit between the hop-count/dedicated
+    tiers and the pre-existing licence/size tie-breaks - see the module
+    docstring's "Specialist provenance and recency" section for why they are
+    there and not earlier or later. ``recency`` takes the *worst* (oldest, or
+    unknown) hop on the route, the same way ``tier`` takes the route's most
+    restrictive licence: a route is only as current as its oldest hop.
+    """
     hops = route.n_hops
     multi = route.n_multilingual_hops
+    non_specialist = route.n_non_specialist_hops
+    recency = max((_recency_sort_value(h.release_date) for h in route.hops),
+                 default=float("inf"))
     tier = max(LICENSE_TIERS.get(h.license_tier, 99) for h in route.hops)
     size = route.total_size_mb
-    tail = (tier, route.pivot_rank, size, route.model_ids)
+    tail = (non_specialist, recency, tier, route.pivot_rank, size,
+            route.model_ids)
     if prefer == "dedicated":
         return (multi, hops) + tail
     if prefer == "fewest_hops":
@@ -799,12 +1003,19 @@ class TranslationGraph:
         index = index or self._index
         cands = list(index.bilingual.get((src, tgt), ()))
         cands += [c for c in index.multilingual if c.covers(src, tgt)]
-        return sorted(cands, key=self._cap_key)
+        return sorted(cands, key=lambda c: self._cap_key(c, src, tgt))
 
     @staticmethod
-    def _cap_key(cap: Capability) -> tuple:
-        # Within one leg: dedicated first, then permissive, then small.
-        return (0 if cap.dedicated else 1, cap.tier_rank, cap.size_mb, cap.model_id)
+    def _cap_key(cap: Capability, src: str, tgt: str) -> tuple:
+        # Within one leg: dedicated first, then the named specialist for this
+        # pair, then the more recently published upstream model, then
+        # permissive, then small. `src`/`tgt` matter here (unlike the other
+        # fields) because "specialist" is a claim about a specific pair, not
+        # a property of the model in isolation.
+        return (0 if cap.dedicated else 1,
+                0 if is_specialist_for(cap.provenance_org, src, tgt) else 1,
+                _recency_sort_value(cap.release_date),
+                cap.tier_rank, cap.size_mb, cap.model_id)
 
     # -- pivots -----------------------------------------------------------
 
@@ -877,17 +1088,20 @@ class TranslationGraph:
         best: List[Capability] = []
         dedicated = [c for c in index.bilingual.get((src, tgt), ())]
         if dedicated:
-            best.append(min(dedicated, key=self._cap_key))
+            best.append(min(dedicated, key=lambda c: self._cap_key(c, src, tgt)))
         multi = [c for c in index.multilingual if c.covers(src, tgt)]
         if multi:
-            best.append(min(multi, key=self._cap_key))
+            best.append(min(multi, key=lambda c: self._cap_key(c, src, tgt)))
         return best
 
     @staticmethod
     def _hop(cap: Capability, src: str, tgt: str) -> Hop:
         return Hop(model_id=cap.model_id, src=src, tgt=tgt, arch=cap.arch,
                    license=cap.license, license_tier=cap.license_tier,
-                   size_mb=cap.size_mb, dedicated=cap.dedicated)
+                   size_mb=cap.size_mb, dedicated=cap.dedicated,
+                   specialist=is_specialist_for(cap.provenance_org, src, tgt),
+                   provenance_org=cap.provenance_org,
+                   release_date=cap.release_date)
 
     def _enumerate(self, src: str, tgt: str, max_hops: int, prefer: str,
                    short_circuit: bool, index: _Index) -> List[Route]:
