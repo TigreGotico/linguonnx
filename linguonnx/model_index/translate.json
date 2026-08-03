@@ -58,6 +58,240 @@
     },
     "size_mb": 1862
   },
+  "aina-translator-ca-zh": {
+    "arch": "m2m100",
+    "extra_files": [
+      "decoder_model.onnx_data",
+      "decoder_with_past_model.onnx_data",
+      "encoder_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-ca-zh-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-ca-zh",
+    "notes": "Marian, Catalan -> Chinese.",
+    "pair": [
+      "ca",
+      "zh"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 9294
+  },
+  "aina-translator-ca-zh-int8": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-ca-zh-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-ca-zh-int8",
+    "notes": "Marian, Catalan -> Chinese.",
+    "pair": [
+      "ca",
+      "zh"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 2345
+  },
+  "aina-translator-es-an": {
+    "arch": "nllb",
+    "extra_files": [
+      "decoder_model.onnx_data",
+      "decoder_with_past_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-es-an-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "aina-translator-es-an",
+    "notes": "Spanish -> Aragonese. NLLB-200-600M fine-tune by Projecte Aina; Aragonese uses the added token 'arg_Latn'. One-way.",
+    "pair": [
+      "spa_Latn",
+      "arg_Latn"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 7382
+  },
+  "aina-translator-es-an-int8": {
+    "arch": "nllb",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-es-an-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "aina-translator-es-an-int8",
+    "notes": "Spanish -> Aragonese. NLLB-200-600M fine-tune by Projecte Aina; Aragonese uses the added token 'arg_Latn'. One-way.",
+    "pair": [
+      "spa_Latn",
+      "arg_Latn"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 1862
+  },
+  "aina-translator-es-ast": {
+    "arch": "nllb",
+    "extra_files": [
+      "decoder_model.onnx_data",
+      "decoder_with_past_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-es-ast-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "aina-translator-es-ast",
+    "notes": "Spanish -> Asturian. NLLB-200-600M fine-tune by Projecte Aina; Asturian uses NLLB's native 'ast_Latn'. One-way.",
+    "pair": [
+      "spa_Latn",
+      "ast_Latn"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 7382
+  },
+  "aina-translator-es-ast-int8": {
+    "arch": "nllb",
+    "extra_files": [
+      "int8/decoder_model.onnx_data",
+      "int8/decoder_with_past_model.onnx_data",
+      "int8/encoder_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-es-ast-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "aina-translator-es-ast-int8",
+    "notes": "Spanish -> Asturian. NLLB-200-600M fine-tune by Projecte Aina; Asturian uses NLLB's native 'ast_Latn'. One-way.",
+    "pair": [
+      "spa_Latn",
+      "ast_Latn"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 1862
+  },
+  "aina-translator-zh-ca": {
+    "arch": "m2m100",
+    "extra_files": [
+      "decoder_model.onnx_data",
+      "decoder_with_past_model.onnx_data",
+      "encoder_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-zh-ca-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-zh-ca",
+    "notes": "Marian, Chinese -> Catalan.",
+    "pair": [
+      "zh",
+      "ca"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 9294
+  },
+  "aina-translator-zh-ca-int8": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-zh-ca-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-zh-ca-int8",
+    "notes": "Marian, Chinese -> Catalan.",
+    "pair": [
+      "zh",
+      "ca"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 2345
+  },
   "indictrans2-en-indic-dist-200M": {
     "arch": "indictrans2",
     "extra_files": [],
@@ -1245,6 +1479,510 @@
     "license": "MIT",
     "license_tier": "permissive",
     "model_id": "m2m100-418M-smugri-int8",
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 1207
+  },
+  "m2m100_418M_bam_fr_rel_news_ft": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_bam_fr_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_bam_fr_rel_news_ft",
+    "notes": "M2M100-418M fine-tune, Bambara -> French.",
+    "pair": [
+      "bam",
+      "fr"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 4760
+  },
+  "m2m100_418M_bam_fr_rel_news_ft-int8": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_bam_fr_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_bam_fr_rel_news_ft-int8",
+    "notes": "M2M100-418M fine-tune, Bambara -> French.",
+    "pair": [
+      "bam",
+      "fr"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 1207
+  },
+  "m2m100_418M_bbj_fr_rel_news_ft": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_bbj_fr_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_bbj_fr_rel_news_ft",
+    "notes": "M2M100-418M fine-tune, Ghomala -> French.",
+    "pair": [
+      "bbj",
+      "fr"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 4760
+  },
+  "m2m100_418M_bbj_fr_rel_news_ft-int8": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_bbj_fr_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_bbj_fr_rel_news_ft-int8",
+    "notes": "M2M100-418M fine-tune, Ghomala -> French.",
+    "pair": [
+      "bbj",
+      "fr"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 1207
+  },
+  "m2m100_418M_fon_fr_rel_news_ft": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_fon_fr_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_fon_fr_rel_news_ft",
+    "notes": "M2M100-418M fine-tune, Fon -> French.",
+    "pair": [
+      "fon",
+      "fr"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 4760
+  },
+  "m2m100_418M_fon_fr_rel_news_ft-int8": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_fon_fr_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_fon_fr_rel_news_ft-int8",
+    "notes": "M2M100-418M fine-tune, Fon -> French.",
+    "pair": [
+      "fon",
+      "fr"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 1207
+  },
+  "m2m100_418M_fr_bam_rel_news_ft": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_fr_bam_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_fr_bam_rel_news_ft",
+    "notes": "M2M100-418M fine-tune, French -> Bambara.",
+    "pair": [
+      "fr",
+      "bam"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 4760
+  },
+  "m2m100_418M_fr_bam_rel_news_ft-int8": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_fr_bam_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_fr_bam_rel_news_ft-int8",
+    "notes": "M2M100-418M fine-tune, French -> Bambara.",
+    "pair": [
+      "fr",
+      "bam"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 1207
+  },
+  "m2m100_418M_fr_bbj_rel_news_ft": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_fr_bbj_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_fr_bbj_rel_news_ft",
+    "notes": "M2M100-418M fine-tune, French -> Ghomala.",
+    "pair": [
+      "fr",
+      "bbj"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 4760
+  },
+  "m2m100_418M_fr_bbj_rel_news_ft-int8": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_fr_bbj_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_fr_bbj_rel_news_ft-int8",
+    "notes": "M2M100-418M fine-tune, French -> Ghomala.",
+    "pair": [
+      "fr",
+      "bbj"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 1207
+  },
+  "m2m100_418M_fr_ewe_rel_news_ft": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_fr_ewe_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_fr_ewe_rel_news_ft",
+    "notes": "M2M100-418M fine-tune, French -> Ewe.",
+    "pair": [
+      "fr",
+      "ewe"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 4760
+  },
+  "m2m100_418M_fr_ewe_rel_news_ft-int8": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_fr_ewe_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_fr_ewe_rel_news_ft-int8",
+    "notes": "M2M100-418M fine-tune, French -> Ewe.",
+    "pair": [
+      "fr",
+      "ewe"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 1207
+  },
+  "m2m100_418M_fr_fon_rel_news_ft": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_fr_fon_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_fr_fon_rel_news_ft",
+    "notes": "M2M100-418M fine-tune, French -> Fon.",
+    "pair": [
+      "fr",
+      "fon"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 4760
+  },
+  "m2m100_418M_fr_fon_rel_news_ft-int8": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_fr_fon_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_fr_fon_rel_news_ft-int8",
+    "notes": "M2M100-418M fine-tune, French -> Fon.",
+    "pair": [
+      "fr",
+      "fon"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 1207
+  },
+  "m2m100_418M_fr_mos_rel_news_ft": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_fr_mos_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_fr_mos_rel_news_ft",
+    "notes": "M2M100-418M fine-tune, French -> Mossi.",
+    "pair": [
+      "fr",
+      "mos"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 4760
+  },
+  "m2m100_418M_fr_mos_rel_news_ft-int8": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_fr_mos_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_fr_mos_rel_news_ft-int8",
+    "notes": "M2M100-418M fine-tune, French -> Mossi.",
+    "pair": [
+      "fr",
+      "mos"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 1207
+  },
+  "m2m100_418M_mos_fr_rel_news_ft": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_mos_fr_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_mos_fr_rel_news_ft",
+    "notes": "M2M100-418M fine-tune, Mossi -> French.",
+    "pair": [
+      "mos",
+      "fr"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 4760
+  },
+  "m2m100_418M_mos_fr_rel_news_ft-int8": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_mos_fr_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_mos_fr_rel_news_ft-int8",
+    "notes": "M2M100-418M fine-tune, Mossi -> French.",
+    "pair": [
+      "mos",
+      "fr"
+    ],
     "precision": "int8",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",
@@ -3297,6 +4035,370 @@
       "bpe_code": "pt_35k.code"
     },
     "size_mb": 730
+  },
+  "nos-mt-en-gl": {
+    "arch": "opennmt-bpe",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nos-mt-en-gl-onnx",
+    "license": "MIT",
+    "license_tier": "permissive",
+    "model_id": "nos-mt-en-gl",
+    "notes": "OpenNMT-py English -> Galician.",
+    "pair": [
+      "en",
+      "gl"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "vocab": "nos_vocab.json",
+      "bpe_code": "source.bpe"
+    },
+    "size_mb": 1143
+  },
+  "nos-mt-en-gl-int8": {
+    "arch": "opennmt-bpe",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nos-mt-en-gl-onnx",
+    "license": "MIT",
+    "license_tier": "permissive",
+    "model_id": "nos-mt-en-gl-int8",
+    "notes": "OpenNMT-py English -> Galician.",
+    "pair": [
+      "en",
+      "gl"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "vocab": "nos_vocab.json",
+      "bpe_code": "source.bpe"
+    },
+    "size_mb": 747
+  },
+  "nos-mt-es-arg": {
+    "arch": "opennmt-bpe",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nos-mt-es-arg-onnx",
+    "license": "MIT",
+    "license_tier": "permissive",
+    "model_id": "nos-mt-es-arg",
+    "notes": "OpenNMT-py Spanish -> Aragonese (card: 'an').",
+    "pair": [
+      "es",
+      "an"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "vocab": "nos_vocab.json",
+      "bpe_code": "source.bpe"
+    },
+    "size_mb": 840
+  },
+  "nos-mt-es-arg-int8": {
+    "arch": "opennmt-bpe",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nos-mt-es-arg-onnx",
+    "license": "MIT",
+    "license_tier": "permissive",
+    "model_id": "nos-mt-es-arg-int8",
+    "notes": "OpenNMT-py Spanish -> Aragonese (card: 'an').",
+    "pair": [
+      "es",
+      "an"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "vocab": "nos_vocab.json",
+      "bpe_code": "source.bpe"
+    },
+    "size_mb": 445
+  },
+  "nos-mt-es-arn": {
+    "arch": "opennmt-bpe",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nos-mt-es-arn-onnx",
+    "license": "MIT",
+    "license_tier": "permissive",
+    "model_id": "nos-mt-es-arn",
+    "notes": "OpenNMT-py Spanish -> Aranese, card records it as 'oc'.",
+    "pair": [
+      "es",
+      "oc"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "vocab": "nos_vocab.json",
+      "bpe_code": "source.bpe"
+    },
+    "size_mb": 947
+  },
+  "nos-mt-es-arn-int8": {
+    "arch": "opennmt-bpe",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nos-mt-es-arn-onnx",
+    "license": "MIT",
+    "license_tier": "permissive",
+    "model_id": "nos-mt-es-arn-int8",
+    "notes": "OpenNMT-py Spanish -> Aranese, card records it as 'oc'.",
+    "pair": [
+      "es",
+      "oc"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "vocab": "nos_vocab.json",
+      "bpe_code": "source.bpe"
+    },
+    "size_mb": 551
+  },
+  "nos-mt-es-ast": {
+    "arch": "opennmt-bpe",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nos-mt-es-ast-onnx",
+    "license": "MIT",
+    "license_tier": "permissive",
+    "model_id": "nos-mt-es-ast",
+    "notes": "OpenNMT-py Spanish -> Asturian.",
+    "pair": [
+      "es",
+      "ast"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "vocab": "nos_vocab.json",
+      "bpe_code": "source.bpe"
+    },
+    "size_mb": 937
+  },
+  "nos-mt-es-ast-int8": {
+    "arch": "opennmt-bpe",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nos-mt-es-ast-onnx",
+    "license": "MIT",
+    "license_tier": "permissive",
+    "model_id": "nos-mt-es-ast-int8",
+    "notes": "OpenNMT-py Spanish -> Asturian.",
+    "pair": [
+      "es",
+      "ast"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "vocab": "nos_vocab.json",
+      "bpe_code": "source.bpe"
+    },
+    "size_mb": 542
+  },
+  "nos-mt-es-gl": {
+    "arch": "opennmt-bpe",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nos-mt-es-gl-onnx",
+    "license": "MIT",
+    "license_tier": "permissive",
+    "model_id": "nos-mt-es-gl",
+    "notes": "OpenNMT-py Spanish -> Galician.",
+    "pair": [
+      "es",
+      "gl"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "vocab": "nos_vocab.json",
+      "bpe_code": "source.bpe"
+    },
+    "size_mb": 1140
+  },
+  "nos-mt-es-gl-int8": {
+    "arch": "opennmt-bpe",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nos-mt-es-gl-onnx",
+    "license": "MIT",
+    "license_tier": "permissive",
+    "model_id": "nos-mt-es-gl-int8",
+    "notes": "OpenNMT-py Spanish -> Galician.",
+    "pair": [
+      "es",
+      "gl"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "vocab": "nos_vocab.json",
+      "bpe_code": "source.bpe"
+    },
+    "size_mb": 744
+  },
+  "nos-mt-gl-en": {
+    "arch": "opennmt-bpe",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nos-mt-gl-en-onnx",
+    "license": "MIT",
+    "license_tier": "permissive",
+    "model_id": "nos-mt-gl-en",
+    "notes": "OpenNMT-py Galician -> English.",
+    "pair": [
+      "gl",
+      "en"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "vocab": "nos_vocab.json",
+      "bpe_code": "source.bpe"
+    },
+    "size_mb": 1143
+  },
+  "nos-mt-gl-en-int8": {
+    "arch": "opennmt-bpe",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nos-mt-gl-en-onnx",
+    "license": "MIT",
+    "license_tier": "permissive",
+    "model_id": "nos-mt-gl-en-int8",
+    "notes": "OpenNMT-py Galician -> English.",
+    "pair": [
+      "gl",
+      "en"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "vocab": "nos_vocab.json",
+      "bpe_code": "source.bpe"
+    },
+    "size_mb": 747
+  },
+  "nos-mt-gl-es": {
+    "arch": "opennmt-bpe",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nos-mt-gl-es-onnx",
+    "license": "MIT",
+    "license_tier": "permissive",
+    "model_id": "nos-mt-gl-es",
+    "notes": "OpenNMT-py Galician -> Spanish.",
+    "pair": [
+      "gl",
+      "es"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "vocab": "nos_vocab.json",
+      "bpe_code": "source.bpe"
+    },
+    "size_mb": 1140
+  },
+  "nos-mt-gl-es-int8": {
+    "arch": "opennmt-bpe",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nos-mt-gl-es-onnx",
+    "license": "MIT",
+    "license_tier": "permissive",
+    "model_id": "nos-mt-gl-es-int8",
+    "notes": "OpenNMT-py Galician -> Spanish.",
+    "pair": [
+      "gl",
+      "es"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "vocab": "nos_vocab.json",
+      "bpe_code": "source.bpe"
+    },
+    "size_mb": 744
   },
   "opus-mt-ar-en": {
     "arch": "marian",

@@ -89,15 +89,18 @@ class Translator:
             LOG.warning("pivot_ranking='auto' fell back to %r: orthography2ipa "
                         "is not installed (pip install linguonnx[distance])",
                         self.graph.pivot_ranking)
-        # Capabilities the licence filter left out, so a failed lookup can say
-        # "a non-commercial model covers this" instead of looking unsupported.
+        # Capabilities left out by ANY selection filter - licence tier,
+        # precision, or an explicit `models=` - so a failed lookup can say
+        # "a non-commercial model covers this" or "an fp32 model covers this"
+        # instead of looking unsupported. Uniform across filters on purpose:
+        # licence was not special-cased here before, and a caller who tuned
+        # `precision=` deserves the same "here is what you filtered out" as
+        # one who left non-commercial models out.
         chosen = set(entries)
         self.graph.excluded_capabilities = [
             capability_from_entry(e)
             for model_id, e in list_models(kind="translate").items()
             if model_id not in chosen
-            and e.get("license_tier") == "non-commercial"
-            and e.get("precision") == entries[next(iter(entries))]["precision"]
         ] if entries else []
         self.generation = GenerationConfig(
             max_new_tokens=max_new_tokens, num_beams=num_beams,

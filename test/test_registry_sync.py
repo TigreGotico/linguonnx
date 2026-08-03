@@ -424,11 +424,23 @@ def test_sync_script_is_executable_and_parses():
 
 @pytest.mark.network
 def test_committed_registry_matches_the_hub():
-    """``--check`` is the CI guard: exit 0 only when the JSON is current."""
+    """``--check`` is the CI guard: exit 0 only when the JSON is current
+    AND every translate/lid repo on the Hub resolves into it.
+
+    Both directions matter. A stale committed JSON (Hub moved, JSON did not)
+    is a content diff and always failed here. A repo that Hub-side extraction
+    silently skips on *every* run never shows up as a diff at all - generated
+    and committed agree, both are missing it - so `--check` used to report
+    "up to date" while 43 published models were absent from the registry.
+    `sync_registry.py --check` now also fails when it skips a translate/lid
+    repo that is not in its documented allowlist, which is what actually
+    catches that direction.
+    """
     result = subprocess.run([sys.executable, str(SYNC_SCRIPT), "--check"],
                             capture_output=True, text=True, cwd=str(REPO_ROOT))
     assert result.returncode == 0, (
-        "registry has drifted from the Hub; re-run "
+        "registry has drifted from the Hub, or a Hub model is being silently "
+        "skipped outside the documented allowlist; re-run "
         f"scripts/sync_registry.py\n{result.stdout}\n{result.stderr}")
 
 
