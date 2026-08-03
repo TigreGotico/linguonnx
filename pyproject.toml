@@ -54,7 +54,29 @@ fast-tokenizers = ["tokenizers>=0.15.0"]
 # feature one: CVE-2022-25882 (<1.13.0) is directory traversal through the
 # external-data `location` field, and CVE-2024-5187 (<1.16.0) is a second path
 # traversal. This library downloads external-data models, so both are live.
-test = ["pytest>=7.0", "onnx>=1.16.0"]
+#
+# Every one of these is a *test* dependency, never a runtime one - the offline
+# suite has its own `pytest.importorskip` guard per behaviour, and every one of
+# those guards used to be satisfied by nothing at all in CI: `test` installed
+# only `pytest` and `onnx`, so `linguonnx[indic]`, `linguonnx[opennmt]`,
+# `linguonnx[distance]`, `linguonnx[fast-tokenizers]` and the tokenizer-parity
+# checks all skipped, silently, on every single run. That is how a broken
+# IndicTrans2 build (linguonnx#44's regression, see
+# `test/test_translate_native_codes.py`) shipped behind a green suite: the one
+# test written to catch it needed `optimum`+`transformers`, which were never
+# installed, so it was never collected.
+#
+# `IndicTransToolkit` pins no `transformers` version and its `collator.py`
+# imports `PreTrainedTokenizerBase` from a path `transformers>=5` removed;
+# `transformers==4.46.3` is the newest release both this and it agree on, and
+# it needs no torch/tensorflow/flax backend for tokenizer-only use.
+test = [
+    "pytest>=7.0",
+    "onnx>=1.16.0",
+    "linguonnx[distance,indic,opennmt,fast-tokenizers]",
+    "transformers==4.46.3",
+    "IndicTransToolkit>=1.1.1",
+]
 
 [project.urls]
 Homepage = "https://github.com/TigreGotico/linguonnx"
