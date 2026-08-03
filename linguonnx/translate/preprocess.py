@@ -47,6 +47,15 @@ class Pipeline:
     #: ``LINGUONNX_MAX_ENCODER_TOKENS`` bound applies.
     max_source_tokens: Optional[int] = None
 
+    #: The ``str.format`` template for this architecture's target-language
+    #: prefix token, when the architecture *always* uses one. It is a
+    #: fallback for a registry entry that carries no
+    #: ``target_token_template``: for MADLAD the ``<2xx>`` spelling is fixed
+    #: by the architecture, so an entry that omits it must not be read as
+    #: "this model needs no target token" - that reading is what makes a
+    #: MADLAD request return fluent English for every target.
+    default_target_token_template: Optional[str] = None
+
     def encode(self, model, text: str, src: str, tgt: str,
                target_token: Optional[str] = None) -> List[int]:
         raise NotImplementedError
@@ -134,9 +143,23 @@ class MarianPipeline(Pipeline):
 
 @register("madlad")
 class MadladPipeline(Pipeline):
-    """MADLAD (T5). The target language is a ``<2xx>`` piece on the *input*."""
+    """MADLAD (T5). The target language is a ``<2xx>`` piece on the *input*.
+
+    There is no forced decoder token to fall back on. Without the prefix the
+    model is not told where to translate to, and it does not fail - it returns
+    fluent English, byte-identical for every requested target. So the token is
+    required here rather than optional, and its absence raises.
+    """
+
+    default_target_token_template = "<2{code}>"
 
     def encode(self, model, text, src, tgt, target_token=None):
+        if not target_token:
+            raise ValueError(
+                f"{model.model_id} is a MADLAD model and selects its target "
+                f"language with a '<2xx>' prefix token on the input; none was "
+                f"built for {tgt!r}. Without it the model returns English for "
+                f"every target and nothing else would report the failure.")
         return self.check_length(
             model.tokenizer.encode(text, prefix=target_token), model)
 

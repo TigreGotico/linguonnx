@@ -213,7 +213,13 @@ class TranslationModel:
             # A multilingual model that picks its target with a `<2xx>`
             # prefix token (MADLAD, liv4ever-mt) rather than a forced
             # decoder-start id: the token is built per call from `tgt`.
-            template = self.entry.get("target_token_template")
+            # The registry records the template for the Marian group models,
+            # where it is a property of the export. For MADLAD it is a
+            # property of the *architecture* - every MADLAD checkpoint reads
+            # `<2xx>` - so the pipeline supplies it and a registry entry that
+            # forgets it cannot silently disable target selection.
+            template = (self.entry.get("target_token_template")
+                        or self.pipeline.default_target_token_template)
             if template:
                 target_token = template.format(code=self.native_code(tgt))
         pipeline = self.pipeline

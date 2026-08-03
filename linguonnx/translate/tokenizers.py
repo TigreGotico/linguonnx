@@ -254,8 +254,22 @@ class T5SpmTokenizer:
         self._specials = {self.eos_id, self.pad_id, self.unk_id}
 
     def encode(self, text: str, prefix: Optional[str] = None) -> List[int]:
+        if prefix:
+            # A `<2xx>` that is not a piece of this SentencePiece model is not
+            # dropped by `sp.encode`; it is shredded into `<`, `2`, `xx`, `>`,
+            # which the model has never seen in that position and quietly
+            # ignores. The result is a translation into the wrong language
+            # with nothing raised, so the piece is checked before use.
+            if self.sp.PieceToId(prefix) == self.unk_id:
+                raise ValueError(
+                    f"{prefix!r} is not a piece of this model's SentencePiece "
+                    f"vocabulary, so it cannot select a target language")
         full = f"{prefix} {text}" if prefix else text
         ids = [max(i, self.unk_id) for i in self.sp.encode(full, out_type=int)]
+        if prefix and self.sp.PieceToId(prefix) not in ids:
+            raise ValueError(
+                f"{prefix!r} did not survive tokenisation of the input; the "
+                f"encoder would receive no target-language signal")
         return ids + [self.eos_id]
 
     def decode(self, ids: Sequence[int]) -> str:

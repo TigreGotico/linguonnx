@@ -101,7 +101,7 @@ to fall back on.
 | `marian` | Nothing to choose for a dedicated pair — the model **is** the pair. A *multilingual* Marian export prepends a `<2xx>` token to the input, built from `target_token_template` in the registry entry. |
 | `m2m100` | Source language is the first token of the *input*; target is forced as the decoder's first generated token, `forced_bos_token_id = lang_id(tgt)`. Codes are plain `en`, `pt`, `gl`. |
 | `nllb` | The same forced-decoder mechanism, but the codes are FLORES-200 (`por_Latn`), so language and script are chosen together. |
-| `madlad` (T5) | A `<2xx>` piece prepended to the input text, exactly like any other SentencePiece piece — not a forced decoder id. |
+| `madlad` (T5) | A `<2xx>` piece prepended to the input text, exactly like any other SentencePiece piece — not a forced decoder id. The `<2xx>` spelling belongs to the architecture, not to one export, so the pipeline supplies it and a registry entry cannot switch it off. Encoding without it raises. |
 | `indictrans2` | AI4Bharat's `IndicProcessor` pipeline, then a `<src_tag> <tgt_tag>` prefix on the input. Needs the `indic` extra; see below. |
 | `opennmt-bpe` | Nothing to choose — the model is the pair. The work is Moses tokenisation plus `subword-nmt` BPE over OpenNMT's concatenated source/target vocabulary. Needs the `opennmt` extra; see below. |
 
