@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.2a1](https://github.com/TigreGotico/linguonnx/tree/0.8.2a1) (2026-08-03)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.1a1...0.8.2a1)
+
+**Merged pull requests:**
+
+- fix: keep each model's own language spelling alongside the routing tag [\#56](https://github.com/TigreGotico/linguonnx/pull/56) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.8.1a1](https://github.com/TigreGotico/linguonnx/tree/0.8.1a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.0a2...0.8.1a1)
@@ -122,108 +130,6 @@
 **Merged pull requests:**
 
 - fix: harden model download, caching and licence enforcement [\#19](https://github.com/TigreGotico/linguonnx/pull/19) ([JarbasAl](https://github.com/JarbasAl))
-
-## [0.5.1](https://github.com/TigreGotico/linguonnx/tree/0.5.1) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.1a1...0.5.1)
-
-## [0.5.1a1](https://github.com/TigreGotico/linguonnx/tree/0.5.1a1) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0a1...0.5.1a1)
-
-**Merged pull requests:**
-
-- Release 0.5.1a1 [\#18](https://github.com/TigreGotico/linguonnx/pull/18) ([github-actions[bot]](https://github.com/apps/github-actions))
-- docs: split README into docs/, add examples, record short-text caveat [\#17](https://github.com/TigreGotico/linguonnx/pull/17) ([JarbasAl](https://github.com/JarbasAl))
-
-## [0.5.0a1](https://github.com/TigreGotico/linguonnx/tree/0.5.0a1) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0...0.5.0a1)
-
-## [0.5.0](https://github.com/TigreGotico/linguonnx/tree/0.5.0) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.4.0a1...0.5.0)
-
-**Merged pull requests:**
-
-- Release 0.5.0a1 [\#15](https://github.com/TigreGotico/linguonnx/pull/15) ([github-actions[bot]](https://github.com/apps/github-actions))
-- feat: route the big multilingual models, and say when a licence blocks a pair [\#14](https://github.com/TigreGotico/linguonnx/pull/14) ([JarbasAl](https://github.com/JarbasAl))
-
-## [0.4.0a1](https://github.com/TigreGotico/linguonnx/tree/0.4.0a1) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.3.0a1...0.4.0a1)
-
-**Merged pull requests:**
-
-- Release 0.4.0a1 [\#13](https://github.com/TigreGotico/linguonnx/pull/13) ([github-actions[bot]](https://github.com/apps/github-actions))
-- feat: generate the model registry from the HuggingFace API [\#12](https://github.com/TigreGotico/linguonnx/pull/12) ([JarbasAl](https://github.com/JarbasAl))
-
-## [0.3.0a1](https://github.com/TigreGotico/linguonnx/tree/0.3.0a1) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.2.0a1...0.3.0a1)
-
-**Merged pull requests:**
-
-- Release 0.3.0a1 [\#11](https://github.com/TigreGotico/linguonnx/pull/11) ([github-actions[bot]](https://github.com/apps/github-actions))
-- feat: rank translation pivots by phonological distance [\#10](https://github.com/TigreGotico/linguonnx/pull/10) ([JarbasAl](https://github.com/JarbasAl))
-
-## [0.2.0a1](https://github.com/TigreGotico/linguonnx/tree/0.2.0a1) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.2.0...0.2.0a1)
-
-**Merged pull requests:**
-
-- Release 0.2.0a1 [\#9](https://github.com/TigreGotico/linguonnx/pull/9) ([github-actions[bot]](https://github.com/apps/github-actions))
-
-## [0.2.0](https://github.com/TigreGotico/linguonnx/tree/0.2.0) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.1.2a1...0.2.0)
-
-**Merged pull requests:**
-
-- feat: translation, designed graph-first [\#8](https://github.com/TigreGotico/linguonnx/pull/8) ([JarbasAl](https://github.com/JarbasAl))
-
-## [0.1.2a1](https://github.com/TigreGotico/linguonnx/tree/0.1.2a1) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.1.1a1...0.1.2a1)
-
-**Merged pull requests:**
-
-- Release 0.1.2a1 [\#7](https://github.com/TigreGotico/linguonnx/pull/7) ([github-actions[bot]](https://github.com/apps/github-actions))
-- docs: link related projects [\#6](https://github.com/TigreGotico/linguonnx/pull/6) ([JarbasAl](https://github.com/JarbasAl))
-
-## [0.1.1a1](https://github.com/TigreGotico/linguonnx/tree/0.1.1a1) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.1.1...0.1.1a1)
-
-**Merged pull requests:**
-
-- Release 0.1.1a1 [\#5](https://github.com/TigreGotico/linguonnx/pull/5) ([github-actions[bot]](https://github.com/apps/github-actions))
-
-## [0.1.1](https://github.com/TigreGotico/linguonnx/tree/0.1.1) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.1.0...0.1.1)
-
-**Merged pull requests:**
-
-- chore: rename package to linguonnx [\#4](https://github.com/TigreGotico/linguonnx/pull/4) ([JarbasAl](https://github.com/JarbasAl))
-
-## [0.1.0](https://github.com/TigreGotico/linguonnx/tree/0.1.0) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.1.0a1...0.1.0)
-
-## [0.1.0a1](https://github.com/TigreGotico/linguonnx/tree/0.1.0a1) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.0.0...0.1.0a1)
-
-**Merged pull requests:**
-
-- Release 0.1.0a1 [\#3](https://github.com/TigreGotico/linguonnx/pull/3) ([github-actions[bot]](https://github.com/apps/github-actions))
-- feat: support lid.176, OpenLID and OpenLID-v2 [\#2](https://github.com/TigreGotico/linguonnx/pull/2) ([JarbasAl](https://github.com/JarbasAl))
-
-## [0.0.0](https://github.com/TigreGotico/linguonnx/tree/0.0.0) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/f7d9950aee8fd5f80ca9b28e8ba50693aa2dfac5...0.0.0)
 
 
 
