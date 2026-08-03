@@ -218,12 +218,12 @@ BILINGUAL_FINETUNES: Dict[str, Dict] = {
     #: Source: https://huggingface.co/masakhane/m2m100_418M_<pair> and each
     #: `TigreGotico/m2m100_418M_<pair>-onnx` Hub card's "Selecting the
     #: language" section.
-    "m2m100_418M_bam_fr_rel_news_ft": {"pair": ["bam", "fr"], "native_codes": {"bam": "sw"}, "notes": "M2M100-418M fine-tune, Bambara -> French."},
+    "m2m100_418M_bam_fr_rel_news_ft": {"pair": ["bam", "fr"], "native_codes": {"bm": "sw"}, "notes": "M2M100-418M fine-tune, Bambara -> French."},
     "m2m100_418M_bbj_fr_rel_news_ft": {"pair": ["bbj", "fr"], "native_codes": {"bbj": "sw"}, "notes": "M2M100-418M fine-tune, Ghomala -> French."},
     "m2m100_418M_fon_fr_rel_news_ft": {"pair": ["fon", "fr"], "native_codes": {"fon": "sw"}, "notes": "M2M100-418M fine-tune, Fon -> French."},
-    "m2m100_418M_fr_bam_rel_news_ft": {"pair": ["fr", "bam"], "native_codes": {"bam": "sw"}, "notes": "M2M100-418M fine-tune, French -> Bambara."},
+    "m2m100_418M_fr_bam_rel_news_ft": {"pair": ["fr", "bam"], "native_codes": {"bm": "sw"}, "notes": "M2M100-418M fine-tune, French -> Bambara."},
     "m2m100_418M_fr_bbj_rel_news_ft": {"pair": ["fr", "bbj"], "native_codes": {"bbj": "sw"}, "notes": "M2M100-418M fine-tune, French -> Ghomala."},
-    "m2m100_418M_fr_ewe_rel_news_ft": {"pair": ["fr", "ewe"], "native_codes": {"ewe": "sw"}, "notes": "M2M100-418M fine-tune, French -> Ewe."},
+    "m2m100_418M_fr_ewe_rel_news_ft": {"pair": ["fr", "ewe"], "native_codes": {"ee": "sw"}, "notes": "M2M100-418M fine-tune, French -> Ewe."},
     "m2m100_418M_fr_fon_rel_news_ft": {"pair": ["fr", "fon"], "native_codes": {"fon": "sw"}, "notes": "M2M100-418M fine-tune, French -> Fon."},
     "m2m100_418M_fr_mos_rel_news_ft": {"pair": ["fr", "mos"], "native_codes": {"mos": "sw"}, "notes": "M2M100-418M fine-tune, French -> Mossi."},
     "m2m100_418M_mos_fr_rel_news_ft": {"pair": ["mos", "fr"], "native_codes": {"mos": "sw"}, "notes": "M2M100-418M fine-tune, Mossi -> French."},
@@ -974,12 +974,26 @@ def _assert_declared_covers(detail: dict, model_id: str,
             f"register it")
 
 
-def _multilingual_languages(repo_id: str, files: Dict[str, int]) -> List[str]:
+def _multilingual_languages(
+        repo_id: str, files: Dict[str, int]) -> Tuple[List[str], Dict[str, str]]:
     """The model's covered set, from its own tokenizer metadata.
 
     ``additional_special_tokens`` in ``special_tokens_map.json`` is the list
     the model was actually built with - M2M100's ``__pt__``, NLLB's
     ``por_Latn``. Nothing is added to or removed from it here.
+
+    Returns ``(codes, native_codes)``: the normalised BCP-47 tags the routing
+    graph speaks, **and** the way back to the model's own spelling for every
+    code that normalisation changed.
+
+    That second value is the point. This used to return the normalised list
+    alone and the native spelling was lost - ``to_bcp47('tl')`` is ``'fil'``,
+    so the registry advertised ``fil`` for a model whose only Tagalog token is
+    ``__tl__``. ``SpmSeq2SeqTokenizer`` was then handed that normalised list
+    as if it were the model's own codes and counted through it: one
+    substituted entry in the middle of M2M100-418M's 100 shifted 64 languages
+    onto the next language's token, silently. Same defect class as the
+    IndicTrans2 FLORES tags and the Masakhane ``__sw__`` reuse, same remedy.
     """
     if "special_tokens_map.json" not in files:
         raise SkipRepo("no special_tokens_map.json to read languages from")
@@ -999,13 +1013,18 @@ def _multilingual_languages(repo_id: str, files: Dict[str, int]) -> List[str]:
     # resolve rather than dropping the language.
     from linguonnx.detect.labels import to_bcp47
     normalized = set()
+    native: Dict[str, str] = {}
     for code in codes:
         try:
             tag = to_bcp47(code)
         except Exception:
             tag = code
-        normalized.add(tag or code)
-    return sorted(_without_families(normalized))
+        tag = tag or code
+        normalized.add(tag)
+        if tag != code:
+            native[tag] = code
+    kept = sorted(_without_families(normalized))
+    return kept, {tag: code for tag, code in native.items() if tag in kept}
 
 
 def _without_families(codes: Iterable[str]) -> List[str]:
@@ -1359,9 +1378,11 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
     elif model_id in MULTILINGUAL_LANGUAGE_OVERRIDES:
         shared.update(MULTILINGUAL_LANGUAGE_OVERRIDES[model_id])
     else:
-        languages = _multilingual_languages(repo_id, files)
+        languages, native_codes = _multilingual_languages(repo_id, files)
         _assert_declared_covers(detail, model_id, languages)
         shared["languages"] = languages
+        if native_codes:
+            shared["native_codes"] = dict(sorted(native_codes.items()))
 
     entries: Dict[str, dict] = {}
     for suffix, prefix in (("", ""), ("-int8", "int8/")):

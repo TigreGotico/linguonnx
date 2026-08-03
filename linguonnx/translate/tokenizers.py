@@ -33,7 +33,8 @@ import sentencepiece as spm
 
 __all__ = ["normalize_punctuation", "SpmSeq2SeqTokenizer", "MarianTokenizer",
            "FastUnigramTokenizer", "T5SpmTokenizer", "IndicTransTokenizer",
-           "OpenNmtBpeTokenizer", "load_tokenizer", "artifact_lang_codes"]
+           "OpenNmtBpeTokenizer", "load_tokenizer", "artifact_lang_codes",
+           "bare_lang_code"]
 
 
 # --------------------------------------------------------------------------
@@ -156,13 +157,48 @@ def artifact_lang_codes(files: Dict[str, Path]) -> List[str]:
     return codes
 
 
+def bare_lang_code(piece: str) -> Optional[str]:
+    """``__fr__`` -> ``fr``. Anything that is not a wrapped token -> ``None``."""
+    match = _M2M100_LANG_TOKEN_RE.match(piece)
+    return match.group(1) if match else None
+
+
 class SpmSeq2SeqTokenizer:
     """M2M100 and NLLB.
 
     ``lang_codes`` are the model's own codes (``pt``, or ``por_Latn``), in the
-    order they appear in ``special_tokens_map.json``. That order *is* the id
-    order of the language-token block, so the ids are derived from it rather
-    than hardcoded.
+    order they appear in ``special_tokens_map.json``.
+
+    Where the ids come from
+    -----------------------
+    When the export ships an ``added_tokens.json`` - every M2M100 checkpoint
+    does - **that file is the only source of language-token ids**, and
+    ``lang_codes`` is used to *check* it, never to count through it. Both
+    spellings address the same token, so ``fr`` and ``__fr__`` are equivalent.
+
+    Order still matters for NLLB, which ships no ``added_tokens.json``: there
+    the block really is positional, ``lang_block_start + i``, and
+    ``lang_codes`` has to arrive in the export's own id order.
+
+    Why the fallback went away
+    --------------------------
+    This used to try ``added_tokens`` and, if the number of codes it matched
+    did not equal ``len(lang_codes)``, silently rebuild the whole map by
+    position instead. That is only correct when ``lang_codes`` is
+    byte-for-byte the export's own token order, and for a *registry-declared*
+    list it is not: the registry stores normalised BCP-47, and
+    ``normalize_tag('tl')`` is ``'fil'``. On ``m2m100-418M`` the two lists
+    were the same length and differed by one entry in the middle, so the
+    counts matched, the fallback ran, and 64 of 100 languages landed on the
+    *next* language's token - ``fr`` on Frisian, ``pt`` on Romanian, ``ru`` on
+    Sindhi - on the encoder's source tag and the decoder's forced BOS alike.
+    On ``m2m100-418M-smugri``, 8 declared codes against a 104-token block put
+    Finnish on ``__ar__`` and returned Arabic script. Nothing raised in either
+    case.
+
+    So a code the export has no token for is now a hard error, here, at load
+    time. A model that cannot address a language has to say so rather than
+    quietly address a different one.
     """
 
     def __init__(self, spm_path, lang_codes: Sequence[str],
@@ -184,24 +220,40 @@ class SpmSeq2SeqTokenizer:
             lang_block_start = self.sp.get_piece_size() + fairseq_offset
 
         if added_tokens_path is not None and Path(added_tokens_path).exists():
-            # Authoritative when present (M2M100 ships one).
+            # Authoritative, and used alone. See the class docstring.
             added = _load_json(added_tokens_path)
             # M2M100 spells the key wrapped (`__ca__`) while `lang_codes` is
-            # bare (`ca`); accept either, so the ids come from the file rather
-            # than from counting.
-            self.lang_code_to_id = {
-                code: int(added[key])
-                for code in lang_codes
-                for key in (code, f"__{code}__") if key in added}
-            if len(self.lang_code_to_id) != len(lang_codes):
-                self.lang_code_to_id = {code: lang_block_start + i
-                                        for i, code in enumerate(lang_codes)}
+            # bare (`ca`); both address the same token.
+            self.lang_code_to_id = {}
+            for piece, token_id in added.items():
+                self.lang_code_to_id[piece] = int(token_id)
+                bare = bare_lang_code(piece)
+                if bare is not None:
+                    self.lang_code_to_id.setdefault(bare, int(token_id))
+            unknown = [code for code in lang_codes
+                       if code not in self.lang_code_to_id]
+            if unknown:
+                raise ValueError(
+                    f"this export's added_tokens.json has no language token "
+                    f"for {unknown!r}; it carries {len(added)} tokens "
+                    f"({', '.join(sorted(added)[:6])}, ...). A language is "
+                    f"advertised that the model cannot address. Either the "
+                    f"registry entry's `native_codes` must map it to a token "
+                    f"the export really has, or the claim must be dropped - "
+                    f"deriving the id from a code's position in the declared "
+                    f"list translates into a different language and nothing "
+                    f"reports it.")
         else:
             self.lang_code_to_id = {code: lang_block_start + i
                                     for i, code in enumerate(lang_codes)}
+        # `__fr__` and `fr` are two names for one id, so this inverse keeps
+        # whichever was inserted last (the bare code, for M2M100).
         self.id_to_lang_code = {i: c for c, i in self.lang_code_to_id.items()}
+        # Take the ids from the values, not from the inverse: two names per id
+        # make the inverse smaller than the map, and a language token missing
+        # from `_specials` is one that survives `decode()` as `⁇`.
         self._specials = {self.eos_id, self.pad_id, self.unk_id, self.bos_id}
-        self._specials |= set(self.id_to_lang_code)
+        self._specials |= set(self.lang_code_to_id.values())
 
     # -- ids ------------------------------------------------------------
 

@@ -166,11 +166,44 @@ class TranslationModel:
         return self._banned_token_ids
 
     @property
+    def declared_forced_bos_token_id(self) -> Optional[int]:
+        """The target token this export bakes into its own generation config.
+
+        A bilingual fine-tune of a multilingual model has exactly one target,
+        and upstream writes it down: every Masakhane
+        ``m2m100_418M_*_rel_news_ft`` carries ``forced_bos_token_id`` in its
+        ``generation_config.json``. That is a fact about the weights, and it
+        outranks anything derived from a language tag - especially here, where
+        the low-resource target has **no token of its own** and Masakhane
+        reused Swahili's slot (``__sw__``, id 128088) for it. No amount of
+        correct BCP-47 reasoning about Bambara produces that id.
+
+        Only read for a bilingual (``pair``) entry. A multi-target export
+        picks its target per call and correctly declares none - M2M100-418M
+        and ``-smugri`` both do - so honouring one there would pin every
+        request to a single language.
+        """
+        if not self.capability.pair:
+            return None
+        path = self.files.get("generation_config")
+        if path is None or not path.exists():
+            return None
+        with open(path, encoding="utf-8") as handle:
+            declared = json.load(handle).get("forced_bos_token_id")
+        return None if declared is None else int(declared)
+
+    @property
     def tokenizer(self):
         if self._tokenizer is None:
+            # An entry that declares languages states them in the *routing*
+            # spelling, so they are translated back into the model's own
+            # before the tokenizer sees them. An entry that declares none
+            # (a bilingual `pair`) passes an empty sequence on purpose:
+            # `load_tokenizer` then reads the codes out of the export itself,
+            # which is the only source NLLB's positional block has.
+            codes = self.native_codes if self.entry.get("languages") else ()
             self._tokenizer = load_tokenizer(
-                self.arch, self.files, self.entry.get("languages", ()),
-                pair=self.entry.get("pair"))
+                self.arch, self.files, codes, pair=self.entry.get("pair"))
         return self._tokenizer
 
     @property
@@ -217,6 +250,36 @@ class TranslationModel:
     @property
     def languages(self) -> frozenset:
         return self.capability.endpoints()
+
+    @property
+    def native_codes(self) -> Tuple[str, ...]:
+        """Every language the entry declares, in *the model's own* spelling.
+
+        The registry's ``languages`` list is normalised BCP-47 - that is what
+        the routing graph needs - and it is not the spelling the export uses.
+        ``normalize_tag('tl')`` is ``'fil'``; M2M100's only Tagalog token is
+        ``__tl__``. Handing the normalised list to a tokenizer that reads it
+        as the model's own codes is what silently misrouted 64 of
+        M2M100-418M's 100 languages; see
+        :class:`~linguonnx.translate.tokenizers.SpmSeq2SeqTokenizer`.
+
+        ``_to_native`` already holds that translation, ``native_codes``
+        overrides included. The declared order is preserved because NLLB's
+        language block is still positional.
+        """
+        declared: List[str] = list(self.entry.get("languages") or ())
+        if not declared:
+            declared = list(self.entry.get("src_languages") or ())
+            declared += [tag for tag in (self.entry.get("tgt_languages") or ())
+                         if tag not in declared]
+        if not declared:
+            declared = list(self.capability.pair or ())
+        out: List[str] = []
+        for tag in declared:
+            native = self._to_native.get(normalize_tag(tag), tag)
+            if native not in out:
+                out.append(native)
+        return tuple(out)
 
     def native_code(self, tag: str) -> str:
         """BCP-47 ``pt`` -> this model's own code (``pt``, ``por_Latn``, ...)."""

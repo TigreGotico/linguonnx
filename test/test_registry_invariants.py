@@ -494,14 +494,23 @@ def test_masakhane_reused_tokens_are_declared_in_native_codes(model_id):
     'sw', which is *not* the ISO code of Bambara"`); the registry has to
     record that reuse as a ``native_codes`` override, or every call raises.
     """
+    from linguonnx.translate.models import TranslationModel
+
     entry = TRANSLATE[model_id]
-    pair = entry.get("pair") or ()
-    native_codes = entry.get("native_codes") or {}
-    for iso in pair:
-        native = native_codes.get(iso, iso)
+    model = TranslationModel(model_id, entry=entry)
+    # Resolve through `native_code`, not by reading `native_codes` directly.
+    # Reading the dict with the entry's raw ISO 639-3 key is not the lookup
+    # the library performs: `native_code` normalises first, so an override
+    # keyed on `bam` is never consulted (`normalize_tag('bam')` is `bm`) while
+    # one keyed on `mos` is. Checking the dict instead of the code path is how
+    # this test first shipped green with `bam_fr`, `fr_bam` and `fr_ewe` still
+    # raising on every call.
+    for iso in entry.get("pair") or ():
+        native = model.native_code(iso)
         assert native in _MASAKHANE_BASE_CODES, (
             f"{model_id}: {iso!r} resolves to {native!r}, which is not one "
             f"of the {len(_MASAKHANE_BASE_CODES)} tokens this fine-tune's "
             f"own special_tokens_map.json actually carries - every call with "
-            f"{iso!r} raises. Needs a native_codes override (see the export's "
-            f"Hub card for which existing token it reuses).")
+            f"{iso!r} raises. Needs a native_codes override, keyed on the "
+            f"*normalised* tag (see the export's Hub card for which existing "
+            f"token it reuses).")
