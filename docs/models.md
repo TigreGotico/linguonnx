@@ -173,10 +173,13 @@ python scripts/sync_registry.py --check    # exit 1 if the committed JSON drifte
 and which are stale, so "someone published a model and forgot the registry"
 shows up as a failing check instead of a silent gap. Re-running the generator
 on an unchanged Hub produces a byte-identical file, and hand-authored keys the
-script does not generate — a curated `notes` — survive regeneration. Nothing
-else does: a key the generator stops emitting has to be able to disappear, and
+script does not generate — a curated `notes`, and a `quality` field measured by
+an offline FLORES-200/chrF benchmarking campaign the script has no way to
+re-derive from a repo's file listing — survive regeneration. Nothing else
+does: a key the generator stops emitting has to be able to disappear, and
 because `--check` compares the *merged* text, a preserved stale key would never
-report as drift.
+report as drift. See [routing.md#measured-quality](routing.md#measured-quality)
+for what `quality` means and how it is used.
 
 Every repo the script refuses is written to `linguonnx/model_index/skipped.json`
 alongside the registries, with the reason. A skip used to reach stderr and

@@ -86,6 +86,8 @@ def capability_from_entry(entry: Dict) -> Capability:
             if tgt_langs is not None else None,
         provenance_org=entry.get("provenance_org"),
         release_date=entry.get("release_date"),
+        precision=entry.get("precision"),
+        quality=entry.get("quality"),
     )
 
 

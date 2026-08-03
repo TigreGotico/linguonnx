@@ -496,6 +496,18 @@ class Capability:
     #: ``None`` when this project could not verify one. Never this project's
     #: own HF mirror timestamp - see :func:`_recency_sort_value`.
     release_date: Optional[str] = None
+    #: ``"int8"``/``"fp32"``, mirroring the registry entry. Used only by the
+    #: quality-flag gap check (int8 trailing its own fp32 counterpart) - see
+    #: :mod:`linguonnx.translate.quality`. ``None`` for a capability built
+    #: without a registry entry behind it (e.g. in a unit test).
+    precision: Optional[str] = None
+    #: Measured chrF-vs-FLORES-reference data, or ``None`` when unmeasured.
+    #: Same shape as the registry's ``quality`` key; kept as a passthrough
+    #: dict rather than modelled field-by-field because nothing here reads
+    #: individual subkeys - :mod:`linguonnx.translate.quality` reads the
+    #: registry entries directly, not capabilities, so this exists for
+    #: introspection (``Capability.quality``) rather than routing logic.
+    quality: Optional[Dict] = None
 
     @property
     def is_specialist(self) -> bool:

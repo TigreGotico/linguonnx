@@ -2478,13 +2478,20 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_en_hau_rel_news_ft",
-    "notes": "M2M100-418M fine-tune, English -> Hausa.",
+    "notes": "M2M100-418M fine-tune, English -> Hausa. FLORES-200 re-measurement (n=100, chrF) found this model hallucinating proper nouns and repeating garbled phrases on real news-domain text, in both fp32 and int8 - a base-model/domain-mismatch problem, present identically in both precisions. Not reliable for formal/news text; see docs/routing.md.",
     "pair": [
       "en",
       "ha"
     ],
     "precision": "fp32",
     "provenance_org": "Masakhane",
+    "quality": {
+      "corpus": "flores200-devtest",
+      "metric": "chrf",
+      "mode": "beam4",
+      "n": 100,
+      "chrf_vs_ref": 37.9
+    },
     "release_date": "2022-04-09",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
@@ -2508,13 +2515,21 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_en_hau_rel_news_ft-int8",
-    "notes": "M2M100-418M fine-tune, English -> Hausa.",
+    "notes": "M2M100-418M fine-tune, English -> Hausa. FLORES-200 re-measurement (n=100, chrF) found this model hallucinating proper nouns and repeating garbled phrases on real news-domain text, in both fp32 and int8 - a base-model/domain-mismatch problem, present identically in both precisions. Not reliable for formal/news text; see docs/routing.md.",
     "pair": [
       "en",
       "ha"
     ],
     "precision": "int8",
     "provenance_org": "Masakhane",
+    "quality": {
+      "corpus": "flores200-devtest",
+      "metric": "chrf",
+      "mode": "beam4",
+      "n": 100,
+      "chrf_vs_ref": 37.3,
+      "chrf_vs_fp32": 78.0
+    },
     "release_date": "2022-04-09",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",
@@ -5575,11 +5590,19 @@
     "license": "Apache-2.0",
     "license_tier": "permissive",
     "model_id": "opus-mt-az-en",
+    "notes": "FLORES-200 re-measurement (n=100, chrF) found this model hallucinating proper nouns and repeating garbled phrases on real news-domain text, in both fp32 and int8 - a base-model/domain-mismatch problem, present identically in both precisions. Not reliable for formal/news text; see docs/routing.md.",
     "pair": [
       "az",
       "en"
     ],
     "precision": "fp32",
+    "quality": {
+      "corpus": "flores200-devtest",
+      "metric": "chrf",
+      "mode": "beam4",
+      "n": 20,
+      "chrf_vs_ref": 25.9
+    },
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -5603,11 +5626,19 @@
     "license": "Apache-2.0",
     "license_tier": "permissive",
     "model_id": "opus-mt-az-en-int8",
+    "notes": "FLORES-200 re-measurement (n=100, chrF) found this model hallucinating proper nouns and repeating garbled phrases on real news-domain text, in both fp32 and int8 - a base-model/domain-mismatch problem, present identically in both precisions. Not reliable for formal/news text; see docs/routing.md.",
     "pair": [
       "az",
       "en"
     ],
     "precision": "int8",
+    "quality": {
+      "corpus": "flores200-devtest",
+      "metric": "chrf_agreement_int8_vs_fp32",
+      "mode": "beam4",
+      "n": 100,
+      "chrf_vs_fp32": 68.2
+    },
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -6359,11 +6390,19 @@
     "license": "Apache-2.0",
     "license_tier": "permissive",
     "model_id": "opus-mt-en-az",
+    "notes": "FLORES-200 re-measurement (n=100, chrF) found this model hallucinating proper nouns and repeating garbled phrases on real news-domain text, in both fp32 and int8 - a base-model/domain-mismatch problem, present identically in both precisions. Not reliable for formal/news text; see docs/routing.md.",
     "pair": [
       "en",
       "az"
     ],
     "precision": "fp32",
+    "quality": {
+      "corpus": "flores200-devtest",
+      "metric": "chrf_agreement_int8_vs_fp32",
+      "mode": "beam4",
+      "n": 100,
+      "chrf_vs_fp32": 64.6
+    },
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -6387,11 +6426,19 @@
     "license": "Apache-2.0",
     "license_tier": "permissive",
     "model_id": "opus-mt-en-az-int8",
+    "notes": "FLORES-200 re-measurement (n=100, chrF) found this model hallucinating proper nouns and repeating garbled phrases on real news-domain text, in both fp32 and int8 - a base-model/domain-mismatch problem, present identically in both precisions. Not reliable for formal/news text; see docs/routing.md.",
     "pair": [
       "en",
       "az"
     ],
     "precision": "int8",
+    "quality": {
+      "corpus": "flores200-devtest",
+      "metric": "chrf_agreement_int8_vs_fp32",
+      "mode": "beam4",
+      "n": 100,
+      "chrf_vs_fp32": 64.6
+    },
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -6700,6 +6747,13 @@
       "de"
     ],
     "precision": "fp32",
+    "quality": {
+      "corpus": "flores200-devtest",
+      "metric": "chrf",
+      "mode": "greedy",
+      "n": 100,
+      "chrf_vs_ref": 63.7
+    },
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -6812,6 +6866,13 @@
       "es"
     ],
     "precision": "fp32",
+    "quality": {
+      "corpus": "flores200-devtest",
+      "metric": "chrf",
+      "mode": "greedy",
+      "n": 100,
+      "chrf_vs_ref": 54.9
+    },
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -6840,6 +6901,14 @@
       "es"
     ],
     "precision": "int8",
+    "quality": {
+      "corpus": "flores200-devtest",
+      "metric": "chrf",
+      "mode": "greedy",
+      "n": 100,
+      "chrf_vs_ref": 55.1,
+      "chrf_vs_fp32": 95.1
+    },
     "side_files": {
       "source_spm": "int8/source.spm",
       "target_spm": "int8/target.spm",
@@ -7036,6 +7105,13 @@
       "fr"
     ],
     "precision": "fp32",
+    "quality": {
+      "corpus": "flores200-devtest",
+      "metric": "chrf",
+      "mode": "greedy",
+      "n": 100,
+      "chrf_vs_ref": 69.3
+    },
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -12585,11 +12661,19 @@
     "license": "Apache-2.0",
     "license_tier": "permissive",
     "model_id": "opus-mt-tr-az",
+    "notes": "FLORES-200 re-measurement (n=100, chrF) found this model hallucinating proper nouns and repeating garbled phrases on real news-domain text, in both fp32 and int8 - a base-model/domain-mismatch problem, present identically in both precisions. Not reliable for formal/news text; see docs/routing.md.",
     "pair": [
       "tr",
       "az"
     ],
     "precision": "fp32",
+    "quality": {
+      "corpus": "flores200-devtest",
+      "metric": "chrf_agreement_int8_vs_fp32",
+      "mode": "beam4",
+      "n": 100,
+      "chrf_vs_fp32": 74.8
+    },
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -12613,11 +12697,19 @@
     "license": "Apache-2.0",
     "license_tier": "permissive",
     "model_id": "opus-mt-tr-az-int8",
+    "notes": "FLORES-200 re-measurement (n=100, chrF) found this model hallucinating proper nouns and repeating garbled phrases on real news-domain text, in both fp32 and int8 - a base-model/domain-mismatch problem, present identically in both precisions. Not reliable for formal/news text; see docs/routing.md.",
     "pair": [
       "tr",
       "az"
     ],
     "precision": "int8",
+    "quality": {
+      "corpus": "flores200-devtest",
+      "metric": "chrf_agreement_int8_vs_fp32",
+      "mode": "beam4",
+      "n": 100,
+      "chrf_vs_fp32": 74.8
+    },
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
