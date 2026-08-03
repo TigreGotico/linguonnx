@@ -318,6 +318,53 @@ def test_no_repeat_ngram_guard_breaks_a_loop(toy):
     assert len(guarded) < len(plain), "the guard should let the run reach EOS"
 
 
+class TestBannedTokenIds:
+    """linguonnx#42: mt-hitz-gl-eu-int8 (and the fp32 export it was quantised
+    from) returned "" for every input. The decoder's own
+    ``decoder_start_token_id``/``pad_token_id`` outscored every real word at
+    generation step 1 - a known Marian degenerate mode upstream already names
+    by shipping ``bad_words_ids: [[<that id>]]`` in ``generation_config.json``
+    - but nothing enforced the ban, so the id was emitted for the whole
+      budget and the tokenizer silently stripped it as a special token,
+    leaving an empty string behind an HTTP 200.
+
+    State 4 of the toy model (``forced_bos=8`` lands there) has PAD ranked
+    first, reproducing exactly that shape of failure without needing the real
+    HiTZ graphs.
+    """
+
+    def test_unguarded_greedy_reproduces_the_bug(self, toy):
+        # Regression pin: without a ban PAD is chosen as real content right
+        # after the forced token, and the toy model then loops forever since
+        # PAD != EOS. This is what a caller used to get back as "".
+        out = toy.generate(INPUT, forced_bos_token_id=8,
+                           config=GenerationConfig(num_beams=1, max_new_tokens=12))
+        assert out[1] == PAD, "expected the unguarded run to hit the bug"
+
+    def test_banned_token_ids_keeps_pad_out_of_greedy_output(self, toy):
+        out = toy.generate(INPUT, forced_bos_token_id=8,
+                           config=GenerationConfig(
+                               num_beams=1, max_new_tokens=12,
+                               banned_token_ids=frozenset({PAD})))
+        assert PAD not in out
+        assert out, "banning PAD must not make the decoder produce nothing"
+
+    def test_banned_token_ids_keeps_pad_out_of_beam_output(self, toy):
+        for beams in (2, 4):
+            out = toy.generate(INPUT, forced_bos_token_id=8,
+                               config=GenerationConfig(
+                                   num_beams=beams, max_new_tokens=12,
+                                   banned_token_ids=frozenset({PAD})))
+            assert PAD not in out
+
+    def test_banned_token_ids_defaults_to_empty(self):
+        assert GenerationConfig().banned_token_ids == frozenset()
+
+    def test_banned_token_ids_accepts_any_iterable(self):
+        assert GenerationConfig(banned_token_ids=[3, 3, 5]).banned_token_ids == \
+            frozenset({3, 5})
+
+
 def test_banned_ngram_tokens():
     assert _banned_ngram_tokens([1, 2, 3, 1], 2) == [2]
     assert _banned_ngram_tokens([1, 2, 3], 0) == []

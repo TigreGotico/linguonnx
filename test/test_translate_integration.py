@@ -143,6 +143,30 @@ def test_empty_input_is_empty_output(tx):
     assert tx.translate("   ", src="en", tgt="pt") == ""
 
 
+# --- linguonnx#42: mt-hitz-gl-eu returned "" for every input ---------------
+
+@pytest.mark.parametrize("model_id", ["mt-hitz-gl-eu-int8", "mt-hitz-gl-eu"])
+def test_hitz_gl_eu_no_longer_returns_empty_string(model_id):
+    """The bug: this model's decoder ranks its own decoder_start/pad token
+    (32000) above every real word at generation step 1. Greedy/beam search
+    used to accept that id as content - it is not EOS - and the tokenizer
+    silently drops special tokens on the way out, so every request came back
+    "" with an HTTP 200 behind it. Reproduced identically on the fp32 graph,
+    which rules out int8 quantisation, and on the real HiTZ/mt-hitz-gl-eu
+    PyTorch checkpoint via plain `transformers.generate()` with its
+    `bad_words_ids` honoured, which rules out the export and upstream.
+
+    The fix reads `bad_words_ids` from the model's own
+    `generation_config.json` and bans those ids during decoding, same as
+    `transformers.generate()` already did.
+    """
+    translator = load_translator(models=[model_id], precision=None)
+    out = translator.translate(
+        "Bos días, o meu nome e Joao e moro en Lisboa.",
+        src="gl", tgt="eu", model=model_id)
+    assert out.strip(), f"{model_id} regressed back to an empty translation"
+
+
 # --- the hard constraint ---------------------------------------------------
 
 def test_the_library_never_imports_torch():

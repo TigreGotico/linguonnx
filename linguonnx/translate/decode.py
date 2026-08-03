@@ -33,8 +33,8 @@ producing silent garbage.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
+from dataclasses import dataclass, field
+from typing import Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -65,6 +65,16 @@ class GenerationConfig:
     #: one sentence in ten against a `transformers` reference. Set it to
     #: ``True`` when speed matters more than matching.
     early_stopping: bool = False
+    #: Token ids that must never be generated as content, sourced from the
+    #: model's own ``generation_config.json`` (``bad_words_ids``, single-token
+    #: entries only). Some Marian checkpoints rank their own
+    #: ``decoder_start_token_id``/``pad_token_id`` above every real word at
+    #: generation step 1 - a known degenerate mode the upstream config already
+    #: names by banning that id - but nothing before this field enforced the
+    #: ban. Unenforced, the decoder emits that id for the whole budget, the
+    #: tokenizer strips it as a special token on the way out, and the caller
+    #: gets "" back for a perfectly good input. See ``linguonnx#42``.
+    banned_token_ids: FrozenSet[int] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
         if not isinstance(self.max_new_tokens, int) or self.max_new_tokens < 1:
@@ -112,6 +122,10 @@ class GenerationConfig:
                 "no_repeat_ngram_size=1 would ban every token from appearing "
                 "twice, which no real translation survives; use 0 to disable "
                 "the guard or 2 or more to block repeated phrases")
+        # Accept any iterable (a model passes a plain list); freeze it once
+        # here so every later lookup is a fast set membership test instead of
+        # a per-step scan.
+        self.banned_token_ids = frozenset(int(t) for t in self.banned_token_ids)
 
 
 def _log_softmax(x: np.ndarray) -> np.ndarray:
@@ -264,6 +278,8 @@ class Seq2SeqDecoder:
                 token = forced_bos
             else:
                 scores = logits[0].astype(np.float64)
+                for banned in config.banned_token_ids:
+                    scores[banned] = -np.inf
                 for banned in _banned_ngram_tokens(generated, config.no_repeat_ngram_size):
                     scores[banned] = -np.inf
                 token = int(np.argmax(scores))
@@ -347,6 +363,8 @@ class Seq2SeqDecoder:
                 forced = np.full_like(logprobs, -np.inf)
                 forced[:, forced_bos] = 0.0
                 logprobs = forced
+            for banned in config.banned_token_ids:
+                logprobs[:, banned] = -np.inf
             if config.no_repeat_ngram_size:
                 for beam, sequence in enumerate(sequences):
                     for banned in _banned_ngram_tokens(sequence, config.no_repeat_ngram_size):
