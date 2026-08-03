@@ -578,7 +578,17 @@ class GroupModel(Exception):
 #: pipeline landed, say) must disappear from the committed JSON, and a
 #: preserve-everything merge would make it immortal *and* invisible to
 #: ``--check``, which compares after the merge.
-HUMAN_OWNED_KEYS: Tuple[str, ...] = ("notes",)
+#:
+#: ``quality`` (chrF-vs-FLORES-reference measurements, see
+#: :mod:`linguonnx.translate.quality`) belongs here for the same reason as
+#: ``notes``: it comes from an offline benchmarking campaign against the
+#: real Hub weights, not from anything this script can derive off a repo's
+#: file listing. A re-sync has no way to *regenerate* it, only to blow it
+#: away if it were left off this list - a re-crawl of the same repo would
+#: silently drop every measured number the next time ``sync_registry.py``
+#: ran, with nothing in ``--check`` to catch the loss because the merge
+#: compares the post-merge state, not against what a human curated in.
+HUMAN_OWNED_KEYS: Tuple[str, ...] = ("notes", "quality")
 
 
 # ---------------------------------------------------------------------------

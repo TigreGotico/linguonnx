@@ -439,6 +439,122 @@ translator that reordered its routes as models were downloaded would give two
 hosts in one fleet different answers with nothing to explain it. The number is
 reported so the caller can decide; it is not decided for them.
 
+## Measured quality
+
+The registry's old parity numbers — the ones on some model cards claiming
+int8 matched fp32 40%, 70%, 90% of the time — came from 5 to 20 hand-written
+sentences scored by exact string match. That sample size cannot be trusted:
+re-measuring `opus-mt-az-en` beam-4 on the same handful of sentences read
+40%, then 100%, then, on 100 real [FLORES-200](https://github.com/facebookresearch/flores)
+devtest sentences, **14%**. Exact match also scores a synonym swap or a
+reworded clause as a total failure, so it cannot tell "int8 broke this" apart
+from "these two outputs are both fine and merely phrased differently."
+
+A model's `quality` field, when present, replaces that with something a
+number actually means something for:
+
+- **Corpus**: FLORES-200 devtest, the same 100 sentences for every model that
+  shares a source language, so scores are comparable across models.
+- **Metric**: [chrF](https://github.com/mjpost/sacrebleu), scored against the
+  **human FLORES reference**, not against the other precision's output. A
+  precision-vs-precision "agreement" score alone is a trap: the Azerbaijani
+  opus-mt trio agreed with themselves only 61-78 chrF between int8 and fp32,
+  which looks alarming, until you score each precision against the actual
+  reference and find them within 0.6 chrF of *each other* — both equally
+  wrong, not one broken relative to the other. Agreement chrF is kept as a
+  secondary number (`chrf_vs_fp32`) precisely because it is not, by itself,
+  a quality signal — see `linguonnx/translate/quality.py` for the full
+  reasoning.
+- **Sample size**: always reported next to the score (`n`), because a score
+  with no visible sample size next to it is exactly the failure mode above.
+
+```python
+from linguonnx.model_manager import list_models
+
+registry = list_models(kind="translate")
+print(registry["opus-mt-en-es"]["quality"])
+# {'corpus': 'flores200-devtest', 'metric': 'chrf', 'mode': 'greedy',
+#  'n': 100, 'chrf_vs_ref': 54.9}
+```
+
+**Absence is not zero.** Most entries have no `quality` key at all — this
+project has not measured them yet, and an unmeasured model is not the same
+thing as a bad one. Nothing here invents a number for an unmeasured entry;
+routing, ranking, and the filters below all treat "not measured" and "scored
+badly" as distinct states.
+
+### Flags
+
+Two independent checks, either one enough on its own — see
+`linguonnx.translate.quality.quality_flag_reasons` for the exact logic:
+
+- **Absolute floor**: either precision's chrF-vs-reference below 40 flags the
+  entry, whatever the other precision scored. This is what should have
+  caught the Azerbaijani `opus-mt-*-az`/`opus-mt-az-*` trio and
+  `m2m100_418M_en_hau_rel_news_ft` from the start — both hallucinate proper
+  nouns and repeat garbled phrases on real news-domain text, in *both*
+  precisions, which is a base-model/domain-mismatch problem independent of
+  quantisation. Their `notes` say so explicitly; look there for the
+  qualitative detail this field does not carry.
+- **int8 gap**: int8 trailing fp32 by more than 2 chrF (against the
+  reference) flags the int8 entry. Every pair actually measured — weak and
+  strong alike — showed int8 within about 0.6 chrF of fp32, so 2.0 leaves
+  headroom before flagging while still catching a real regression if one
+  ever turns up.
+
+Flagging never removes a model from the registry — every model is published
+regardless of its score, exactly like a non-commercial licence or an
+oversized download. It only gives a caller filtering at runtime something to
+filter on:
+
+```python
+from linguonnx.translate.quality import is_quality_flagged
+
+print(is_quality_flagged("opus-mt-az-en"))    # True  - below the absolute floor
+print(is_quality_flagged("opus-mt-en-es"))    # False - a calibration-set model
+```
+
+### Filtering on it
+
+`load_translator` takes the same two knobs `precision=`/`max_model_mb=`
+already established — the field informs, and the caller decides:
+
+```python
+from linguonnx import load_translator
+
+# Fall back to fp32 wherever int8 alone is flagged, instead of losing the
+# pair: precision=None keeps both precisions in play, exclude_flagged=True
+# drops whichever entries were actually flagged (which may be one precision
+# of a pair, both, or neither).
+tx = load_translator(precision=None, exclude_flagged=True)
+
+# Or set a hard floor directly. A model with no measurement passes through
+# untouched - it was never checked against this number.
+tx = load_translator(precision=None, min_chrf=50.0)
+```
+
+An explicit `models=[...]` still overrides every filter, quality included —
+naming a model is asking for exactly that model, flagged or not:
+
+```python
+tx = load_translator(models=["opus-mt-az-en"], exclude_flagged=True)
+print(tx.route("az", "en").model_ids)
+# ('opus-mt-az-en',)
+```
+
+`Translator.quality_flag_reasons(model_id)` explains a specific flag, looking
+the id up against the full registry rather than just the models a particular
+`Translator` was built with — an int8 entry's gap check needs its fp32
+counterpart's number even when that counterpart was filtered out of the
+graph the `Translator` is actually routing over:
+
+```python
+tx = load_translator(precision="int8")
+for reason in tx.quality_flag_reasons("opus-mt-az-en"):
+    print(reason)
+# chrF-vs-reference 25.9 is below the 40 floor (flores200-devtest, n=20)
+```
+
 ## Choosing the path yourself
 
 The cost model is a default, not a verdict. There are three ways to overrule

@@ -28,11 +28,13 @@ from linguonnx.translate.graph import (DEFAULT_PIVOT_PREFERENCE, UNSET,
                                        Capability, Hop, NoRouteError, Route,
                                        TranslationGraph, _Unset, normalize_tag)
 from linguonnx.translate.models import TranslationModel, capability_from_entry
+from linguonnx.translate.quality import (is_quality_flagged,
+                                         quality_flag_reasons_for)
 
 LOG = logging.getLogger(__name__)
 
 __all__ = ["Translator", "load_translator", "Route", "Hop", "NoRouteError",
-           "GenerationConfig"]
+           "GenerationConfig", "is_quality_flagged", "quality_flag_reasons_for"]
 
 #: How many loaded models a Translator keeps alive at once. The full default
 #: graph is 73 models / ~25 GB, so an unbounded cache converges on the whole
@@ -43,9 +45,15 @@ DEFAULT_MODEL_CACHE_SIZE = 4
 
 
 def _select_entries(precision: Optional[str], include_noncommercial: bool,
-                    models: Optional[Sequence[str]]) -> Dict[str, dict]:
+                    models: Optional[Sequence[str]],
+                    exclude_flagged: bool = False,
+                    min_chrf: Optional[float] = None) -> Dict[str, dict]:
     registry = list_models(kind="translate")
     if models is not None:
+        # An explicit `models=` is a caller naming exactly what they want -
+        # it overrides every other filter, quality included, the same way it
+        # already overrode `precision=`/`include_noncommercial=` before this
+        # field existed.
         missing = [m for m in models if m not in registry]
         if missing:
             raise ValueError(f"unknown translation model(s): {', '.join(missing)}")
@@ -56,6 +64,16 @@ def _select_entries(precision: Optional[str], include_noncommercial: bool,
             continue
         if not include_noncommercial and entry["license_tier"] == "non-commercial":
             continue
+        if exclude_flagged and is_quality_flagged(model_id, registry):
+            continue
+        if min_chrf is not None:
+            quality = entry.get("quality") or {}
+            chrf = quality.get("chrf_vs_ref")
+            # Absence means "not measured", never "scored badly" - it must
+            # not be excluded by a quality floor it was never checked
+            # against. Only a model actually measured below the floor is cut.
+            if chrf is not None and chrf < min_chrf:
+                continue
         chosen[model_id] = entry
     return chosen
 
@@ -126,6 +144,17 @@ class Translator:
     def available_languages(self) -> frozenset:
         """Every BCP-47 tag reachable as a source or a target, over all models."""
         return self.graph.languages
+
+    def quality_flag_reasons(self, model_id: str) -> Tuple[str, ...]:
+        """Why ``model_id`` is quality-flagged, or ``()`` when it is not.
+
+        Looked up against the full registry, not just this ``Translator``'s
+        own selection, so an int8 entry's counterpart is found even when the
+        caller filtered it out with ``precision="int8"`` - the gap check
+        needs fp32's number regardless of whether fp32 itself is in this
+        graph.
+        """
+        return quality_flag_reasons_for(model_id)
 
     @property
     def models(self) -> Dict[str, dict]:
@@ -366,6 +395,8 @@ def load_translator(models: Optional[Sequence[str]] = None,
                     max_hops: int = 2,
                     precision: Optional[str] = "int8",
                     include_noncommercial: bool = False,
+                    exclude_flagged: bool = False,
+                    min_chrf: Optional[float] = None,
                     pivot_preference: Sequence[str] = DEFAULT_PIVOT_PREFERENCE,
                     max_routes: int = 10,
                     pivot_ranking: str = "auto",
@@ -394,6 +425,18 @@ def load_translator(models: Optional[Sequence[str]] = None,
     :param max_hops: 1 = direct models only, 2 = default, 3+ = allowed but see
         the README on diminishing returns.
     :param precision: ``"int8"`` (default), ``"fp32"``, or ``None`` for both.
+    :param exclude_flagged: drop any model :func:`~linguonnx.translate.quality.is_quality_flagged`
+        flags - either precision scoring below 40 chrF against the FLORES-200
+        reference, or int8 trailing fp32 by more than 2 chrF. Combine with
+        ``precision=None`` to fall back to fp32 wherever int8 alone is
+        flagged (a pair whose fp32 side is not flagged still routes through
+        it) instead of losing the pair entirely. See ``docs/routing.md`` for
+        what the numbers mean and where they came from. Unmeasured models are
+        never excluded by this - "not measured" is not a flag.
+    :param min_chrf: drop any model whose measured chrF-vs-reference falls
+        below this. Only applies to models actually measured; a model with no
+        ``quality`` data is left alone; a missing measurement must never be
+        read as a bad one.
     :param pivot_ranking: how to order pivot candidates for a 2-hop route.
         ``"auto"`` (default) ranks them by phonological distance when the
         optional ``orthography2ipa`` package is installed - ``pip install
@@ -417,7 +460,9 @@ def load_translator(models: Optional[Sequence[str]] = None,
     """
     if model is not None:
         models = [model] if models is None else list(models) + [model]
-    entries = _select_entries(precision, include_noncommercial, models)
+    entries = _select_entries(precision, include_noncommercial, models,
+                              exclude_flagged=exclude_flagged,
+                              min_chrf=min_chrf)
     if not entries:
         raise ValueError("no translation models matched the given filters")
     return Translator(entries, prefer=prefer, max_hops=max_hops,
