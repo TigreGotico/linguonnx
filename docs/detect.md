@@ -210,8 +210,9 @@ the hardest kind of wrong to notice.
 ```python
 from linguonnx.limits import InputTooLongError
 
+huge_text = "a" * 200_000
 try:
-    detector.detect(huge_text)
+    det.detect(huge_text)
 except InputTooLongError as err:
     print(err)   # input is 200000 characters, over the limit of 10000; ...
 ```
@@ -222,7 +223,9 @@ except exposure. Set them per process with the environment variables, or per
 detector:
 
 ```python
-detector = LanguageDetector(max_chars=2_000, max_tokens=256)
+from linguonnx.detect import LanguageDetector
+
+det = LanguageDetector(max_chars=2_000, max_tokens=256)
 ```
 
 The 1,024-token figure is fastText's own `MAX_LINE_SIZE`. Note that fastText
@@ -243,5 +246,8 @@ a confident-looking label back.
 ```python
 from linguonnx.limits import EmptyInputError
 
-detector.detect("​‍")   # raises EmptyInputError
+try:
+    det.detect("​‍")   # zero-width space + zero-width joiner
+except EmptyInputError as err:
+    print(err)
 ```

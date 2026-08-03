@@ -63,10 +63,13 @@ through it:
 
 ```python
 tx = load_translator()                       # permissive models only
-tx.translate("bom dia", src="pt", tgt="kea", model="nllb-600M-int8")
-# ValueError: 'nllb-600M-int8' is not in this translator's models. It is
-# filtered out (see include_noncommercial=, precision= and models= on
-# load_translator) or it does not exist.
+try:
+    tx.translate("bom dia", src="pt", tgt="kea", model="nllb-600M-int8")
+except ValueError as err:
+    print(err)
+    # 'nllb-600M-int8' is not in this translator's models. It is
+    # filtered out (see include_noncommercial=, precision= and models= on
+    # load_translator) or it does not exist.
 ```
 
 This is what makes `include_noncommercial=False` a guarantee about the output

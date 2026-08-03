@@ -120,7 +120,144 @@ BILINGUAL_FINETUNES: Dict[str, Dict] = {
                                "notes": "OpenNMT-py English -> Portuguese."},
     "nos-coda_iacobus-en-es": {"pair": ["en", "es"],
                                "notes": "OpenNMT-py English -> Spanish."},
+
+    #: Projecte AINA's `aina-translator-XX-YY` family. Verified by inspecting
+    #: each repo's own `int8/tokenizer_config.json`: these are plain
+    #: `MarianTokenizer` exports with a placeholder `source_lang`/`target_lang`
+    #: ("src"/"tgt") and NO `additional_special_tokens` list at all - i.e. a
+    #: genuinely bilingual tokenizer, not a multilingual one wearing a
+    #: fine-tune. cardData.language (2 codes) agrees with the repo name for
+    #: every entry below, so the pair is a cross-checked fact, not a guess.
+    #: Source: https://huggingface.co/projecte-aina/aina-translator-<pair>
+    "aina-translator-ca-de": {"pair": ["ca", "de"], "notes": "Marian, Catalan -> German."},
+    "aina-translator-ca-en": {"pair": ["ca", "en"], "notes": "Marian, Catalan -> English."},
+    "aina-translator-ca-es": {"pair": ["ca", "es"], "notes": "Marian, Catalan -> Spanish."},
+    "aina-translator-ca-fr": {"pair": ["ca", "fr"], "notes": "Marian, Catalan -> French."},
+    "aina-translator-ca-it": {"pair": ["ca", "it"], "notes": "Marian, Catalan -> Italian."},
+    "aina-translator-ca-pt": {"pair": ["ca", "pt"], "notes": "Marian, Catalan -> Portuguese."},
+    "aina-translator-ca-zh": {"pair": ["ca", "zh"], "notes": "Marian, Catalan -> Chinese."},
+    "aina-translator-de-ca": {"pair": ["de", "ca"], "notes": "Marian, German -> Catalan."},
+    "aina-translator-en-ca": {"pair": ["en", "ca"], "notes": "Marian, English -> Catalan."},
+    "aina-translator-es-ca": {"pair": ["es", "ca"], "notes": "Marian, Spanish -> Catalan."},
+    "aina-translator-eu-ca": {"pair": ["eu", "ca"], "notes": "Marian, Basque -> Catalan."},
+    "aina-translator-fr-ca": {"pair": ["fr", "ca"], "notes": "Marian, French -> Catalan."},
+    "aina-translator-gl-ca": {"pair": ["gl", "ca"], "notes": "Marian, Galician -> Catalan."},
+    "aina-translator-it-ca": {"pair": ["it", "ca"], "notes": "Marian, Italian -> Catalan."},
+    "aina-translator-pt-ca": {"pair": ["pt", "ca"], "notes": "Marian, Portuguese -> Catalan."},
+    "aina-translator-zh-ca": {"pair": ["zh", "ca"], "notes": "Marian, Chinese -> Catalan."},
+
+    #: `aina-translator-es-an` / `-es-ast`: unlike the pairs above, these ARE
+    #: NLLB-200-600M fine-tunes and keep the full 256-code inventory in
+    #: `additional_special_tokens` - so like `aina-es-oc`, the pair is stated
+    #: in the model's own added-token codes, verified from each repo's
+    #: `int8/added_tokens.json`. Asturian's `ast_Latn` is already a native
+    #: NLLB-200 code (id 256016); Aragonese has none, so AINA added `arg_Latn`
+    #: at id 256204, mirroring how they added `arn_Latn` for Aranese.
+    #: cc-by-nc-4.0, unlike the Marian pairs above.
+    #: Source: https://huggingface.co/projecte-aina/aina-translator-es-an ,
+    #:         https://huggingface.co/projecte-aina/aina-translator-es-ast
+    "aina-translator-es-an": {
+        "pair": ["spa_Latn", "arg_Latn"],
+        "notes": "Spanish -> Aragonese. NLLB-200-600M fine-tune by Projecte "
+                 "Aina; Aragonese uses the added token 'arg_Latn'. One-way.",
+    },
+    "aina-translator-es-ast": {
+        "pair": ["spa_Latn", "ast_Latn"],
+        "notes": "Spanish -> Asturian. NLLB-200-600M fine-tune by Projecte "
+                 "Aina; Asturian uses NLLB's native 'ast_Latn'. One-way.",
+    },
+
+    #: Masakhane's `m2m100_418M_<lang>_fr_rel_news_ft` / `_fr_<lang>_...`
+    #: family: M2M100-418M fine-tunes for ten French <-> West African language
+    #: pairs. Verified from each repo's `int8/generation_config.json`: the
+    #: target is forced via `forced_bos_token_id` baked into the export
+    #: (mirrors this library's own `target_token` mechanism, so no extra field
+    #: is needed here), and cardData.language names exactly the two languages,
+    #: agreeing with the repo name. The low-resource side (bam/bbj/ewe/fon/mos)
+    #: has no dedicated M2M100 vocabulary token - Masakhane's checkpoints read
+    #: it from plain text on the source side, so only the *target* forcing
+    #: matters, and that already lives in the export's own generation config.
+    #: Source: https://huggingface.co/masakhane/m2m100_418M_<pair>
+    "m2m100_418M_bam_fr_rel_news_ft": {"pair": ["bam", "fr"], "notes": "M2M100-418M fine-tune, Bambara -> French."},
+    "m2m100_418M_bbj_fr_rel_news_ft": {"pair": ["bbj", "fr"], "notes": "M2M100-418M fine-tune, Ghomala -> French."},
+    "m2m100_418M_fon_fr_rel_news_ft": {"pair": ["fon", "fr"], "notes": "M2M100-418M fine-tune, Fon -> French."},
+    "m2m100_418M_fr_bam_rel_news_ft": {"pair": ["fr", "bam"], "notes": "M2M100-418M fine-tune, French -> Bambara."},
+    "m2m100_418M_fr_bbj_rel_news_ft": {"pair": ["fr", "bbj"], "notes": "M2M100-418M fine-tune, French -> Ghomala."},
+    "m2m100_418M_fr_ewe_rel_news_ft": {"pair": ["fr", "ewe"], "notes": "M2M100-418M fine-tune, French -> Ewe."},
+    "m2m100_418M_fr_fon_rel_news_ft": {"pair": ["fr", "fon"], "notes": "M2M100-418M fine-tune, French -> Fon."},
+    "m2m100_418M_fr_mos_rel_news_ft": {"pair": ["fr", "mos"], "notes": "M2M100-418M fine-tune, French -> Mossi."},
+    "m2m100_418M_mos_fr_rel_news_ft": {"pair": ["mos", "fr"], "notes": "M2M100-418M fine-tune, Mossi -> French."},
+
+    #: ProxectoNos' `nos-mt-*` family - the same OpenNMT-py/Pegasus-shaped
+    #: export as `nos-coda_iacobus`, one hand-verified one-way pair each,
+    #: cardData.language agreeing with the repo name.
+    #: Source: https://huggingface.co/proxectonos/Nos_MT-CT2-<pair> (and
+    #: proxectonos/es-arg, proxectonos/es-arn, proxectonos/es-ast).
+    "nos-mt-en-gl": {"pair": ["en", "gl"], "notes": "OpenNMT-py English -> Galician."},
+    "nos-mt-es-gl": {"pair": ["es", "gl"], "notes": "OpenNMT-py Spanish -> Galician."},
+    "nos-mt-gl-en": {"pair": ["gl", "en"], "notes": "OpenNMT-py Galician -> English."},
+    "nos-mt-gl-es": {"pair": ["gl", "es"], "notes": "OpenNMT-py Galician -> Spanish."},
+    "nos-mt-es-ast": {"pair": ["es", "ast"], "notes": "OpenNMT-py Spanish -> Asturian."},
+    "nos-mt-es-arg": {"pair": ["es", "an"], "notes": "OpenNMT-py Spanish -> Aragonese (card: 'an')."},
+    "nos-mt-es-arn": {"pair": ["es", "oc"], "notes": "OpenNMT-py Spanish -> Aranese, card records it as 'oc'."},
+
+    #: Softcatalà's Marian exports into Catalan, same tokenizer shape as the
+    #: `aina-translator-ca-*` pairs above (verified the same way: card
+    #: language agrees with the repo name, no multilingual token inventory).
+    #: Source: https://huggingface.co/softcatala/translate-eus-cat ,
+    #:         https://huggingface.co/softcatala/translate-oci-cat
+    "translate-eus-cat": {"pair": ["eu", "ca"], "notes": "Marian, Basque -> Catalan."},
+    "translate-oci-cat": {"pair": ["oc", "ca"], "notes": "Marian, Occitan -> Catalan."},
 }
+
+#: `opus-mt-tc-big-*` repos that cover more than two languages and cannot be
+#: resolved to one pair by name + base-model cross-check (see
+#: `_non_opus_marian_pair`): these are genuine *group* models (Ibero-Romance
+#: <-> English/Catalan, or all-pairs-within-Italic), not bilingual fine-tunes,
+#: so they do not belong in BILINGUAL_FINETUNES - representing them correctly
+#: needs the same multi-language + prefix-token machinery as `liv4ever-mt`
+#: (`_marian_multilingual_languages`), which does not yet handle the
+#: underscore-joined macro-language grouping these repo names use
+#: (`cat_oci_spa`, `itc-itc`). Left out on purpose rather than guessed at;
+#: tracked as a known gap, not silently dropped.
+_KNOWN_UNRESOLVED_GROUP_MODELS = (
+    "opus-mt-tc-big-cat_oci_spa-en",
+    "opus-mt-tc-big-en-cat_oci_spa",
+    "opus-mt-tc-big-itc-itc",
+)
+
+#: Real architecture-classification gaps, found while closing the "43 missing
+#: models" registry-completeness bug. `_arch()` keys the tokenizer class
+#: purely off `config.model_type`, and for these two families that field
+#: disagrees with the tokenizer the repo actually ships:
+#:
+#: - `aina-translator-ca-<xx>` / `<xx>-ca` (14 of the 18 Catalan pairs; the
+#:   other 4 - `ca-zh`, `zh-ca`, `es-an`, `es-ast` - resolve fine): the graph
+#:   reports `model_type: m2m_100`, which `_arch()` reads as the M2M100
+#:   tokenizer family (a single merged `sentencepiece.bpe.model`, loaded by
+#:   `SpmSeq2SeqTokenizer`). The actual tokenizer shipped is `MarianTokenizer`
+#:   over a *dual* `source.spm` + `target.spm` + `vocab.json` - the Marian
+#:   tokenizer shape, loaded by a different class entirely
+#:   (`linguonnx/translate/tokenizers.py`). Forcing `arch="marian"` onto the
+#:   registry entry without knowing whether the ONNX graph itself was also
+#:   exported Marian-shaped (decoder I/O, `forced_bos` handling) risks a
+#:   wrong-but-silent runtime pickup for real users - worse than staying
+#:   unregistered. Needs a maintainer to inspect one of these repos' actual
+#:   ONNX graph I/O signature, not just its tokenizer, before either fixing
+#:   `_arch()` or adding a new hybrid tokenizer variant.
+#: - `translate-eus-cat`, `translate-oci-cat` (Softcatalà): `model_type:
+#:   pegasus`, same as ProxectoNos' `nos-mt-*`/`nos-coda_iacobus-*` - but
+#:   those ship OpenNMT BPE vocab files and these ship a SentencePiece
+#:   `tokenizer.json` instead. A third tokenizer shape hiding under the same
+#:   `model_type`, same reasoning as above for not guessing.
+_KNOWN_ARCH_MISMATCH: Tuple[str, ...] = (
+    "aina-translator-ca-de", "aina-translator-ca-en", "aina-translator-ca-es",
+    "aina-translator-ca-fr", "aina-translator-ca-it", "aina-translator-ca-pt",
+    "aina-translator-de-ca", "aina-translator-en-ca", "aina-translator-es-ca",
+    "aina-translator-eu-ca", "aina-translator-fr-ca", "aina-translator-gl-ca",
+    "aina-translator-it-ca", "aina-translator-pt-ca",
+    "translate-eus-cat", "translate-oci-cat",
+)
 
 #: Hand-verified fix-ups for a *multilingual* Marian export whose target is
 #: chosen by a `<2xx>` prefix token read straight out of its own vocab.json
@@ -710,13 +847,23 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
             path = _resolve(files, prefix, filename)
             if path is not None:
                 side[key] = path
-        if arch == "opennmt-bpe" and "pair" in shared:
-            # The BPE merge codes are named after the *source* language
-            # (`en_35k.code`, `es_35k.code`, ...), not the pair - the filename
-            # is per-repo, so it cannot live in the static SIDE_FILES table.
-            bpe_path = _resolve(files, prefix, f"{shared['pair'][0]}_35k.code")
-            if bpe_path is not None:
-                side["bpe_code"] = bpe_path
+        if arch == "opennmt-bpe":
+            # Two generations of OpenNMT-py export from ProxectoNos, same
+            # graph shape, different side-file naming:
+            #   nos-coda_iacobus-*: `onmt_vocab.json` + `<src>_35k.code`
+            #     (BPE merges named after the source language, not the pair).
+            #   nos-mt-*: `nos_vocab.json` + a single unqualified `source.bpe`
+            #     shared by fp32/int8 (never duplicated under `int8/`).
+            if "vocab" not in side:
+                vocab_path = _resolve(files, prefix, "nos_vocab.json")
+                if vocab_path is not None:
+                    side["vocab"] = vocab_path
+            if "pair" in shared:
+                bpe_path = _resolve(files, prefix, f"{shared['pair'][0]}_35k.code")
+                if bpe_path is None:
+                    bpe_path = _resolve(files, prefix, "source.bpe")
+                if bpe_path is not None:
+                    side["bpe_code"] = bpe_path
         missing = [k for k in REQUIRED_SIDE_FILES[arch] if k not in side]
         if missing:
             raise SkipRepo(f"missing required side files: {', '.join(missing)}")
@@ -915,6 +1062,30 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     for repo_id, reason in skipped:
         print(f"skipped {repo_id}: {reason}", file=sys.stderr)
+
+    # A silently-skipped repo is drift too: `--check` diffs the committed
+    # JSON against a freshly generated one, and a repo that fails extraction
+    # on *every* run is missing from both sides of that diff every time - the
+    # comparison alone can never catch it (this is exactly how 43 published
+    # models went unnoticed: skip, not drift). So any skip outside the
+    # documented, hand-reviewed allowlist fails `--check` on its own,
+    # independent of whether the JSON text changed.
+    def _stem(repo_id: str) -> str:
+        name = repo_id.split("/")[-1]
+        return name[:-len("-onnx")] if name.endswith("-onnx") else name
+
+    _allowlisted = set(_KNOWN_UNRESOLVED_GROUP_MODELS) | set(_KNOWN_ARCH_MISMATCH)
+    unexpected_skips = [
+        (repo_id, reason) for repo_id, reason in skipped
+        if _stem(repo_id) not in _allowlisted
+    ]
+    if args.check and unexpected_skips:
+        print(f"{len(unexpected_skips)} translate/lid repo(s) on the Hub "
+              f"cannot be registered and are not in the documented "
+              f"allowlist:", file=sys.stderr)
+        for repo_id, reason in unexpected_skips:
+            print(f"  ! {repo_id}: {reason}", file=sys.stderr)
+        return 1
 
     if args.check and drift:
         return 1
