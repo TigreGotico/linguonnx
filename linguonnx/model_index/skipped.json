@@ -1,5 +1,1 @@
-{
-  "TigreGotico/m2m100_418M_en_hau_rel_news_ft-onnx": "the card declares 2 languages (en/ha) but the tokenizer lists 100, 98 of them unclaimed (e.g. af, am, ar, ast, az): a fine-tune wearing its base's token inventory. Add a verified MULTILINGUAL_LANGUAGE_OVERRIDES entry for 'm2m100_418M_en_hau_rel_news_ft' to register it",
-  "TigreGotico/opus-mt-gmq-en-onnx": "vocab.json has no >>xxx<< target-prefix tokens",
-  "TigreGotico/opus-mt-tc-big-zle-en-onnx": "vocab.json has no >>xxx<< target-prefix tokens"
-}
+{}

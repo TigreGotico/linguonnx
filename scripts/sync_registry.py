@@ -207,6 +207,12 @@ BILINGUAL_FINETUNES: Dict[str, Dict] = {
     "m2m100_418M_fr_fon_rel_news_ft": {"pair": ["fr", "fon"], "notes": "M2M100-418M fine-tune, French -> Fon."},
     "m2m100_418M_fr_mos_rel_news_ft": {"pair": ["fr", "mos"], "notes": "M2M100-418M fine-tune, French -> Mossi."},
     "m2m100_418M_mos_fr_rel_news_ft": {"pair": ["mos", "fr"], "notes": "M2M100-418M fine-tune, Mossi -> French."},
+    #: Published after the above: same family, same shape. cardData.language
+    #: names exactly en/ha (Hausa has its own M2M100 639-1 token, unlike the
+    #: bam/bbj/ewe/fon/mos low-resource sides above), and its own
+    #: generation_config.json bakes in forced_bos_token_id=128034.
+    #: Source: https://huggingface.co/masakhane/m2m100_418M_en_hau_rel_news_ft
+    "m2m100_418M_en_hau_rel_news_ft": {"pair": ["en", "ha"], "notes": "M2M100-418M fine-tune, English -> Hausa."},
 
     #: ProxectoNos' `nos-mt-*` family - the same OpenNMT-py/Pegasus-shaped
     #: export as `nos-coda_iacobus`, one hand-verified one-way pair each,
@@ -230,26 +236,35 @@ BILINGUAL_FINETUNES: Dict[str, Dict] = {
     "translate-oci-cat": {"pair": ["oc", "ca"], "notes": "Marian, Occitan -> Catalan."},
 }
 
-#: RESOLVED. `opus-mt-tc-big-cat_oci_spa-en`: the underscore-joined
-#: macro-language grouping in the repo name (`cat_oci_spa` = Catalan +
-#: Occitan + Spanish) named three languages at once, which is not a shape
-#: `_marian_group_languages` covers - it reads a *target*-side `>>xxx<<`
-#: vocabulary, and this checkpoint has none. Inspected directly instead:
-#: `vocab.json` has zero `>>xxx<<` tokens, so there is no ambiguity to
-#: disambiguate at all - many sources (`ca`/`oc`/`es`, matching the card's own
-#: declared languages minus the target), one fixed target (`en`). Represented
-#: as `src_languages`/`tgt_languages`, the directional-coverage shape
-#: IndicTrans2 already uses. Verified with a real translation from each of
-#: the three sources (see the PR description).
+#: RESOLVED. A Marian *group* export's real coverage is always read from its
+#: own `vocab.json` (`_marian_group_entry`), never guessed from the repo
+#: name - whether the name hides a recognised ISO 639-5 collection code
+#: (`opus-mt-itc-itc`, `opus-mt-gmq-en`, `opus-mt-tc-big-zle-en`: these raise
+#: `GroupModel` out of `_marian_pair`) or an underscore-joined macro-language
+#: name that isn't a registered collection at all (`cat_oci_spa` -
+#: `tag_scope("cat_oci_spa")` is `None`, so `opus-mt-tc-big-cat_oci_spa-en`/
+#: `opus-mt-tc-big-en-cat_oci_spa` never reach that path and are matched by
+#: name in `translate_entries` instead, but resolved through the exact same
+#: `_marian_group_entry`).
 #:
-#: `opus-mt-tc-big-en-cat_oci_spa` (the reverse direction): its vocabulary
-#: *does* carry `>>cat<<`/`>>oci<<`/`>>spa<<`, matching the card's three
-#: non-English declared languages exactly, so `_marian_group_languages` (the
-#: same function `opus-mt-itc-itc` uses) reads its real coverage directly -
-#: it only reads the vocabulary, never the repo name's own shape. Both
-#: directions are handled explicitly in `translate_entries` (the underscore-
-#: joined name never reaches `_marian_pair`'s regex or its `GroupModel`
-#: branch), verified with a real translation each (see the PR description).
+#: A `>>xxx<<` target-prefix token set makes an export many-to-many (the
+#: token is mandatory). **No** tokens at all is not a defect - some group
+#: exports genuinely have nothing to disambiguate:
+#:
+#: - `opus-mt-tc-big-cat_oci_spa-en`, `opus-mt-gmq-en`,
+#:   `opus-mt-tc-big-zle-en`: many sources, one fixed target (`en` every
+#:   time so far), each confirmed by the repo name's final segment matching
+#:   one of the card's own declared languages, with the rest of the card
+#:   becoming the source set. Represented as `src_languages`/`tgt_languages`,
+#:   the directional-coverage shape IndicTrans2 already uses.
+#: - `opus-mt-tc-big-en-cat_oci_spa`: the reverse direction, which *does*
+#:   carry `>>cat<<`/`>>oci<<`/`>>spa<<` tokens matching the card's three
+#:   non-English languages exactly, so it takes the many-to-many branch
+#:   instead.
+#:
+#: All of the above verified with real translations (see the PR
+#: description); none of them are guessed at, from either the family code or
+#: the token count alone.
 _KNOWN_UNRESOLVED_GROUP_MODELS: Tuple[str, ...] = ()
 
 #: RESOLVED. Both of the architecture-classification gaps found while closing
@@ -1020,7 +1035,13 @@ def _marian_group_languages(repo_id: str, files: Dict[str, int],
         and match.group(1) not in excluded
     })
     if not raw_codes:
-        raise SkipRepo("vocab.json has no >>xxx<< target-prefix tokens")
+        # No >>xxx<< tokens at all: not a defect, a *many-to-one* group model
+        # (opus-mt-gmq-en, opus-mt-tc-big-zle-en, opus-mt-tc-big-cat_oci_spa-en
+        # - Scandinavian/East-Slavic/Ibero-Romance all -> English). Nothing to
+        # disambiguate, so there is no target token to read - the caller
+        # (`_marian_group_entry`) is the one that knows what an empty result
+        # means for its shape.
+        return [], {}
 
     from linguonnx.detect.labels import is_registered_subtag, tag_scope, to_bcp47
 
@@ -1067,6 +1088,53 @@ def _marian_group_languages(repo_id: str, files: Dict[str, int],
     return sorted(candidates), native
 
 
+def _marian_group_entry(repo_id: str, name: str, files: Dict[str, int],
+                        declared_langs: object, model_id: str) -> Dict[str, object]:
+    """The registry ``shared`` fields for any Marian *group* export - a
+    family/collection code (``itc``, ``gmq``, ``zle``) or an underscore-joined
+    macro-language name (``cat_oci_spa``) that ``_marian_pair``'s plain
+    ``xx-yy`` pair extraction cannot resolve to one dedicated direction.
+
+    Real per-checkpoint coverage always comes from ``vocab.json``, never the
+    repo name:
+
+    - A ``>>xxx<<`` target-prefix token set (``opus-mt-itc-itc``,
+      ``opus-mt-tc-big-en-cat_oci_spa``) makes it many-to-many: the token is
+      mandatory, and ``TranslationModel`` applies it automatically from
+      ``target_token_template``.
+    - **No** tokens at all (``opus-mt-gmq-en``, ``opus-mt-tc-big-zle-en``,
+      ``opus-mt-tc-big-cat_oci_spa-en``) is not a defect - it means nothing
+      needs disambiguating: a many-source, one-fixed-target export. The
+      fixed target is the repo name's own final segment, but that alone is
+      never trusted (a prior sweep proved family-code-from-name wrong): it
+      has to also be one of the card's own declared languages, with the
+      remaining declared languages becoming the source set. A repo name
+      whose final segment disagrees with the card is refused rather than
+      guessed.
+    """
+    codes, native = _marian_group_languages(repo_id, files, model_id)
+    if codes:
+        entry: Dict[str, object] = {
+            "languages": codes,
+            "target_token_template": ">>{code}<<",
+        }
+        if native:
+            entry["native_codes"] = native
+        return entry
+
+    stem = name[:-len("-onnx")] if name.endswith("-onnx") else name
+    tgt = stem.rsplit("-", 1)[-1]
+    declared = {str(code) for code in (declared_langs or ())}
+    srcs = sorted(declared - {tgt})
+    if not srcs or tgt not in declared:
+        raise SkipRepo(
+            f"{name!r} is a group model with no >>xxx<< target token and "
+            f"its final name segment {tgt!r} does not agree with the "
+            f"card's declared languages {sorted(declared)}; refusing to "
+            f"guess the fixed target")
+    return {"src_languages": srcs, "tgt_languages": [tgt]}
+
+
 def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict]:
     """Every precision variant of one translation repo."""
     name = repo_id.split("/")[1]
@@ -1103,71 +1171,43 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
         shared["target_token_template"] = "<2{code}>"
         if native_codes:
             shared["native_codes"] = native_codes
-    elif arch == "marian" and name.startswith("opus-mt-tc-big-cat_oci_spa-en"):
+    elif arch == "marian" and (name.startswith("opus-mt-tc-big-cat_oci_spa-en")
+                               or name.startswith("opus-mt-tc-big-en-cat_oci_spa")):
         # `_marian_pair`'s regex only matches a plain `opus-mt-XX-YY` name;
-        # this one has a `tc-big-` infix and an underscore-joined
-        # macro-language side (`cat_oci_spa` = Catalan+Occitan+Spanish), so it
-        # never reaches `_marian_pair` or `_marian_group_languages` (which
-        # only fires on a `GroupModel` ISO 639-5 *collection* code, and
-        # `cat_oci_spa` is not one - it is three concatenated real codes).
-        # Inspected directly instead: `vocab.json` has zero `>>xxx<<` tokens,
-        # so there is nothing to disambiguate - many sources, one fixed
-        # target. See `_KNOWN_UNRESOLVED_GROUP_MODELS` above for the evidence.
-        if "vocab.json" not in files:
-            raise SkipRepo("no vocab.json to check for >>xxx<< target tokens")
-        vocab = json.loads(raw_file(repo_id, "vocab.json"))
-        if any(_TARGET_TOKEN_RE.fullmatch(key) for key in vocab):
-            raise SkipRepo(
-                f"{name!r} was expected to have no >>xxx<< target tokens "
-                f"(many-source, one-target); it has some, so the "
-                f"single-target assumption no longer holds - re-inspect "
-                f"before registering")
-        stem = name[:-len("-onnx")] if name.endswith("-onnx") else name
-        tgt = stem.rsplit("-", 1)[-1]
-        declared = {str(code) for code in declared_langs}
-        srcs = sorted(declared - {tgt})
-        if not srcs or tgt not in declared:
-            raise SkipRepo(
-                f"{name!r} is a group model with no >>xxx<< target token "
-                f"and its final name segment {tgt!r} does not agree with "
-                f"the card's declared languages {sorted(declared)}; "
-                f"refusing to guess the fixed target")
-        shared["src_languages"] = srcs
-        shared["tgt_languages"] = [tgt]
-    elif arch == "marian" and name.startswith("opus-mt-tc-big-en-cat_oci_spa"):
-        # The reverse direction: one source (`en`), an underscore-joined
-        # macro-language target side. Same regex miss as above, but this
-        # checkpoint's `vocab.json` *does* carry `>>cat<<`/`>>oci<<`/`>>spa<<`
-        # - a real `>>xxx<<` target-token set, exactly what
-        # `_marian_group_languages` reads (it only cares about the
-        # vocabulary, never the repo name), so it is reused here directly
-        # rather than duplicated.
-        codes, native = _marian_group_languages(repo_id, files, model_id)
-        shared["languages"] = codes
-        shared["target_token_template"] = ">>{code}<<"
-        if native:
-            shared["native_codes"] = native
+        # these two have a `tc-big-` infix and an underscore-joined
+        # macro-language side (`cat_oci_spa` = Catalan+Occitan+Spanish), which
+        # is not an ISO 639-5 *collection* code (`tag_scope("cat_oci_spa")` is
+        # `None`) - so they never raise `GroupModel` either. Handled through
+        # the same `_marian_group_entry` the `GroupModel` branch below uses -
+        # it reads real coverage from `vocab.json` regardless of why the name
+        # didn't parse as a plain pair.
+        shared.update(_marian_group_entry(repo_id, name, files, declared_langs, model_id))
     elif arch == "marian":
         try:
             pair, base, token = _marian_pair(name, readme, detail)
         except GroupModel as err:
-            # A family model (`opus-mt-itc-itc`): any-to-any inside the
-            # family, target chosen by a `>>xxx<<` prefix token, read from the
-            # export's own vocabulary. Same shape as the `<2xx>` multilingual
-            # Marian above, different token spelling.
-            codes, native = _marian_group_languages(repo_id, files, model_id)
-            shared["languages"] = codes
-            shared["target_token_template"] = ">>{code}<<"
-            if native:
-                shared["native_codes"] = native
+            # A family/collection-code model (`opus-mt-itc-itc`,
+            # `opus-mt-gmq-en`, `opus-mt-tc-big-zle-en`): any-to-any inside
+            # the family if its vocabulary carries `>>xxx<<` tokens
+            # (target chosen by the mandatory prefix), or many-source/
+            # one-fixed-target if it carries none at all (nothing to
+            # disambiguate - see `_marian_group_entry`).
+            shared.update(_marian_group_entry(repo_id, name, files, declared_langs, model_id))
             base_match = _BASE_MODEL_RE.search(readme)
             if base_match:
                 shared["base_model"] = f"Helsinki-NLP/{base_match.group(1)}"
-            shared["notes"] = (
-                f"opus-mt group model ({err}). Any-to-any across the "
-                f"{len(codes)} languages its own vocabulary carries a "
-                f">>xxx<< target token for; the token is mandatory and is "
-                f"applied automatically.")
+            if "languages" in shared:
+                shared["notes"] = (
+                    f"opus-mt group model ({err}). Any-to-any across the "
+                    f"{len(shared['languages'])} languages its own vocabulary "
+                    f"carries a >>xxx<< target token for; the token is "
+                    f"mandatory and is applied automatically.")
+            else:
+                shared["notes"] = (
+                    f"opus-mt group model ({err}). Many sources, one fixed "
+                    f"target ({shared['tgt_languages'][0]!r}); its vocabulary "
+                    f"carries no >>xxx<< token, so there is nothing to "
+                    f"disambiguate.")
         else:
             shared["pair"] = pair
             shared["base_model"] = base if "/" in base else f"Helsinki-NLP/{base}"
@@ -1356,10 +1396,20 @@ def _sorted_json(registry: Dict[str, dict]) -> str:
                       sort_keys=False) + "\n"
 
 
-def build() -> Tuple[Dict[str, dict], Dict[str, dict], List[Tuple[str, str]]]:
+#: Where `test_registry_invariants.py` reads the one fact not derivable from
+#: the committed registry JSON: what each repo's own Hub card declares.
+#: Written by this script (see `build`/`main`) so it never goes stale by
+#: hand-editing - a repo missing from it would make the card-bound-coverage
+#: tests skip exactly the entry they exist to catch.
+CARD_LANGUAGES_PATH = REPO_ROOT / "test" / "data" / "hub_card_languages.json"
+
+
+def build() -> Tuple[Dict[str, dict], Dict[str, dict], List[Tuple[str, str]],
+                     Dict[str, List[str]]]:
     translate: Dict[str, dict] = {}
     lid: Dict[str, dict] = {}
     skipped: List[Tuple[str, str]] = []
+    card_languages: Dict[str, List[str]] = {}
 
     repos = list_repos()
     for index, summary in enumerate(sorted(repos, key=lambda r: r["id"]), 1):
@@ -1370,6 +1420,14 @@ def build() -> Tuple[Dict[str, dict], Dict[str, dict], List[Tuple[str, str]]]:
         except Exception as err:
             skipped.append((repo_id, f"detail fetch failed: {err}"))
             continue
+        # Every repo gets a key, even when its card declares no language list
+        # at all (MADLAD's does not) - `None` there is itself the fact the
+        # invariant tests need: "the card says nothing", not "not looked up
+        # yet". Only a real list becomes a list of codes.
+        declared = (detail.get("cardData") or {}).get("language")
+        card_languages[repo_id] = ([str(code) for code in declared]
+                                   if isinstance(declared, list) and declared
+                                   else None)
         files = _files_of(detail)
         kind = classify(files)
         if kind is None:
@@ -1384,7 +1442,7 @@ def build() -> Tuple[Dict[str, dict], Dict[str, dict], List[Tuple[str, str]]]:
             skipped.append((repo_id, str(err)))
         except Exception as err:
             skipped.append((repo_id, f"{type(err).__name__}: {err}"))
-    return translate, lid, skipped
+    return translate, lid, skipped, card_languages
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -1394,7 +1452,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                              "differs from what the Hub now says")
     args = parser.parse_args(argv)
 
-    translate, lid, skipped = build()
+    translate, lid, skipped, card_languages = build()
     if not translate or not lid:
         print("refusing to write an empty registry; is the Hub reachable?",
               file=sys.stderr)
@@ -1420,6 +1478,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         else:
             skipped_path.write_text(skipped_text, encoding="utf-8")
             print(f"skipped.json: wrote {len(skipped)} entries")
+
+    # test_registry_invariants.py's card-bound-coverage tests need this cache
+    # to include every repo the registry currently cites, or they silently
+    # skip exactly the entry they exist to catch (see CARD_LANGUAGES_PATH).
+    card_text = json.dumps(dict(sorted(card_languages.items())), indent=2,
+                           ensure_ascii=False) + "\n"
+    card_current = CARD_LANGUAGES_PATH.read_text(encoding="utf-8") \
+        if CARD_LANGUAGES_PATH.exists() else ""
+    if card_current != card_text:
+        drift = True
+        if args.check:
+            print("hub_card_languages.json: DRIFT - the cached card "
+                  "languages changed", file=sys.stderr)
+        else:
+            CARD_LANGUAGES_PATH.write_text(card_text, encoding="utf-8")
+            print(f"hub_card_languages.json: wrote {len(card_languages)} entries")
 
     for kind, generated in (("translate", translate), ("lid", lid)):
         path = INDEX_DIR / f"{kind}.json"

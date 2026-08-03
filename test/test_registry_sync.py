@@ -335,6 +335,42 @@ def test_opus_mt_tc_big_cat_oci_spa_en_is_directional_not_multi_target():
     assert "target_token_template" not in entry
 
 
+#: Two more many-source/one-fixed-target group models, found by a live
+#: registry audit after the three above were resolved: same shape as
+#: `opus-mt-tc-big-cat_oci_spa-en`, but reached through `_marian_pair`'s
+#: `GroupModel` path (their family code - `gmq` Scandinavian, `zle`
+#: East-Slavic - IS a recognised ISO 639-5 collection, unlike `cat_oci_spa`),
+#: not the underscore-joined-name special case. Both resolve through the same
+#: `_marian_group_entry` with no per-repo code.
+_DIRECTIONAL_GROUP_MODELS_NO_TOKEN = ("opus-mt-gmq-en", "opus-mt-tc-big-zle-en")
+
+
+@pytest.mark.parametrize("model_id", _DIRECTIONAL_GROUP_MODELS_NO_TOKEN)
+def test_directional_group_models_with_no_token_are_registered(model_id):
+    """A group model whose vocabulary has zero `>>xxx<<` tokens is not
+    broken - it is many-to-one, with nothing to disambiguate. Generalises
+    the `cat_oci_spa-en` case rather than special-casing it alone."""
+    assert model_id in TRANSLATE, f"{model_id} is still unregistered"
+    entry = TRANSLATE[model_id]
+    assert entry["arch"] == "marian"
+    assert not entry.get("pair")
+    assert entry.get("tgt_languages") == ["en"]
+    assert entry.get("src_languages")
+    assert "target_token_template" not in entry
+
+
+def test_m2m100_en_hau_finetune_is_registered_as_a_bilingual_pair():
+    """Same shape as the other Masakhane m2m100_418M_*_rel_news_ft
+    fine-tunes already in BILINGUAL_FINETUNES: card names exactly en/ha,
+    and the export's own generation_config.json bakes in forced_bos_token_id
+    - so no per-call target token is needed, same as its siblings."""
+    entry = TRANSLATE.get("m2m100_418M_en_hau_rel_news_ft")
+    if entry is None:
+        pytest.skip("m2m100_418M_en_hau_rel_news_ft is not registered")
+    assert entry["arch"] == "m2m100"
+    assert entry["pair"] == ["en", "ha"]
+
+
 # ---------------------------------------------------------------------------
 # Unit tests for the arch-detection logic itself
 # ---------------------------------------------------------------------------

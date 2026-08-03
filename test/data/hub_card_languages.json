@@ -1,6 +1,38 @@
 {
+  "TigreGotico/aina-translator-ca-de-onnx": [
+    "ca",
+    "de"
+  ],
+  "TigreGotico/aina-translator-ca-en-onnx": [
+    "ca",
+    "en"
+  ],
+  "TigreGotico/aina-translator-ca-es-onnx": [
+    "ca",
+    "es"
+  ],
+  "TigreGotico/aina-translator-ca-fr-onnx": [
+    "ca",
+    "fr"
+  ],
+  "TigreGotico/aina-translator-ca-it-onnx": [
+    "ca",
+    "it"
+  ],
+  "TigreGotico/aina-translator-ca-pt-onnx": [
+    "ca",
+    "pt"
+  ],
   "TigreGotico/aina-translator-ca-zh-onnx": [
     "zh",
+    "ca"
+  ],
+  "TigreGotico/aina-translator-de-ca-onnx": [
+    "de",
+    "ca"
+  ],
+  "TigreGotico/aina-translator-en-ca-onnx": [
+    "en",
     "ca"
   ],
   "TigreGotico/aina-translator-es-an-onnx": [
@@ -11,9 +43,33 @@
     "es",
     "ast"
   ],
+  "TigreGotico/aina-translator-es-ca-onnx": [
+    "es",
+    "ca"
+  ],
   "TigreGotico/aina-translator-es-oc-onnx": [
     "es",
     "oc"
+  ],
+  "TigreGotico/aina-translator-eu-ca-onnx": [
+    "eu",
+    "ca"
+  ],
+  "TigreGotico/aina-translator-fr-ca-onnx": [
+    "fr",
+    "ca"
+  ],
+  "TigreGotico/aina-translator-gl-ca-onnx": [
+    "gl",
+    "ca"
+  ],
+  "TigreGotico/aina-translator-it-ca-onnx": [
+    "it",
+    "ca"
+  ],
+  "TigreGotico/aina-translator-pt-ca-onnx": [
+    "pt",
+    "ca"
   ],
   "TigreGotico/aina-translator-zh-ca-onnx": [
     "zh",
@@ -123,6 +179,10 @@
   "TigreGotico/m2m100_418M_bbj_fr_rel_news_ft-onnx": [
     "bbj",
     "fr"
+  ],
+  "TigreGotico/m2m100_418M_en_hau_rel_news_ft-onnx": [
+    "en",
+    "ha"
   ],
   "TigreGotico/m2m100_418M_fon_fr_rel_news_ft-onnx": [
     "fon",
@@ -412,6 +472,14 @@
     "gl",
     "pt"
   ],
+  "TigreGotico/opus-mt-gmq-en-onnx": [
+    "da",
+    "sv",
+    "is",
+    "nb",
+    "fo",
+    "en"
+  ],
   "TigreGotico/opus-mt-it-en-onnx": [
     "it",
     "en"
@@ -458,6 +526,37 @@
     "ru",
     "en"
   ],
+  "TigreGotico/opus-mt-tc-big-cat_oci_spa-en-onnx": [
+    "ca",
+    "oc",
+    "es",
+    "en"
+  ],
+  "TigreGotico/opus-mt-tc-big-en-cat_oci_spa-onnx": [
+    "ca",
+    "en",
+    "es",
+    "oc"
+  ],
+  "TigreGotico/opus-mt-tc-big-itc-itc-onnx": [
+    "ast",
+    "ca",
+    "es",
+    "fr",
+    "gl",
+    "it",
+    "lad",
+    "oc",
+    "pms",
+    "pt",
+    "ro"
+  ],
+  "TigreGotico/opus-mt-tc-big-zle-en-onnx": [
+    "be",
+    "ru",
+    "uk",
+    "en"
+  ],
   "TigreGotico/opus-mt-tr-en-onnx": [
     "tr",
     "en"
@@ -469,5 +568,13 @@
   "TigreGotico/opus-mt-zh-en-onnx": [
     "zh",
     "en"
+  ],
+  "TigreGotico/translate-eus-cat-onnx": [
+    "eu",
+    "ca"
+  ],
+  "TigreGotico/translate-oci-cat-onnx": [
+    "oc",
+    "ca"
   ]
 }
