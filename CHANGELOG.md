@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0a1](https://github.com/TigreGotico/linguonnx/tree/0.7.0a1) (2026-08-03)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.6.4a1...0.7.0a1)
+
+**Merged pull requests:**
+
+- feat: relocate the model cache with LINGUONNX\_CACHE [\#43](https://github.com/TigreGotico/linguonnx/pull/43) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.6.4a1](https://github.com/TigreGotico/linguonnx/tree/0.6.4a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.6.3a1...0.6.4a1)
