@@ -64,6 +64,7 @@ def _madlad_model(entry_extra=None):
     model._tokenizer = _RecordingTokenizer()
     model._decoder = _StubDecoder()
     model._files = model._config = None
+    model._banned_token_ids = frozenset()
     return model
 
 

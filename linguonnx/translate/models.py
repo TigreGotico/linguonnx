@@ -38,9 +38,9 @@ import json
 import logging
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, FrozenSet, List, Optional, Sequence, Tuple
 
-from linguonnx.limits import MAX_ENCODER_TOKENS
+from linguonnx.limits import MAX_ENCODER_TOKENS, DecodeError, has_visible_content
 from linguonnx.model_manager import ensure_model_files, registry_entry
 from linguonnx.translate.decode import GenerationConfig, Seq2SeqDecoder
 from linguonnx.translate.graph import Capability, normalize_tag
@@ -99,6 +99,7 @@ class TranslationModel:
         self._decoder: Optional[Seq2SeqDecoder] = None
         self._tokenizer = None
         self._config: Optional[Dict] = None
+        self._banned_token_ids: Optional[FrozenSet[int]] = None
         # model code <-> BCP-47, both ways, built from the registry's own list.
         self._to_native: Dict[str, str] = {}
         for code in self.entry.get("languages", ()):
@@ -131,6 +132,36 @@ class TranslationModel:
             with open(self.files["config"], encoding="utf-8") as handle:
                 self._config = json.load(handle)
         return self._config
+
+    @property
+    def banned_token_ids(self) -> FrozenSet[int]:
+        """Single-token ids this model's own ``generation_config.json`` bans.
+
+        HiTZ's Marian exports (and others) carry ``bad_words_ids`` for exactly
+        the failure this guards against: the decoder's own
+        ``decoder_start_token_id``/``pad_token_id`` occasionally outscores
+        every real word at generation step 1, and upstream already named the
+        id to ban - a plain generation loop just has to read it. Multi-token
+        entries are a `transformers` phrase-ban feature this decoder does not
+        implement; they are skipped rather than silently truncated to their
+        first id, which could ban a token this model needs.
+        """
+        if self._banned_token_ids is None:
+            banned: set = set()
+            path = self.files.get("generation_config")
+            if path is not None and path.exists():
+                with open(path, encoding="utf-8") as handle:
+                    gen_config = json.load(handle)
+                for entry in gen_config.get("bad_words_ids") or ():
+                    if isinstance(entry, (list, tuple)) and len(entry) == 1:
+                        banned.add(int(entry[0]))
+                    else:
+                        LOG.warning(
+                            "%s: ignoring multi-token bad_words_ids entry %r; "
+                            "linguonnx's decoder only bans single tokens",
+                            self.model_id, entry)
+            self._banned_token_ids = frozenset(banned)
+        return self._banned_token_ids
 
     @property
     def tokenizer(self):
@@ -201,6 +232,7 @@ class TranslationModel:
                   target_token: Optional[str] = None) -> str:
         if not text.strip():
             return ""
+        config = config or GenerationConfig()
         # A multi-target Marian group model (opus-mt-en-sla and friends) picks
         # its target language from a prefix token, and picks it *wrong* when
         # the token is absent - fluently, with nothing raised. The registry
@@ -222,13 +254,35 @@ class TranslationModel:
                         or self.pipeline.default_target_token_template)
             if template:
                 target_token = template.format(code=self.native_code(tgt))
+        banned = self.banned_token_ids
+        if banned - config.banned_token_ids:
+            # Merge rather than replace: a caller-supplied config may already
+            # carry its own bans, and neither side should silently win.
+            config = GenerationConfig(
+                max_new_tokens=config.max_new_tokens, num_beams=config.num_beams,
+                length_penalty=config.length_penalty,
+                no_repeat_ngram_size=config.no_repeat_ngram_size,
+                early_stopping=config.early_stopping,
+                banned_token_ids=config.banned_token_ids | banned)
         pipeline = self.pipeline
         input_ids = pipeline.encode(self, text, src, tgt,
                                     target_token=target_token)
         output_ids = self.decoder.generate(
             input_ids, forced_bos_token_id=pipeline.forced_bos(self, tgt),
             config=config)
-        return pipeline.decode(self, output_ids, src, tgt)
+        result = pipeline.decode(self, output_ids, src, tgt)
+        if not has_visible_content(result):
+            # The decoder produced *something* (empty `output_ids` already
+            # raises DecodeError inside Seq2SeqDecoder) but every token it
+            # emitted was a special one the tokenizer strips on the way out -
+            # exactly what a real decode failure looks like from here, and
+            # exactly indistinguishable from "" if it were let through. See
+            # linguonnx#42: mt-hitz-gl-eu did this for every input, silently,
+            # behind an HTTP 200.
+            raise DecodeError(
+                f"{self.model_id} produced no visible output translating "
+                f"{src!r} -> {tgt!r}; decoding emitted only special tokens")
+        return result
 
 
 @lru_cache(maxsize=None)
