@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.0a2](https://github.com/TigreGotico/linguonnx/tree/0.8.0a2) (2026-08-03)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.0a1...0.8.0a2)
+
+**Merged pull requests:**
+
+- ci: pass PYPI\_TOKEN explicitly to the reusable publish workflows [\#51](https://github.com/TigreGotico/linguonnx/pull/51) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.8.0a1](https://github.com/TigreGotico/linguonnx/tree/0.8.0a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.7.1a1...0.8.0a1)
