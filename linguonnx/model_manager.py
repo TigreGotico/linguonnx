@@ -242,6 +242,30 @@ def ensure_model_files(model_id: str, kind: str = "lid",
     return paths
 
 
+def is_cached(model_id: str, kind: str = "lid") -> bool:
+    """Whether every file ``model_id`` needs is already on disk.
+
+    Answers "would using this model cost a download?" without performing one,
+    and without contacting the hub. Routing under a size budget asks this for
+    models it is about to exclude: a model already in the cache is free to use
+    however big it is, and refusing it would buy nothing.
+
+    A model that is not in the registry is not cached, because nothing here can
+    say which files it would need.
+    """
+    try:
+        entry = registry_entry(model_id, kind)
+    except ValueError:
+        return False
+    dest_dir = MODELS_DIR / model_id
+    try:
+        return all(not _is_missing_or_empty(_safe_dest(dest_dir, name))
+                   for _, name in _entry_files(entry))
+    except UnsafeRegistryPathError:
+        # An entry that cannot be fetched safely can never be cached by us.
+        return False
+
+
 def prefetch(*model_ids: str, kind: str = "lid",
              enforce_budget: bool = False) -> Dict[str, Dict[str, Path]]:
     """Warm the cache for ``model_ids`` before any request needs them.

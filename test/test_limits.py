@@ -145,3 +145,27 @@ class TestHSTreeValidation:
             combine(np.array([0.5], dtype=np.float32))
         assert "needs 2 nodes" in str(err.value)
         assert "outputs 1" in str(err.value)
+
+
+class TestOptionalIntLimits:
+    """`MAX_MODEL_MB` has no default, so "unset" must stay readable as absent."""
+
+    def test_an_unset_variable_is_none(self, monkeypatch):
+        from linguonnx import limits
+
+        monkeypatch.delenv("LINGUONNX_MAX_MODEL_MB", raising=False)
+        assert limits._env_optional_int("LINGUONNX_MAX_MODEL_MB") is None
+
+    def test_a_set_variable_is_read(self, monkeypatch):
+        from linguonnx import limits
+
+        monkeypatch.setenv("LINGUONNX_MAX_MODEL_MB", "500")
+        assert limits._env_optional_int("LINGUONNX_MAX_MODEL_MB") == 500
+
+    @pytest.mark.parametrize("value", ["0", "-1", "big"])
+    def test_junk_is_refused_rather_than_ignored(self, monkeypatch, value):
+        from linguonnx import limits
+
+        monkeypatch.setenv("LINGUONNX_MAX_MODEL_MB", value)
+        with pytest.raises(ValueError, match="LINGUONNX_MAX_MODEL_MB"):
+            limits._env_optional_int("LINGUONNX_MAX_MODEL_MB")

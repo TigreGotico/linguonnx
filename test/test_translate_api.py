@@ -171,6 +171,53 @@ def test_max_hops_is_settable_per_call_and_per_translator(tx):
         strict.route("pt", "eu")
 
 
+def test_the_size_budget_is_settable_per_call_and_per_translator(tx):
+    """Same shape as max_hops: constructor value, per-call override."""
+    assert tx.max_model_mb is None
+    assert tx.route("pt", "ru").model_ids == ("multi",)
+    assert tx.route("pt", "ru", max_model_mb=500).model_ids == ("pt-en", "en-ru")
+    frugal = Translator(REGISTRY, max_model_mb=500)
+    assert frugal.max_model_mb == 500
+    assert frugal.route("pt", "ru").model_ids == ("pt-en", "en-ru")
+    # Omitting inherits; None lifts.
+    assert frugal.route("pt", "ru", max_model_mb=None).model_ids == ("multi",)
+
+
+def test_available_languages_follows_the_budget(monkeypatch):
+    """What the translator advertises is what it can serve, cap included."""
+    monkeypatch.setattr("linguonnx.model_manager.is_cached",
+                        lambda model_id, kind="lid": False)
+    frugal = Translator(REGISTRY, max_model_mb=500)
+    assert "es" in Translator(REGISTRY).available_languages
+    assert "es" not in frugal.available_languages   # only `multi` has Spanish
+    assert frugal.can_translate("pt", "es") is False
+
+
+def test_translating_under_a_budget_runs_the_chain(tx):
+    out = tx.translate("olá", src="pt", tgt="ru", max_model_mb=500)
+    assert out == "olá|pt-en:pt->en|en-ru:en->ru"
+
+
+def test_a_cached_model_stays_usable_over_the_budget(monkeypatch):
+    """The budget is on the download; `count_cached_as_free` says so."""
+    monkeypatch.setattr("linguonnx.model_manager.is_cached",
+                        lambda model_id, kind="lid": model_id == "multi")
+    assert Translator(REGISTRY, max_model_mb=500).route(
+        "pt", "ru").model_ids == ("multi",)
+    strict = Translator(REGISTRY, max_model_mb=500, count_cached_as_free=False)
+    assert strict.count_cached_as_free is False
+    assert strict.route("pt", "ru").model_ids == ("pt-en", "en-ru")
+
+
+def test_load_translator_takes_a_budget(monkeypatch):
+    monkeypatch.setattr("linguonnx.model_manager.is_cached",
+                        lambda model_id, kind="lid": False)
+    tx = load_translator(max_model_mb=500)
+    assert tx.max_model_mb == 500
+    assert all(hop.size_mb <= 500 for hop in tx.route("pt", "ru").hops)
+    assert tx.route("pt", "ru").download_size_mb < 500
+
+
 # --- the shipped registry --------------------------------------------------
 
 def test_default_graph_is_permissive_and_int8():

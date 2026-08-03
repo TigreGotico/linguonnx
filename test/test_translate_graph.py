@@ -579,3 +579,272 @@ def test_routing_over_an_asymmetric_capability_respects_its_direction():
     assert graph.route("en", "hi").hops[0].model_id == "src-only"
     with pytest.raises(NoRouteError):
         graph.route("hi", "en")
+
+
+# --- per-model size budget -------------------------------------------------
+#
+# `count_cached_as_free` defaults to True, and the fixtures below are models
+# that no registry knows, so `is_cached` answers False for all of them and the
+# cap applies. The cached path gets its own tests, with the cache stubbed.
+
+BIG_MULTI = Capability(model_id="big-multi", arch="madlad", license="Apache-2.0",
+                       license_tier="permissive", size_mb=4945,
+                       languages=frozenset({"pt", "en", "ru", "ja"}))
+SMALL_PT_EN = marian("pt", "en", size=80)
+SMALL_EN_RU = marian("en", "ru", size=80)
+
+
+@pytest.fixture
+def capped():
+    """One 4.9 GB model that does pt->ru directly, plus two 80 MB models."""
+    return [BIG_MULTI, SMALL_PT_EN, SMALL_EN_RU]
+
+
+def test_without_a_cap_the_big_model_wins_in_one_hop(capped):
+    route = TranslationGraph(capped).route("pt", "ru")
+    assert route.model_ids == ("big-multi",)
+
+
+def test_a_cap_forces_a_chain_of_small_models(capped):
+    route = TranslationGraph(capped, max_model_mb=500).route("pt", "ru")
+    assert route.model_ids == ("opus-pt-en", "opus-en-ru")
+    assert route.pivots == ("en",)
+
+
+def test_every_hop_of_the_chain_fits_the_cap(capped):
+    route = TranslationGraph(capped, max_model_mb=500).route("pt", "ru")
+    assert all(hop.size_mb <= 500 for hop in route.hops)
+
+
+def test_the_cap_applies_to_routes_as_well_as_route(capped):
+    graph = TranslationGraph(capped, max_model_mb=500)
+    assert all("big-multi" not in r.model_ids for r in graph.routes("pt", "ru"))
+
+
+def test_available_languages_agrees_with_what_the_cap_can_serve(capped):
+    """A language only the excluded model reaches is not advertised."""
+    graph = TranslationGraph(capped, max_model_mb=500)
+    assert "ja" not in graph.languages
+    assert graph.can_translate("pt", "ja") is False
+    with pytest.raises(NoRouteError):
+        graph.route("pt", "ja")
+
+
+def test_every_advertised_language_is_actually_routable_under_a_cap(capped):
+    """`languages` and `route` must not disagree, in either direction."""
+    graph = TranslationGraph(capped, max_model_mb=500)
+    for src in graph.languages:
+        assert any(graph.can_translate(src, tgt)
+                   or graph.can_translate(tgt, src)
+                   for tgt in graph.languages if tgt != src)
+
+
+def test_the_cap_is_a_per_call_override_like_max_hops(capped):
+    graph = TranslationGraph(capped)
+    assert graph.route("pt", "ru", max_model_mb=500).n_hops == 2
+    assert graph.route("pt", "ru").n_hops == 1
+
+
+def test_a_per_call_none_lifts_a_cap_the_graph_was_built_with(capped):
+    """`None` is "no cap", so it cannot also mean "inherit"; omitting does that."""
+    graph = TranslationGraph(capped, max_model_mb=500)
+    assert graph.route("pt", "ru", max_model_mb=None).model_ids == ("big-multi",)
+    assert graph.route("pt", "ru").model_ids != ("big-multi",)
+
+
+def test_languages_under_answers_for_a_per_call_cap(capped):
+    graph = TranslationGraph(capped)
+    assert "ja" in graph.languages
+    assert "ja" not in graph.languages_under(500)
+
+
+def test_can_translate_honours_a_per_call_cap(capped):
+    graph = TranslationGraph(capped)
+    assert graph.can_translate("pt", "ja") is True
+    assert graph.can_translate("pt", "ja", max_model_mb=500) is False
+
+
+@pytest.mark.parametrize("cap", [0, -1])
+def test_a_cap_below_one_is_rejected(capped, cap):
+    with pytest.raises(ValueError):
+        TranslationGraph(capped, max_model_mb=cap)
+    with pytest.raises(ValueError):
+        TranslationGraph(capped).route("pt", "ru", max_model_mb=cap)
+
+
+def test_the_environment_supplies_the_default_cap(monkeypatch, capped):
+    monkeypatch.setattr("linguonnx.translate.graph.MAX_MODEL_MB", 500)
+    assert TranslationGraph(capped).route("pt", "ru").n_hops == 2
+    # An explicit None still overrules the environment.
+    assert TranslationGraph(capped, max_model_mb=None).route("pt", "ru").n_hops == 1
+
+
+def test_the_excluded_model_is_remembered_not_dropped(capped):
+    graph = TranslationGraph(capped, max_model_mb=500)
+    assert [c.model_id for c in graph.oversized_capabilities] == ["big-multi"]
+
+
+# --- what the cap does to the error ---------------------------------------
+
+def test_no_route_names_the_size_cap_when_that_is_what_bound(capped):
+    graph = TranslationGraph(capped, max_model_mb=500)
+    with pytest.raises(NoRouteError) as err:
+        graph.route("pt", "ja")
+    assert "size cap" in str(err.value)
+    assert "big-multi" in str(err.value)
+    assert "4945 MB" in str(err.value)
+
+
+def test_no_route_does_not_blame_the_cap_for_a_pair_nothing_covers(capped):
+    graph = TranslationGraph(capped, max_model_mb=500)
+    with pytest.raises(NoRouteError) as err:
+        graph.route("pt", "kab")
+    assert "size cap" not in str(err.value)
+
+
+def test_no_route_does_not_mention_the_cap_when_there_is_none(capped):
+    with pytest.raises(NoRouteError) as err:
+        TranslationGraph(capped).route("pt", "kab")
+    assert "size cap" not in str(err.value)
+
+
+def test_the_hop_cap_is_named_when_it_is_the_binding_one(capped):
+    """A cap that costs a hop must not silently buy the hop back."""
+    graph = TranslationGraph(capped, max_model_mb=500, max_hops=1)
+    with pytest.raises(NoRouteError) as err:
+        graph.route("pt", "ru")
+    message = str(err.value)
+    assert "max_hops=1" in message
+    assert "2-hop route exists" in message
+
+
+# --- download cost, not memory cost ---------------------------------------
+
+def _stub_cache(monkeypatch, *cached_ids):
+    monkeypatch.setattr("linguonnx.model_manager.is_cached",
+                        lambda model_id, kind="lid": model_id in cached_ids)
+
+
+def test_a_cached_model_is_exempt_from_the_cap_by_default(monkeypatch, capped):
+    """The budget is on the download, and a cached model costs no download."""
+    _stub_cache(monkeypatch, "big-multi")
+    graph = TranslationGraph(capped, max_model_mb=500)
+    assert graph.route("pt", "ru").model_ids == ("big-multi",)
+    assert graph.can_translate("pt", "ja") is True
+
+
+def test_count_cached_as_free_false_applies_the_cap_regardless(monkeypatch, capped):
+    """The other reading of the same number: a small disk, not a slow link."""
+    _stub_cache(monkeypatch, "big-multi")
+    graph = TranslationGraph(capped, max_model_mb=500,
+                             count_cached_as_free=False)
+    assert graph.route("pt", "ru").model_ids == ("opus-pt-en", "opus-en-ru")
+    assert graph.can_translate("pt", "ja") is False
+
+
+def test_count_cached_as_free_is_a_per_call_override(monkeypatch, capped):
+    _stub_cache(monkeypatch, "big-multi")
+    graph = TranslationGraph(capped, max_model_mb=500)
+    assert graph.route("pt", "ru", count_cached_as_free=False).n_hops == 2
+    assert graph.route("pt", "ru").n_hops == 1
+
+
+def test_an_uncached_oversized_model_is_excluded_either_way(monkeypatch, capped):
+    _stub_cache(monkeypatch)   # nothing is cached
+    for free in (True, False):
+        graph = TranslationGraph(capped, max_model_mb=500,
+                                 count_cached_as_free=free)
+        assert graph.route("pt", "ru").n_hops == 2
+
+
+def test_a_capability_outside_the_registry_is_never_cached():
+    """`is_cached` cannot invent the file list of a model it does not know."""
+    assert BIG_MULTI.is_cached is False
+
+
+# --- what a route costs to fetch ------------------------------------------
+
+def test_a_route_reports_its_download_size(monkeypatch, capped):
+    _stub_cache(monkeypatch)
+    route = TranslationGraph(capped).route("pt", "ru")
+    assert route.download_size_mb == 4945
+    assert route.cached_size_mb == 0
+
+
+def test_a_cached_route_costs_no_download(monkeypatch, capped):
+    _stub_cache(monkeypatch, "big-multi")
+    route = TranslationGraph(capped).route("pt", "ru")
+    assert route.download_size_mb == 0
+    assert route.cached_size_mb == 4945
+
+
+def test_a_partly_cached_chain_splits_its_cost(monkeypatch, capped):
+    _stub_cache(monkeypatch, "opus-pt-en")
+    route = TranslationGraph(capped, max_model_mb=500).route("pt", "ru")
+    assert route.cached_size_mb == 80
+    assert route.download_size_mb == 80
+    assert route.models_size_mb == 160
+
+
+def test_a_model_used_twice_is_downloaded_once(monkeypatch):
+    """Per-hop `total_size_mb` double-counts on purpose; the fetch cost cannot."""
+    _stub_cache(monkeypatch)
+    both = Capability(model_id="multi", arch="m2m100", license="MIT",
+                      license_tier="permissive", size_mb=1200,
+                      languages=frozenset({"pt", "xx"}))
+    graph = TranslationGraph([both, marian("xx", "ru", size=80)])
+    route = graph.routes("pt", "ru")[0]
+    assert route.model_ids == ("multi", "opus-xx-ru")
+    assert route.download_size_mb == 1280
+    assert route.models_size_mb == route.total_size_mb == 1280
+
+
+def test_download_and_cached_sizes_always_add_up(monkeypatch, capped):
+    _stub_cache(monkeypatch, "opus-en-ru")
+    route = TranslationGraph(capped, max_model_mb=500).route("pt", "ru")
+    assert route.download_size_mb + route.cached_size_mb == route.models_size_mb
+
+
+# --- the cap against the real registry ------------------------------------
+
+def test_a_cap_trades_long_tail_languages_for_short_chains():
+    """What a cap really costs on the shipped registry.
+
+    Two things are true at once and both have to be tested, because only the
+    first one is obvious. A chain of small bilingual models replaces the big
+    multilingual hop for the pairs those bilingual models exist for - and for
+    the long tail they do not exist for, nothing replaces it: MADLAD is the
+    only model in the registry that has Chuvash at all. So the cap keeps the
+    well-served pairs routable and drops the tail, rather than trimming the
+    model list evenly.
+    """
+    from linguonnx.model_manager import list_models
+    from linguonnx.translate.models import capability_from_entry
+    caps = [capability_from_entry(e) for e in list_models(kind="translate").values()
+            if e["precision"] == "int8" and e["license_tier"] != "non-commercial"]
+    # count_cached_as_free=False: whether this host happens to hold MADLAD must
+    # not decide what the test measures.
+    full = TranslationGraph(caps, count_cached_as_free=False)
+    small = TranslationGraph(caps, max_model_mb=500, count_cached_as_free=False)
+    assert len(small.languages) < len(full.languages) / 4
+    assert all(cap.size_mb > 500 for cap in small.oversized_capabilities)
+    # pt->ru was one M2M100 hop; under the cap it is a chain of small models.
+    chain = small.route("pt", "ru")
+    assert chain.n_hops == 2
+    assert all(hop.size_mb <= 500 for hop in chain.hops)
+    assert chain.models_size_mb < 500
+
+
+def test_the_real_registry_advertises_only_what_it_can_route_under_a_cap():
+    """The languages/routes agreement, on the set where it is hard to hold."""
+    from linguonnx.model_manager import list_models
+    from linguonnx.translate.models import capability_from_entry
+    caps = [capability_from_entry(e) for e in list_models(kind="translate").values()
+            if e["precision"] == "int8" and e["license_tier"] != "non-commercial"]
+    small = TranslationGraph(caps, max_model_mb=500, count_cached_as_free=False)
+    dropped = TranslationGraph(caps, count_cached_as_free=False).languages \
+        - small.languages
+    assert dropped, "a 500 MB cap must drop the languages only MADLAD reaches"
+    for lang in sorted(dropped)[:40]:
+        assert not small.can_translate("en", lang)
+        assert not small.can_translate(lang, "en")

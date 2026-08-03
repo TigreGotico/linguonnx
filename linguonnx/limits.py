@@ -33,6 +33,7 @@ __all__ = [
     "MAX_ENCODER_TOKENS",
     "MAX_NUM_BEAMS",
     "MAX_LENGTH_PENALTY",
+    "MAX_MODEL_MB",
     "has_visible_content",
     "check_length",
 ]
@@ -67,6 +68,18 @@ def _env_int(name: str, default: int) -> int:
     return value
 
 
+def _env_optional_int(name: str) -> "int | None":
+    """An integer bound that is simply absent when the variable is unset.
+
+    Distinct from :func:`_env_int`, which always has a default: some bounds
+    have no sensible number to fall back to, and "unset" has to stay
+    distinguishable from "set to something large".
+    """
+    if os.environ.get(name) is None:
+        return None
+    return _env_int(name, 0)
+
+
 #: Characters accepted by :class:`~linguonnx.detect.LanguageDetector`.
 #: Language identification accuracy saturates after a few hundred characters,
 #: so 10,000 is already generous; it is here only to keep the pure-Python
@@ -92,6 +105,17 @@ MAX_ENCODER_TOKENS = _env_int("LINGUONNX_MAX_ENCODER_TOKENS", 1024)
 #: attention cache, re-gathered each step, so cost grows linearly with this
 #: number while translation quality stops improving well below 32.
 MAX_NUM_BEAMS = _env_int("LINGUONNX_MAX_NUM_BEAMS", 32)
+
+#: Largest single model, in MB, that routing may put on a route. ``None``, the
+#: default, is no bound at all.
+#:
+#: Unlike every other limit here this one is a *routing* bound, not an input
+#: bound. It does not truncate or refuse work: the router answers the same
+#: question with a smaller model set, and a pair that needed one 4.9 GB model
+#: is served by a chain of small ones instead. Set it on a host that cannot
+#: afford the download - a Pi, a metered link - and coverage stays, latency
+#: grows. See ``docs/routing.md``.
+MAX_MODEL_MB = _env_optional_int("LINGUONNX_MAX_MODEL_MB")
 
 #: Upper bound on ``length_penalty``. Beyond this the length term dominates
 #: the model score outright and beam ranking stops depending on the model.

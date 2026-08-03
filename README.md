@@ -69,6 +69,13 @@ print(route.pivots)         # ('ca',) — it went through Catalan
 print(route.license_tier)   # 'permissive' — the worst licence on the chain
 ```
 
+A per-model size budget turns a single large hop into a chain of small ones,
+for a host that cannot afford the download:
+
+```python
+frugal = load_translator(max_model_mb=500)   # or LINGUONNX_MAX_MODEL_MB
+```
+
 See [docs/translate.md](docs/translate.md) for the API and
 [docs/routing.md](docs/routing.md) for how a route is chosen.
 
@@ -96,7 +103,8 @@ to opt in.
 - [docs/translate.md](docs/translate.md) — the translation API, and how each
   architecture picks its target language. Get that wrong and nothing raises.
 - [docs/routing.md](docs/routing.md) — capabilities rather than edges, the
-  `prefer` policies, hop caps, pivot ranking, pinning a route yourself.
+  `prefer` policies, hop caps, the size budget, pivot ranking, pinning a route
+  yourself.
 - [docs/models.md](docs/models.md) — the registry, what is in it, and the
   generated `sync_registry.py` workflow that keeps it honest.
 - [docs/licences.md](docs/licences.md) — the licence tiers and what

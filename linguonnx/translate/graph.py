@@ -26,6 +26,27 @@ for the same models ``translate()`` will use - a ``True`` followed by
 first. Which models those are is registry data, never a list of architecture
 names here: see :func:`entry_runnability`.
 
+Size budget
+-----------
+
+``max_model_mb`` bounds the size of a single model on a route. A capability
+over the budget is excluded the same way an unrunnable one is - kept for the
+error message, absent from :meth:`TranslationGraph.route`,
+:meth:`TranslationGraph.routes`, :meth:`TranslationGraph.can_translate` and
+:attr:`TranslationGraph.languages` - so a pair that one 4.9 GB multilingual
+model served in one hop is served by a chain of small bilingual models instead
+of failing.
+
+The budget is on the **download**, so ``count_cached_as_free=True`` (the
+default) exempts a model already in the local cache: refusing something that
+costs no fetch would lose coverage and save nothing. Set it false to bound the
+model rather than the fetch. Both are per-call overridable, like ``max_hops``.
+
+Every structure the search reads is derived in :func:`_build_index`, from one
+capability list, so the budget cannot be applied at some points of the search
+and forgotten at others - which is how ``endpoints()`` and ``covers()`` once
+came to disagree.
+
 Cost model
 ----------
 
@@ -78,10 +99,12 @@ import itertools
 import logging
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import Dict, FrozenSet, Iterable, List, Optional, Sequence, Tuple
+from typing import (Dict, FrozenSet, Iterable, List, Optional, Sequence,
+                    Tuple, Union)
 
 import langcodes
 
+from linguonnx.limits import MAX_MODEL_MB
 from linguonnx.translate import distance as _distance
 
 LOG = logging.getLogger(__name__)
@@ -98,6 +121,7 @@ __all__ = [
     "REGIONAL_PIVOTS",
     "PIVOT_RANKINGS",
     "LICENSE_TIERS",
+    "UNSET",
     "normalize_tag",
     "entry_runnability",
 ]
@@ -296,6 +320,30 @@ class Capability:
     unrunnable_reason: Optional[str] = None
 
     @property
+    def is_cached(self) -> bool:
+        """Whether every file this model needs is already on disk.
+
+        Read through the module rather than imported by name, so a caller (or
+        a test) that replaces :func:`linguonnx.model_manager.is_cached` is
+        honoured.
+        """
+        from linguonnx import model_manager
+
+        return model_manager.is_cached(self.model_id, kind="translate")
+
+    def within_size_cap(self, max_model_mb: Optional[int],
+                        count_cached_as_free: bool = True) -> bool:
+        """Whether this model may be used under a per-model size budget.
+
+        The budget is on the **download**, so a model already in the cache
+        passes however big it is when ``count_cached_as_free`` is true. Set it
+        false to bound the model itself rather than the fetch.
+        """
+        if max_model_mb is None or self.size_mb <= max_model_mb:
+            return True
+        return count_cached_as_free and self.is_cached
+
+    @property
     def is_runnable(self) -> bool:
         """Whether :meth:`TranslationModel.translate` can actually execute this."""
         if self.runnable is not None:
@@ -424,6 +472,51 @@ class Route:
         return sum(hop.size_mb for hop in self.hops)
 
     @property
+    def models_size_mb(self) -> int:
+        """Disk cost of the *distinct* models on the route.
+
+        Differs from :attr:`total_size_mb` when one model serves two hops: it
+        is downloaded once, so it is counted once here.
+        ``total_size_mb`` stays a per-hop sum because it is a cost proxy in
+        the route ranking, where a model used twice really is used twice.
+        """
+        return sum(size for _, size, _ in self._models())
+
+    @property
+    def cached_size_mb(self) -> int:
+        """How much of :attr:`models_size_mb` is already on disk.
+
+        Read at the moment it is asked for, so a route inspected after a
+        ``prefetch`` reports the new state. Each check is a handful of
+        ``stat`` calls; nothing is downloaded and the hub is never contacted.
+        """
+        return sum(size for _, size, cached in self._models() if cached)
+
+    @property
+    def download_size_mb(self) -> int:
+        """What running this route would have to fetch, in MB.
+
+        The number a caller comparing two routes from :meth:`routes` actually
+        needs: a three-hop chain of models it already holds costs nothing,
+        while a one-hop route through a 4.9 GB model it does not costs 4.9 GB.
+        Size alone cannot see that difference.
+        """
+        return sum(size for _, size, cached in self._models() if not cached)
+
+    def _models(self) -> Tuple[Tuple[str, int, bool], ...]:
+        """``(model_id, size_mb, cached)`` once per distinct model, in order."""
+        from linguonnx import model_manager
+
+        seen, out = set(), []
+        for hop in self.hops:
+            if hop.model_id in seen:
+                continue
+            seen.add(hop.model_id)
+            out.append((hop.model_id, hop.size_mb,
+                        model_manager.is_cached(hop.model_id, kind="translate")))
+        return tuple(out)
+
+    @property
     def n_multilingual_hops(self) -> int:
         return sum(0 if hop.dedicated else 1 for hop in self.hops)
 
@@ -447,6 +540,72 @@ def _route_key(route: Route, prefer: str) -> tuple:
         f"unknown routing policy {prefer!r}; use 'fewest_hops' or 'dedicated'")
 
 
+class _Unset:
+    """Type of :data:`UNSET`."""
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return "UNSET"
+
+
+#: Sentinel for "the caller said nothing", where ``None`` is already an
+#: answer. ``max_model_mb=None`` means *no cap*, so it cannot double as
+#: "inherit", the way ``max_hops=None`` can.
+UNSET = _Unset()
+
+
+@dataclass(frozen=True)
+class _Index:
+    """The searchable form of one capability set.
+
+    Every structure the search reads is derived here, from one list, so a
+    capability cannot be visible to :meth:`TranslationGraph.route` and invisible
+    to :attr:`TranslationGraph.languages` (or the reverse). A size cap produces
+    a *different index*, not a filter applied at some points of the search and
+    forgotten at others.
+    """
+
+    bilingual: Dict[Tuple[str, str], List[Capability]]
+    multilingual: Tuple[Capability, ...]
+    dedicated_endpoints: Tuple[str, ...]
+    languages: FrozenSet[str]
+    #: Left out by the size cap. Kept, like the unrunnable ones, so the error
+    #: can name them.
+    oversized: Tuple[Capability, ...]
+    #: The budget this index was built under, so an error can quote the cap
+    #: that actually applied rather than the graph's own default.
+    max_model_mb: Optional[int]
+    count_cached_as_free: bool
+
+
+def _build_index(capabilities: Iterable[Capability],
+                 max_model_mb: Optional[int],
+                 count_cached_as_free: bool) -> _Index:
+    bilingual: Dict[Tuple[str, str], List[Capability]] = {}
+    multilingual: List[Capability] = []
+    endpoints: set = set()
+    kept: List[Capability] = []
+    oversized: List[Capability] = []
+    for cap in capabilities:
+        if not cap.within_size_cap(max_model_mb, count_cached_as_free):
+            oversized.append(cap)
+            continue
+        kept.append(cap)
+        if cap.dedicated:
+            bilingual.setdefault(cap.pair, []).append(cap)
+            endpoints.update(cap.pair)
+        else:
+            multilingual.append(cap)
+    languages = frozenset().union(*(c.endpoints() for c in kept)) if kept \
+        else frozenset()
+    return _Index(bilingual=bilingual, multilingual=tuple(multilingual),
+                  dedicated_endpoints=tuple(sorted(endpoints)),
+                  languages=languages, oversized=tuple(oversized),
+                  max_model_mb=max_model_mb,
+                  count_cached_as_free=count_cached_as_free)
+
+
 class TranslationGraph:
     """Resolve ``src -> tgt`` into a :class:`Route` over the registered models."""
 
@@ -458,6 +617,8 @@ class TranslationGraph:
         max_hops: int = 2,
         max_routes: int = 10,
         pivot_ranking: str = "auto",
+        max_model_mb: Union[int, None, "_Unset"] = UNSET,
+        count_cached_as_free: bool = True,
     ):
         if max_hops < 1:
             raise ValueError("max_hops must be at least 1")
@@ -493,31 +654,81 @@ class TranslationGraph:
         self.unrunnable_capabilities: Tuple[Capability, ...] = tuple(
             cap for cap in self.capabilities if not cap.is_runnable)
 
-        self._bilingual: Dict[Tuple[str, str], List[Capability]] = {}
-        self._multilingual: List[Capability] = []
-        self._dedicated_endpoints: set = set()
         self._by_model: Dict[str, Capability] = {
             cap.model_id: cap for cap in self.capabilities}
-        for cap in self._runnable:
-            if cap.dedicated:
-                self._bilingual.setdefault(cap.pair, []).append(cap)
-                self._dedicated_endpoints.update(cap.pair)
-            else:
-                self._multilingual.append(cap)
+        self.max_model_mb = self._check_max_model_mb(max_model_mb)
+        self.count_cached_as_free = count_cached_as_free
+        self._indexes: Dict[Tuple[Optional[int], bool], _Index] = {}
+        self._index = self._index_for(self.max_model_mb,
+                                      self.count_cached_as_free)
+        # Every tag any runnable model names, cap or no cap. Used to resolve a
+        # caller's tag onto a node, which must not change with the size budget:
+        # `pt-BR` means `pt` whether or not `pt` is currently routable.
+        self._addressable = self._index_for(None, True).languages
 
-        self._languages = frozenset().union(
-            *(cap.endpoints() for cap in self._runnable)) if self._runnable else frozenset()
+    @staticmethod
+    def _check_max_model_mb(value: Union[int, None, "_Unset"]) -> Optional[int]:
+        """Resolve the size cap, with the environment as the default.
+
+        ``UNSET`` (the default) reads ``LINGUONNX_MAX_MODEL_MB``; an explicit
+        ``None`` is "no cap" and overrules the environment, which is what a
+        caller who passes it means.
+        """
+        if isinstance(value, _Unset):
+            value = MAX_MODEL_MB
+        if value is None:
+            return None
+        value = int(value)
+        if value < 1:
+            raise ValueError("max_model_mb must be at least 1, or None for no cap")
+        return value
+
+    def _index_for(self, max_model_mb: Optional[int],
+                   count_cached_as_free: bool) -> _Index:
+        key = (max_model_mb, count_cached_as_free)
+        index = self._indexes.get(key)
+        if index is None:
+            index = _build_index(self._runnable, max_model_mb,
+                                 count_cached_as_free)
+            self._indexes[key] = index
+        return index
+
+    def _resolve(self, max_model_mb: Union[int, None, "_Unset"],
+                 count_cached_as_free: Optional[bool]) -> _Index:
+        """The index a call runs against, after its per-call overrides."""
+        cap = self.max_model_mb if isinstance(max_model_mb, _Unset) \
+            else self._check_max_model_mb(max_model_mb)
+        free = self.count_cached_as_free if count_cached_as_free is None \
+            else count_cached_as_free
+        return self._index_for(cap, free)
 
     # -- introspection ----------------------------------------------------
 
     @property
     def languages(self) -> FrozenSet[str]:
-        """Every language a *runnable* model can read or write.
+        """Every language a *runnable* model within the size cap can read or write.
 
-        A language only an unrunnable model reaches is not listed, because a
-        caller reads this as "these are the languages I can ask for".
+        A language only an unrunnable or over-budget model reaches is not
+        listed, because a caller reads this as "these are the languages I can
+        ask for", and both filters apply to the models :meth:`route` will use.
         """
-        return self._languages
+        return self._index.languages
+
+    def languages_under(self, max_model_mb: Union[int, None, "_Unset"] = UNSET,
+                        count_cached_as_free: Optional[bool] = None
+                        ) -> FrozenSet[str]:
+        """:attr:`languages` for a size cap this graph was not built with.
+
+        The per-call counterpart of the per-call ``max_model_mb=`` on
+        :meth:`route`, so a caller who overrides the budget for one call can
+        still ask what that budget covers.
+        """
+        return self._resolve(max_model_mb, count_cached_as_free).languages
+
+    @property
+    def oversized_capabilities(self) -> Tuple[Capability, ...]:
+        """Runnable models the size cap left out. Named in :class:`NoRouteError`."""
+        return self._index.oversized
 
     @staticmethod
     def _check_max_hops(max_hops: int) -> int:
@@ -539,24 +750,26 @@ class TranslationGraph:
             # a node that exists must stay addressable by the name it has.
             # Only a tag that is neither parseable nor a node is refused.
             lowered = tag.strip().lower()
-            if lowered in self._languages:
+            if lowered in self._addressable:
                 return lowered
             raise
-        if node in self._languages or "-" not in node:
+        if node in self._addressable or "-" not in node:
             return node
         # `pt-BR` is well-formed and unsupported as written, but the graph is
         # keyed on the language subtag, and refusing a region the models simply
         # do not distinguish would be a worse answer than serving `pt`.
         base = node.split("-")[0]
-        if base in self._languages:
+        if base in self._addressable:
             LOG.debug("%r is not a graph node; routing it as %r", node, base)
             return base
         return node
 
-    def capabilities_for(self, src: str, tgt: str) -> List[Capability]:
+    def capabilities_for(self, src: str, tgt: str,
+                         index: Optional[_Index] = None) -> List[Capability]:
         """Every model that can do this exact pair in one hop, best first."""
-        cands = list(self._bilingual.get((src, tgt), ()))
-        cands += [c for c in self._multilingual if c.covers(src, tgt)]
+        index = index or self._index
+        cands = list(index.bilingual.get((src, tgt), ()))
+        cands += [c for c in index.multilingual if c.covers(src, tgt)]
         return sorted(cands, key=self._cap_key)
 
     @staticmethod
@@ -566,7 +779,8 @@ class TranslationGraph:
 
     # -- pivots -----------------------------------------------------------
 
-    def _pivot_candidates(self, src: str, tgt: str) -> List[str]:
+    def _pivot_candidates(self, src: str, tgt: str,
+                          index: Optional[_Index] = None) -> List[str]:
         """Bounded, ordered pivot list. Never "every language in the graph".
 
         Order: pair-specific regional pivots, then the configured global
@@ -575,11 +789,12 @@ class TranslationGraph:
         are excluded - pivoting through one of those uses the same model that
         already covers the direct pair, so it can never be an improvement.
         """
+        index = index or self._index
         ordered: List[str] = []
         seen = {src, tgt}
 
         def add(lang: str) -> None:
-            if lang not in seen and lang in self._languages:
+            if lang not in seen and lang in index.languages:
                 seen.add(lang)
                 ordered.append(lang)
 
@@ -589,7 +804,7 @@ class TranslationGraph:
             add(lang)
         for lang in self.pivot_preference:
             add(lang)
-        for lang in sorted(self._dedicated_endpoints):
+        for lang in index.dedicated_endpoints:
             add(lang)
         if self.pivot_ranking == "phonological":
             ordered = self._rank_phonologically(src, tgt, ordered)
@@ -626,13 +841,15 @@ class TranslationGraph:
 
     # -- route enumeration ------------------------------------------------
 
-    def _legs(self, src: str, tgt: str) -> List[Capability]:
+    def _legs(self, src: str, tgt: str,
+              index: Optional[_Index] = None) -> List[Capability]:
         """At most one dedicated and one multilingual candidate for a leg."""
+        index = index or self._index
         best: List[Capability] = []
-        dedicated = [c for c in self._bilingual.get((src, tgt), ())]
+        dedicated = [c for c in index.bilingual.get((src, tgt), ())]
         if dedicated:
             best.append(min(dedicated, key=self._cap_key))
-        multi = [c for c in self._multilingual if c.covers(src, tgt)]
+        multi = [c for c in index.multilingual if c.covers(src, tgt)]
         if multi:
             best.append(min(multi, key=self._cap_key))
         return best
@@ -644,10 +861,10 @@ class TranslationGraph:
                    size_mb=cap.size_mb, dedicated=cap.dedicated)
 
     def _enumerate(self, src: str, tgt: str, max_hops: int, prefer: str,
-                   short_circuit: bool) -> List[Route]:
+                   short_circuit: bool, index: _Index) -> List[Route]:
         routes: List[Route] = []
 
-        for cap in self.capabilities_for(src, tgt):
+        for cap in self.capabilities_for(src, tgt, index):
             routes.append(Route(src, tgt, (self._hop(cap, src, tgt),),
                                 prefer=prefer, max_hops=max_hops,
                                 pivot_basis=self.pivot_ranking))
@@ -659,14 +876,15 @@ class TranslationGraph:
         if max_hops < 2:
             return routes
 
-        direct_multi = {c.model_id for c in self._multilingual if c.covers(src, tgt)}
-        pivots = self._pivot_candidates(src, tgt)
+        direct_multi = {c.model_id for c in index.multilingual
+                        if c.covers(src, tgt)}
+        pivots = self._pivot_candidates(src, tgt, index)
 
         rank_of = {lang: i for i, lang in enumerate(pivots)}
         for path in self._pivot_paths(pivots, max_hops - 1):
             nodes = (src,) + path + (tgt,)
             pivot_rank = tuple(rank_of[p] for p in path)
-            legs = [self._legs(a, b) for a, b in zip(nodes, nodes[1:])]
+            legs = [self._legs(a, b, index) for a, b in zip(nodes, nodes[1:])]
             if any(not leg for leg in legs):
                 continue
             for combo in itertools.product(*legs):
@@ -693,7 +911,9 @@ class TranslationGraph:
 
     def routes(self, src: str, tgt: str, max_hops: Optional[int] = None,
                prefer: Optional[str] = None,
-               limit: Optional[int] = None) -> List[Route]:
+               limit: Optional[int] = None,
+               max_model_mb: Union[int, None, "_Unset"] = UNSET,
+               count_cached_as_free: Optional[bool] = None) -> List[Route]:
         """Every viable route, ranked best-first under the active policy.
 
         Bounded on purpose: returns at most ``limit`` routes (default
@@ -708,9 +928,11 @@ class TranslationGraph:
         max_hops = self._check_max_hops(
             self.max_hops if max_hops is None else max_hops)
         limit = self.max_routes if limit is None else limit
+        index = self._resolve(max_model_mb, count_cached_as_free)
         if src == tgt:
             return []
-        found = self._enumerate(src, tgt, max_hops, prefer, short_circuit=False)
+        found = self._enumerate(src, tgt, max_hops, prefer,
+                                short_circuit=False, index=index)
         found.sort(key=lambda r: _route_key(r, prefer))
         # Dedupe identical hop chains that different pivot orders produced.
         out, seen = [], set()
@@ -725,8 +947,16 @@ class TranslationGraph:
         return out
 
     def route(self, src: str, tgt: str, max_hops: Optional[int] = None,
-              prefer: Optional[str] = None) -> Route:
-        """The single best route, or raise :class:`NoRouteError`."""
+              prefer: Optional[str] = None,
+              max_model_mb: Union[int, None, "_Unset"] = UNSET,
+              count_cached_as_free: Optional[bool] = None) -> Route:
+        """The single best route, or raise :class:`NoRouteError`.
+
+        ``max_model_mb`` and ``count_cached_as_free`` override the graph's own
+        size budget for this call, the way ``max_hops`` and ``prefer`` override
+        the hop cap and the policy. Omit them to inherit; pass
+        ``max_model_mb=None`` to lift the budget for one call.
+        """
         raw_src, raw_tgt = src, tgt
         src, tgt = self._node(src), self._node(tgt)
         prefer = prefer or self.prefer
@@ -735,16 +965,85 @@ class TranslationGraph:
         if src == tgt:
             raise NoRouteError(
                 f"source and target are the same language ({src!r}); nothing to translate")
-        found = self._enumerate(src, tgt, max_hops, prefer, short_circuit=True)
+        index = self._resolve(max_model_mb, count_cached_as_free)
+        found = self._enumerate(src, tgt, max_hops, prefer, short_circuit=True,
+                                index=index)
         if not found:
-            hint = ""
-            if max_hops == 1:
-                hint = " (max_hops=1: only direct models were considered)"
-            hint += self._excluded_licence_hint(src, tgt)
-            hint += self._unrunnable_hint(src, tgt)
             raise NoRouteError(
-                f"no route from {raw_src!r} to {raw_tgt!r} within {max_hops} hop(s){hint}")
+                f"no route from {raw_src!r} to {raw_tgt!r} within "
+                f"{max_hops} hop(s)"
+                f"{self._why_not(src, tgt, max_hops, prefer, index)}")
         return min(found, key=lambda r: _route_key(r, prefer))
+
+    def _why_not(self, src: str, tgt: str, max_hops: int, prefer: str,
+                 index: _Index) -> str:
+        """Name the constraint that actually blocked the route.
+
+        Two caps can each turn a servable pair into a failure, they are fixed
+        in opposite directions, and they interact: a size budget removes the
+        one multilingual model that covered a pair directly, and the chain that
+        replaces it needs a hop the caller did not allow. "No route" alone
+        sends that caller to the wrong knob, or to the wrong conclusion - that
+        the language is unsupported.
+
+        So each constraint is probed on its own, on the failure path only,
+        where the search has already come back empty:
+
+        * the **hop cap**, if one more hop finds a route under the same budget;
+        * the **size cap**, if lifting the budget finds a route within the same
+          hops.
+
+        Both are reported when both are true, because both are. When neither
+        is, the pair is genuinely uncovered and the licence and runnability
+        hints say what covers it elsewhere.
+
+        Raising ``max_hops`` on the caller's behalf is deliberately not done.
+        Both caps were set by the same caller, and trading one for the other
+        silently is not a decision this layer gets to make.
+
+        The hop probe runs from ``max_hops=1`` only. The two-hop search is the
+        expensive one, and speculating a third hop on every miss would make
+        failure cost more than success.
+        """
+        hint = ""
+        if max_hops == 1:
+            hint += " (max_hops=1: only direct models were considered)"
+            if self._enumerate(src, tgt, 2, prefer, short_circuit=True,
+                               index=index):
+                hint += "; a 2-hop route exists, so raise max_hops to use it"
+        if index.oversized:
+            uncapped = self._index_for(None, True)
+            if self._enumerate(src, tgt, max_hops, prefer, short_circuit=True,
+                               index=uncapped):
+                blocking = sorted({
+                    f"{cap.model_id} ({cap.size_mb} MB)"
+                    for cap in index.oversized
+                    if self._could_serve(cap, src, tgt, uncapped, max_hops)})
+                return hint + (
+                    f" -- the {index.max_model_mb} MB size cap (max_model_mb) "
+                    f"excluded the model(s) that would serve this: "
+                    f"{', '.join(blocking)}. Raise the cap, allow more hops so "
+                    f"smaller models can be chained, or prefetch the model so "
+                    f"the download is already paid for")
+        if hint:
+            return hint
+        return (self._excluded_licence_hint(src, tgt)
+                + self._unrunnable_hint(src, tgt))
+
+    def _could_serve(self, cap: Capability, src: str, tgt: str,
+                     uncapped: _Index, max_hops: int) -> bool:
+        """Whether an excluded model is on a route that lifting the cap allows.
+
+        A model that covers the pair outright always qualifies; so does one
+        that serves a leg of a route the uncapped search found. Listing every
+        oversized model instead would name models that had nothing to do with
+        this pair.
+        """
+        if cap.covers(src, tgt):
+            return True
+        found = self._enumerate(src, tgt, max_hops, self.prefer,
+                                short_circuit=False, index=uncapped)
+        return any(cap.model_id in route.model_ids for route in found)
 
     def _excluded_licence_hint(self, src: str, tgt: str) -> str:
         """Say so when the only thing blocking a route is the licence filter.
@@ -783,7 +1082,9 @@ class TranslationGraph:
         return (f" -- model(s) cover this pair but cannot be run: "
                 f"{', '.join(covering)} ({'; '.join(reasons)})")
 
-    def can_translate(self, src: str, tgt: str, max_hops: Optional[int] = None) -> bool:
+    def can_translate(self, src: str, tgt: str, max_hops: Optional[int] = None,
+                      max_model_mb: Union[int, None, "_Unset"] = UNSET,
+                      count_cached_as_free: Optional[bool] = None) -> bool:
         """Whether :meth:`route` would succeed *and* the route would execute.
 
         Answers for the same models ``translate()`` will use: a pair served
@@ -791,7 +1092,9 @@ class TranslationGraph:
         followed by ``NotImplementedError`` two calls later.
         """
         try:
-            self.route(src, tgt, max_hops=max_hops)
+            self.route(src, tgt, max_hops=max_hops,
+                       max_model_mb=max_model_mb,
+                       count_cached_as_free=count_cached_as_free)
             return True
         except NoRouteError:
             return False
