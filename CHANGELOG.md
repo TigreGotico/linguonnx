@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.1a2](https://github.com/TigreGotico/linguonnx/tree/0.6.1a2) (2026-08-03)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.6.1a1...0.6.1a2)
+
+**Merged pull requests:**
+
+- docs: point at the OVOS plugin that wraps this library [\#30](https://github.com/TigreGotico/linguonnx/pull/30) ([JarbasAl](https://github.com/JarbasAl))
+- feat: bound routing by per-model download size [\#29](https://github.com/TigreGotico/linguonnx/pull/29) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.6.1a1](https://github.com/TigreGotico/linguonnx/tree/0.6.1a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.6.0a1...0.6.1a1)
