@@ -303,6 +303,77 @@ LICENSE_TIERS: Dict[str, str] = {
     "CC-BY-NC-4.0": "non-commercial",
 }
 
+# ---------------------------------------------------------------------------
+# Specialist provenance
+# ---------------------------------------------------------------------------
+#
+# `linguonnx.translate.graph.SPECIALIST_MAP` breaks routing ties in favour of
+# the institution that owns a language over a generalist that merely covers
+# it. Two registry fields feed that: `provenance_org` (who trained/fine-tuned
+# it) and `release_date` (when the *upstream* model was first published).
+#
+# Both are derived here from the model_id, by prefix - the same naming
+# convention the registry already relies on elsewhere (`MODEL_ID_OVERRIDES`,
+# `BILINGUAL_FINETUNES`) - never guessed from `cardData`, which does not
+# reliably name the training institution for most of these repos.
+#
+# `release_date` is the upstream repo's own `createdAt` on the Hub, read by
+# hand from each institution's *source* repo - never `TigreGotico`'s own
+# mirror, whose `createdAt`/`lastModified` are always close to "now" (that is
+# when the export happened, not when the weights were trained) and would
+# silently promote whatever this project re-uploaded most recently. Not every
+# institution's date could be verified in one pass; a prefix with no date
+# below stays undated on purpose (`_recency_sort_value` treats that as
+# "unknown", which never wins a recency comparison) rather than guess.
+#
+# Ordered longest-prefix-first-in-effect by construction: `_provenance_for`
+# walks this in order and returns the first prefix match, and no prefix here
+# is itself a prefix of another, so match order does not matter today - kept
+# as a tuple (not a dict) so a future ambiguous prefix pair has to be ordered
+# on purpose instead of silently depending on dict insertion order.
+PROVENANCE_BY_PREFIX: Tuple[Tuple[str, str, Optional[str]], ...] = (
+    # HiTZ (Basque). Sampled from `HiTZ/mt-hitz-es-eu` on the Hub.
+    ("mt-hitz-", "HiTZ", "2024-06-17"),
+    # Proxecto Nós (Galician, and Asturian by proximity - see
+    # linguonnx.translate.graph.SPECIALIST_MAP). Covers both the `nos-mt-*`
+    # and `nos-coda_iacobus-*` OpenNMT-py families. No upstream date verified
+    # yet for the `proxectonos` org repos; left undated rather than guessed.
+    ("nos-", "Proxecto Nós", None),
+    # Projecte AINA (Catalan, and Aragonese/Occitan-Aranese by proximity).
+    # Sampled from `projecte-aina/aina-translator-es-ca`.
+    ("aina-", "Projecte AINA", "2024-02-09"),
+    # AI4Bharat / IndicTrans2. Sampled from
+    # `ai4bharat/indictrans2-en-indic-dist-200M`.
+    ("indictrans2", "AI4Bharat", "2023-09-12"),
+    # TartuNLP's smugri (Finno-Ugric minority languages) M2M100 fine-tune.
+    # Date not verified against the actual upstream `tartuNLP` repo yet.
+    ("m2m100-418m-smugri", "TartuNLP", None),
+    # liv4ever (Livonian). Sampled from `tartuNLP/liv4ever-mt` - the project
+    # is TartuNLP-hosted but is its own named specialist for `liv`
+    # specifically, distinct from the general smugri model above.
+    ("liv4ever", "liv4ever", "2022-03-10"),
+    # Masakhane's `_rel_news_ft` M2M100 fine-tunes (West-African pairs).
+    # Sampled from `masakhane/m2m100_418M_fr_bam_rel_news_ft`; all of the
+    # family share one release wave, so one verified date stands for it.
+    ("m2m100_418m_", "Masakhane", "2022-04-09"),
+)
+
+
+def _provenance_for(model_id: str) -> Tuple[Optional[str], Optional[str]]:
+    """``(org, release_date)`` for a model_id, or ``(None, None)``.
+
+    Most registry entries have no specialist claim at all - a plain OPUS-MT,
+    NLLB, or M2M100-base export - and get ``(None, None)``, which is exactly
+    :class:`linguonnx.translate.graph.Capability`'s own default: no provenance
+    field is written into the JSON for those, so old registries and new ones
+    read the same absence the same way.
+    """
+    lowered = model_id.lower()
+    for prefix, org, release_date in PROVENANCE_BY_PREFIX:
+        if lowered.startswith(prefix):
+            return org, release_date
+    return None, None
+
 #: Side files per architecture: registry key -> filename in the repo.
 #: A file that is absent from the repo is dropped from the entry, except for
 #: the ones listed in REQUIRED_SIDE_FILES.
@@ -885,6 +956,11 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
         entry["license_tier"] = LICENSE_TIERS[license_id]
         entry["size_mb"] = max(1, round(size / 1e6))
         entry["precision"] = "int8" if prefix else "fp32"
+        provenance_org, release_date = _provenance_for(entry["model_id"])
+        if provenance_org:
+            entry["provenance_org"] = provenance_org
+        if release_date:
+            entry["release_date"] = release_date
         if arch in UNRUNNABLE_ARCHS:
             entry["runnable"] = False
             entry["unrunnable_reason"] = UNRUNNABLE_ARCHS[arch]
