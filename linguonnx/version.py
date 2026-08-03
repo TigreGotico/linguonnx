@@ -13,7 +13,7 @@ if VERSION_ALPHA:
 VERSION_MAJOR = 0
 VERSION_MINOR = 6
 VERSION_BUILD = 1
-VERSION_ALPHA = 1
+VERSION_ALPHA = 2
 # END_VERSION_BLOCK# Version block follows OVOS/phoonnx/onnx-asr convention: plain module-level
 # integers so packaging tools and code can both read them without importing
 # a build backend.
