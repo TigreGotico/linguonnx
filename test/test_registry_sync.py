@@ -172,7 +172,10 @@ def test_multi_target_group_models_record_their_target_token():
     """
     for model_id, entry in TRANSLATE.items():
         base = entry.get("base_model", "")
-        if not base or entry["arch"] != "marian":
+        if not base or entry["arch"] != "marian" or not entry.get("pair"):
+            # A group model has no pair to compare against: it covers the
+            # whole family and carries a `target_token_template` instead. See
+            # `test_group_models_carry_a_target_token_template` below.
             continue
         stem = base.split("/")[-1]
         for prefix in ("opus-mt-", "tc-big-"):
@@ -187,6 +190,26 @@ def test_multi_target_group_models_record_their_target_token():
             assert token.startswith(">>") and token.endswith("<<"), (
                 f"{model_id} exports {base} but targets {entry['pair'][1]}; "
                 f"it needs a target_token and has {token!r}")
+
+
+def test_group_models_carry_a_target_token_template():
+    """A Marian entry with no pair must be able to name its target.
+
+    ``opus-mt-itc-itc`` serves any Italic language from one decoder and picks
+    which one from a ``>>ita<<`` prefix token. An entry with neither a pair
+    nor a way to build that token cannot select a target at all, and answers
+    fluently in the wrong language rather than raising.
+    """
+    for model_id, entry in TRANSLATE.items():
+        if entry["arch"] != "marian" or entry.get("pair"):
+            continue
+        template = entry.get("target_token_template", "")
+        assert "{code}" in template, (
+            f"{model_id} is a multi-target Marian model with no "
+            f"target_token_template")
+        for tag in entry["languages"]:
+            native = (entry.get("native_codes") or {}).get(tag, tag)
+            assert template.format(code=native)
 
 
 def test_target_tokens_are_only_set_where_they_are_needed():
@@ -252,10 +275,19 @@ def test_noncommercial_models_exist_but_are_opt_in():
     assert len(opt_in.models) > len(load_translator().models)
 
 
-def test_pt_to_mwl_resolves_via_madlad(translator):
-    """Mirandese: only MADLAD carries it; a wrong claim would silently drop it."""
+def test_pt_to_mwl_resolves_in_one_hop(translator):
+    """Mirandese: a wrong coverage claim would silently drop it.
+
+    Two models carry `mwl`: MADLAD, and `opus-mt-itc-itc` - which was
+    unreachable while the generator minted it as `pair: ["itc", "itc"]`,
+    because no caller can ask for the Italic family. Now that it registers its
+    real 16-language token set, it wins on cost (165 MB int8 against MADLAD's
+    4945 MB), which is the point of fixing it.
+    """
     route = translator.route("pt", "mwl")
-    assert route.hops[-1].model_id.startswith("madlad400-3b-mt")
+    assert route.n_hops == 1
+    assert route.hops[-1].model_id.startswith(
+        ("madlad400-3b-mt", "opus-mt-itc-itc"))
 
 
 def test_pt_to_kea_resolves_via_nllb():

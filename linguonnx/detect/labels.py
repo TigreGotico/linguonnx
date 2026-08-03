@@ -41,6 +41,7 @@ Two things `standardize_tag` does not do, which this module owns:
 from __future__ import annotations
 
 import logging
+from functools import lru_cache
 from typing import Dict, Optional, Tuple
 
 import langcodes
@@ -109,6 +110,63 @@ def _drop_redundant_script(tag: str) -> str:
     except Exception:
         pass
     return tag
+
+
+@lru_cache(maxsize=1)
+def _iana_scopes() -> Dict[str, str]:
+    """``subtag -> Scope`` for every IANA language subtag that declares one.
+
+    Read from the IANA Language Subtag Registry that ships inside
+    ``language_data`` (a ``langcodes`` dependency), so this is offline data,
+    not a list typed out here. Two scopes matter to this library:
+
+    ``collection``
+        A *family*, not a language: ``itc`` (Italic), ``sla`` (Slavic),
+        ``bnt`` (Bantu). No caller ever asks to translate into "Italic".
+    ``special``
+        ``mul`` (multiple languages), ``und``, ``zxx``, ``mis``.
+
+    A model whose covering set names one of these is claiming coverage that
+    cannot be requested and cannot be delivered - see
+    :func:`is_collection_or_special`.
+    """
+    return {subtag: scope for subtag, scope in _iana_languages().items()
+            if scope in ("collection", "special")}
+
+
+@lru_cache(maxsize=1)
+def _iana_languages() -> Dict[str, Optional[str]]:
+    """Every IANA language subtag -> its ``Scope``, or None when it declares none."""
+    from language_data.registry_parser import parse_registry
+
+    return {item["Subtag"]: item.get("Scope") for item in parse_registry()
+            if item.get("Type") == "language"}
+
+
+def is_registered_subtag(tag: str) -> bool:
+    """Whether the primary subtag of ``tag`` is in the IANA registry.
+
+    Retired ISO 639-3 codes are not: ``mol`` was withdrawn in favour of
+    ``ron``, and an opus-mt vocabulary that carries both ``>>mol<<`` and
+    ``>>ron<<`` must be read as offering Romanian through ``ron``.
+    """
+    base = str(tag).strip().lower().replace("_", "-").split("-")[0]
+    return base in _iana_languages()
+
+
+def tag_scope(tag: str) -> Optional[str]:
+    """``"collection"``, ``"special"`` or ``None`` for one language tag.
+
+    The tag is reduced to its primary language subtag first, so ``itc`` and
+    ``itc-Latn`` answer the same.
+    """
+    base = str(tag).strip().lower().replace("_", "-").split("-")[0]
+    return _iana_scopes().get(base)
+
+
+def is_collection_or_special(tag: str) -> bool:
+    """Whether ``tag`` names a language *family* or a placeholder, not a language."""
+    return tag_scope(tag) is not None
 
 
 def to_bcp47(label: str) -> str:

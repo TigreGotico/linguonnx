@@ -375,10 +375,16 @@ class Capability:
         return LICENSE_TIERS.get(self.license_tier, max(LICENSE_TIERS.values()))
 
     def covers(self, src: str, tgt: str) -> bool:
-        if self.pair is not None:
-            return self.pair == (src, tgt)
+        # `src == tgt` is refused for *every* capability shape, bilingual
+        # included. A bilingual entry whose two sides are the same language is
+        # a group model the generator failed to recognise (`pair: ["itc",
+        # "itc"]` for the Italic family model), and without this guard it
+        # became a real one-hop edge that answered in whichever family member
+        # the decoder preferred.
         if src == tgt:
             return False
+        if self.pair is not None:
+            return self.pair == (src, tgt)
         if self.directional:
             return src in self._sources and tgt in self._targets
         return src in self.languages and tgt in self.languages
@@ -670,12 +676,24 @@ class TranslationGraph:
     def _check_max_model_mb(value: Union[int, None, "_Unset"]) -> Optional[int]:
         """Resolve the size cap, with the environment as the default.
 
-        ``UNSET`` (the default) reads ``LINGUONNX_MAX_MODEL_MB``; an explicit
-        ``None`` is "no cap" and overrules the environment, which is what a
+        ``UNSET`` (the default) reads ``LINGUONNX_MAX_MODEL_MB``, and falls
+        back to the **download budget** when that is not set. Routing has to
+        agree with what ``ensure_model_files`` will actually fetch: a model
+        over ``LINGUONNX_MAX_DOWNLOAD_MB`` cannot be downloaded, so planning a
+        route through it makes ``can_translate`` answer True for a pair that
+        ``translate`` then refuses with ``DownloadTooLargeError``. The cached
+        exemption lines up too - ``count_cached_as_free`` mirrors the download
+        check running only when something is missing.
+
+        An explicit ``None`` is "no cap" and overrules both, which is what a
         caller who passes it means.
         """
         if isinstance(value, _Unset):
             value = MAX_MODEL_MB
+            if value is None:
+                from linguonnx.model_manager import download_budget_mb
+
+                value = download_budget_mb()
         if value is None:
             return None
         value = int(value)

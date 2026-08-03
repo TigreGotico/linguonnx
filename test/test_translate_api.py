@@ -172,8 +172,16 @@ def test_max_hops_is_settable_per_call_and_per_translator(tx):
 
 
 def test_the_size_budget_is_settable_per_call_and_per_translator(tx):
-    """Same shape as max_hops: constructor value, per-call override."""
-    assert tx.max_model_mb is None
+    """Same shape as max_hops: constructor value, per-call override.
+
+    The unset default is no longer "no cap": it is the cold-download budget,
+    so routing cannot promise a model ``ensure_model_files`` will refuse to
+    fetch. Every model in this fixture is far under it, so the rest of the
+    test is unaffected.
+    """
+    from linguonnx.model_manager import DEFAULT_MAX_DOWNLOAD_MB
+
+    assert tx.max_model_mb == DEFAULT_MAX_DOWNLOAD_MB
     assert tx.route("pt", "ru").model_ids == ("multi",)
     assert tx.route("pt", "ru", max_model_mb=500).model_ids == ("pt-en", "en-ru")
     frugal = Translator(REGISTRY, max_model_mb=500)

@@ -297,6 +297,14 @@ tx.route("pt", "ru", count_cached_as_free=False)
 patching the caller. An explicit `max_model_mb=` argument, including
 `max_model_mb=None`, overrules it.
 
+When neither is set, the default is not "no budget": it is the cold-download
+bound, `LINGUONNX_MAX_DOWNLOAD_MB` (8192 MB). Routing has to agree with what
+the download path will actually fetch. Without that, `precision="fp32"` let
+the router plan a hop through the 19.7 GB `madlad400-3b-mt`, `can_translate`
+answered `True` for the 270 languages only MADLAD serves, and `translate`
+then raised `DownloadTooLargeError`. Raise `LINGUONNX_MAX_DOWNLOAD_MB`, or
+pass `max_model_mb=None`, to route over the big fp32 exports deliberately.
+
 Routing is the only thing the budget governs. `translate(model=...)` pins a
 model and bypasses routing entirely, and it stays pinned; the download bound
 that protects that path is `LINGUONNX_MAX_DOWNLOAD_MB`, in
