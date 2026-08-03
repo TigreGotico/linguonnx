@@ -1024,15 +1024,27 @@ def _madlad_languages(repo_id: str, files: Dict[str, int]) -> List[str]:
         blob = response.read()
     processor = spm.SentencePieceProcessor()
     processor.LoadFromSerializedProto(blob)
-    codes = sorted({
+    codes = {
         match.group(1)
         for i in range(processor.get_piece_size())
         if (match := _PREFIX_TARGET_TOKEN_RE.match(processor.IdToPiece(i)))
         and not _REGION_ONLY_TOKEN_RE.match(match.group(1))
-    })
+    }
     if not codes:
         raise SkipRepo("spiece.model has no <2xx> target-prefix pieces")
-    return _without_families(codes)
+    # MADLAD spells its vocabulary in the same FLORES-ish shape NLLB does
+    # ("ace_Arab", "zh_Hant"); normalise it through the same `to_bcp47` path
+    # `_multilingual_languages` already uses for NLLB, so the committed
+    # registry speaks one code system instead of forcing every reader (and
+    # `normalize_tag`) to reconcile two spellings of the same language.
+    from linguonnx.detect.labels import to_bcp47
+    normalized = set()
+    for code in codes:
+        try:
+            normalized.add(to_bcp47(code))
+        except Exception:
+            normalized.add(code)
+    return _without_families(normalized)
 
 
 def _marian_multilingual_languages(repo_id: str, files: Dict[str, int],
@@ -1296,8 +1308,21 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
             raise SkipRepo(
                 f"{name!r} does not match a known IndicTrans2 direction "
                 f"({', '.join(INDICTRANS2_DIRECTIONS)})")
+        # INDICTRANS2_TAGS is hand-transcribed straight from the model card in
+        # FLORES shape ("kas_Arab"); normalise it the same way every other
+        # multilingual source is, so the registry does not carry a fourth
+        # code system for exactly one arch.
+        from linguonnx.detect.labels import to_bcp47
+        def _norm_indic(tags):
+            out = []
+            for t in tags:
+                try:
+                    out.append(to_bcp47(t))
+                except Exception:
+                    out.append(t)
+            return sorted(set(out))
         shared["src_languages"], shared["tgt_languages"] = \
-            list(directions[0]), list(directions[1])
+            _norm_indic(directions[0]), _norm_indic(directions[1])
     elif model_id in MULTILINGUAL_LANGUAGE_OVERRIDES:
         shared.update(MULTILINGUAL_LANGUAGE_OVERRIDES[model_id])
     else:

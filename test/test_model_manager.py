@@ -16,6 +16,8 @@ EXPECTED = {
     "openlid-int8": ("TigreGotico/openlid-onnx", "GPL-3.0", "softmax", 201, "int8"),
     "openlid-v2": ("TigreGotico/openlid-v2-onnx", "GPL-3.0", "softmax", 200, "fp32"),
     "openlid-v2-int8": ("TigreGotico/openlid-v2-onnx", "GPL-3.0", "softmax", 200, "int8"),
+    "lid218e": ("TigreGotico/lid218e-onnx", "CC-BY-NC-4.0", "softmax", 218, "fp32"),
+    "lid218e-int8": ("TigreGotico/lid218e-onnx", "CC-BY-NC-4.0", "softmax", 218, "int8"),
 }
 
 

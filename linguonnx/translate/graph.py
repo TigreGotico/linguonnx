@@ -229,6 +229,11 @@ MODEL_CODE_ALIASES: Dict[str, str] = {
     # "arn_Latn" - which ISO already assigns to Mapudungun. Mapped here so the
     # routing graph sees Occitan and never offers the model for Mapudungun.
     "arn_Latn": "oc",
+    # Helsinki-NLP's own pair naming for this one repo spells Japanese "jap"
+    # (not a valid tag in any standard - every other opus-mt Japanese model
+    # spells it "ja") so it lands on its own dead-end graph node instead of
+    # the "ja" every other Japanese-capable model routes through.
+    "jap": "ja",
 }
 
 
@@ -357,6 +362,20 @@ def normalize_tag(tag: str, strict: bool = False) -> str:
     if not tag:
         raise MalformedTagError("empty language tag")
     tag = MODEL_CODE_ALIASES.get(tag, tag)
+    # FLORES/GlotLID spell a script suffix with an underscore ("ace_Arab");
+    # NLLB's own registry card and some hand-written registry entries spell
+    # the identical shape with a hyphen ("ace-Arab"). Only `to_bcp47` (the
+    # underscore path below) knows how to drop a redundant script subtag, so
+    # a hyphenated script suffix routed through bare `langcodes.standardize_tag`
+    # instead kept it forever - the same language landing on two permanent
+    # graph nodes for no reason but which separator the source used. Unify
+    # the separator *only* when the suffix has the shape of an ISO 15924
+    # script code (four letters, titlecase), so a genuine BCP-47 region
+    # subtag ("fr-CA", "fa-AF", "az-RU") is left untouched.
+    if "-" in tag:
+        base, _, suffix = tag.rpartition("-")
+        if base and len(suffix) == 4 and suffix[0].isupper() and suffix[1:].islower():
+            tag = f"{base}_{suffix}"
     try:
         if "_" in tag:
             return to_bcp47(tag)

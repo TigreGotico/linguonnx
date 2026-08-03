@@ -227,11 +227,16 @@ def test_languages_stay_inside_the_card_s_claim():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.xfail(
-    reason="depends on the generation-time language-code normalisation work "
-           "(DATA-003/005/006): NLLB and IndicTrans2 entries still carry raw "
-           "FLORES tags (`eng_Latn`, `doi_Deva`) and the AINA fine-tunes still "
-           "state their pair in NLLB codes (`spa_Latn`). The assertion is "
-           "correct as written; it turns green when that lands.",
+    reason="the languages-list generation path (MADLAD/NLLB/IndicTrans2 "
+           "'languages'/'src_languages'/'tgt_languages') is now normalised "
+           "at generation time, but two other code paths are not: (1) the "
+           "single-pair NLLB fine-tunes (aina-*) still store 'pair' in raw "
+           "FLORES codes ('spa_Latn', 'arn_Latn', 'arg_Latn', 'ast_Latn'); "
+           "(2) m2m100/opus-mt 'pair'/'languages' still carry the model's "
+           "own vocabulary spelling ('ns', 'bam', 'ewe', 'sh', 'tl') which "
+           "MODEL_CODE_ALIASES/langcodes resolve away from at lookup time "
+           "but which are never rewritten in the committed JSON. Turns "
+           "green when sync_registry.py normalises those two paths too.",
     strict=False)
 def test_every_code_is_already_normalised():
     """Registry codes are byte-identical to ``normalize_tag`` of themselves.
@@ -288,12 +293,20 @@ def _shadowing_pairs():
 
 
 @pytest.mark.xfail(
-    reason="depends on the generation-time language-code normalisation work "
-           "(DATA-003/005/006). NLLB registers `ace` and `ace-Arab`, `ko` and "
-           "`ko-Hang`, `fa` and `fa-AF` as separate nodes, so a caller who "
-           "asks for `ace` never reaches the Arabic-script half. Either "
-           "`_drop_redundant_script` grows to cover them or each pair joins "
-           "_SHADOWING_ALLOWED with a reason.",
+    reason="the hyphen/underscore + known-script-default work landed and "
+           "closed the pairs it targeted (crh, ko, acm/acq/ajp/azb, tzm), "
+           "but #47's registry regeneration added ~43 base models (MADLAD, "
+           "IndicTrans2, more NLLB) this PR never had in scope, and they "
+           "surface ~30 new base/base-Script pairs (e.g. ace/ace-Arab, "
+           "bjn/bjn-Arab, sat/sat-Beng, mni/mni-Mtei, sd/sd-Deva, "
+           "la/la-Grek, orv/orv-Cyrl, taq/taq-Tfng, nds/nds-NL). Some are "
+           "genuinely distinct varieties that belong in _SHADOWING_ALLOWED "
+           "(the romanised MADLAD targets bg-Latn/el-Latn/bn-Latn/gom-Latn/"
+           "ru-Latn/... and the regional az-RU/fa-AF/fr-CA already are, by "
+           "design); others are a redundant script CLDR/langcodes failed to "
+           "drop and belong in _KNOWN_SCRIPT_DEFAULTS. Each needs the same "
+           "one-by-one verification crh/ko/acm got - a follow-up, not a "
+           "hand-wave into _SHADOWING_ALLOWED.",
     strict=False)
 def test_no_node_shadows_another():
     """No graph node is another node's macrolanguage or bare-base sibling.
