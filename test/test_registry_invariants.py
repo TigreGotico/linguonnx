@@ -30,6 +30,27 @@ missing assertion on the script's output:
     then raised ``DownloadTooLargeError``. Guarded by
     :func:`test_routable_models_stay_inside_the_download_budget`.
 
+``m2m100_418M_{bam,bbj,fon}_fr_rel_news_ft`` (and their reverse ``fr_*``
+siblings, plus ``mos_fr``)
+    linguonnx#56 fixed the *shape* of a bilingual entry with no ``languages``
+    list - read the codes from the export's own ``special_tokens_map.json``
+    rather than build an empty language-token block - and added a registry
+    test for it: :func:`test_translate_native_codes.test_language_token_models_can_build_a_language_block`.
+    That test only checks that ``side_files`` names a
+    ``special_tokens_map.json`` to fetch. It does not check what that file
+    actually says. Masakhane's Bambara/Ghomala/Fon/Mossi fine-tunes keep
+    ``facebook/m2m100_418M``'s original 100-language token set unchanged and
+    reuse an existing one - ``__sw__`` - as the model's own stand-in for the
+    language it does not have a token for (the export's README says so:
+    ``tokenizer.src_lang = "sw"`` to mean Bambara). Nothing in the registry
+    records that reuse, so ``native_code("bam")`` answers ``"bam"``, which is
+    not in the file at all, and ``lang_id`` raises for every request. The
+    PR's own test passed because the file it checked for *exists* - the 100
+    codes in it are just never the three the entry claims to serve. Guarded
+    by :func:`test_masakhane_reused_tokens_are_declared_in_native_codes`,
+    against the export's actual (vendored, not re-downloaded)
+    ``special_tokens_map.json``.
+
 Everything here is offline. The one fact that is not derivable from the
 committed JSON - what each repo's Hub card declares - is cached in
 ``test/data/hub_card_languages.json``, refreshed by the same sync that writes
@@ -48,6 +69,7 @@ from linguonnx.model_manager import DEFAULT_MAX_DOWNLOAD_MB
 from linguonnx.translate import _select_entries
 from linguonnx.translate.graph import TranslationGraph, normalize_tag
 from linguonnx.translate.models import capability_from_entry
+from linguonnx.translate.tokenizers import artifact_lang_codes
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CARD_LANGUAGES = json.loads(
@@ -419,3 +441,67 @@ def test_external_blobs_belong_to_a_declared_graph():
             if not blob.endswith("_data") or blob[:-len("_data")] not in graphs:
                 offenders.append(f"{model_id}: {blob} matches no declared graph")
     assert not offenders, "\n  ".join(offenders)
+
+
+# --------------------------------------------------------------------------
+# Masakhane's reused-token fine-tunes: a real content check, not a
+# key-exists-in-metadata check.
+# --------------------------------------------------------------------------
+
+#: Vendored, not re-downloaded: every Masakhane ``m2m100_418M_*_rel_news_ft``
+#: entry ships the exact same unmodified ``facebook/m2m100_418M``
+#: ``special_tokens_map.json`` (byte-identical across the ten fine-tunes -
+#: none of them adds a token for the language it was fine-tuned on). A single
+#: snapshot is therefore representative of all of them, and checking it needs
+#: no network.
+_MASAKHANE_BASE_SPECIAL_TOKENS = json.loads(
+    (Path(__file__).parent / "data"
+     / "m2m100_masakhane_base_special_tokens_map.json")
+    .read_text(encoding="utf-8"))
+_MASAKHANE_BASE_CODES = set(
+    artifact_lang_codes({"special_tokens_map":
+                         Path(__file__).parent / "data"
+                         / "m2m100_masakhane_base_special_tokens_map.json"}))
+
+_MASAKHANE_RELNEWS = sorted(
+    model_id for model_id, entry in _entries()
+    if entry.get("provenance_org") == "Masakhane"
+    and entry.get("arch") == "m2m100"
+    and model_id.endswith("_rel_news_ft"))
+
+
+def test_the_masakhane_fixture_still_matches_what_these_entries_ship():
+    """Guards the test below from passing because the fixture went stale.
+
+    If a future export of one of these fine-tunes actually adds its own
+    language token, the fixture must be refreshed - this only checks that
+    at least one such entry currently exists to test against.
+    """
+    assert _MASAKHANE_RELNEWS
+
+
+@pytest.mark.parametrize("model_id", _MASAKHANE_RELNEWS)
+def test_masakhane_reused_tokens_are_declared_in_native_codes(model_id):
+    """``native_code`` must answer with a token the export's vocabulary has.
+
+    linguonnx#56's registry test for this shape
+    (``test_language_token_models_can_build_a_language_block``) only checks
+    that ``side_files`` names a ``special_tokens_map.json`` to fetch - not
+    that the file, once fetched, contains a token for the language the entry
+    claims to serve. These ten fine-tunes all keep the unmodified base
+    M2M100 vocabulary and reuse an existing token as a stand-in (the
+    ``TigreGotico/m2m100_418M_bam_fr_rel_news_ft-onnx`` card: `"src_lang is
+    'sw', which is *not* the ISO code of Bambara"`); the registry has to
+    record that reuse as a ``native_codes`` override, or every call raises.
+    """
+    entry = TRANSLATE[model_id]
+    pair = entry.get("pair") or ()
+    native_codes = entry.get("native_codes") or {}
+    for iso in pair:
+        native = native_codes.get(iso, iso)
+        assert native in _MASAKHANE_BASE_CODES, (
+            f"{model_id}: {iso!r} resolves to {native!r}, which is not one "
+            f"of the {len(_MASAKHANE_BASE_CODES)} tokens this fine-tune's "
+            f"own special_tokens_map.json actually carries - every call with "
+            f"{iso!r} raises. Needs a native_codes override (see the export's "
+            f"Hub card for which existing token it reuses).")

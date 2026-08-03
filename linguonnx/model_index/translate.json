@@ -2334,6 +2334,9 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_bam_fr_rel_news_ft",
+    "native_codes": {
+      "bam": "sw"
+    },
     "notes": "M2M100-418M fine-tune, Bambara -> French.",
     "pair": [
       "bam",
@@ -2364,6 +2367,9 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_bam_fr_rel_news_ft-int8",
+    "native_codes": {
+      "bam": "sw"
+    },
     "notes": "M2M100-418M fine-tune, Bambara -> French.",
     "pair": [
       "bam",
@@ -2394,6 +2400,9 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_bbj_fr_rel_news_ft",
+    "native_codes": {
+      "bbj": "sw"
+    },
     "notes": "M2M100-418M fine-tune, Ghomala -> French.",
     "pair": [
       "bbj",
@@ -2424,6 +2433,9 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_bbj_fr_rel_news_ft-int8",
+    "native_codes": {
+      "bbj": "sw"
+    },
     "notes": "M2M100-418M fine-tune, Ghomala -> French.",
     "pair": [
       "bbj",
@@ -2514,6 +2526,9 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_fon_fr_rel_news_ft",
+    "native_codes": {
+      "fon": "sw"
+    },
     "notes": "M2M100-418M fine-tune, Fon -> French.",
     "pair": [
       "fon",
@@ -2544,6 +2559,9 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_fon_fr_rel_news_ft-int8",
+    "native_codes": {
+      "fon": "sw"
+    },
     "notes": "M2M100-418M fine-tune, Fon -> French.",
     "pair": [
       "fon",
@@ -2574,6 +2592,9 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_fr_bam_rel_news_ft",
+    "native_codes": {
+      "bam": "sw"
+    },
     "notes": "M2M100-418M fine-tune, French -> Bambara.",
     "pair": [
       "fr",
@@ -2604,6 +2625,9 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_fr_bam_rel_news_ft-int8",
+    "native_codes": {
+      "bam": "sw"
+    },
     "notes": "M2M100-418M fine-tune, French -> Bambara.",
     "pair": [
       "fr",
@@ -2634,6 +2658,9 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_fr_bbj_rel_news_ft",
+    "native_codes": {
+      "bbj": "sw"
+    },
     "notes": "M2M100-418M fine-tune, French -> Ghomala.",
     "pair": [
       "fr",
@@ -2664,6 +2691,9 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_fr_bbj_rel_news_ft-int8",
+    "native_codes": {
+      "bbj": "sw"
+    },
     "notes": "M2M100-418M fine-tune, French -> Ghomala.",
     "pair": [
       "fr",
@@ -2694,6 +2724,9 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_fr_ewe_rel_news_ft",
+    "native_codes": {
+      "ewe": "sw"
+    },
     "notes": "M2M100-418M fine-tune, French -> Ewe.",
     "pair": [
       "fr",
@@ -2724,6 +2757,9 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_fr_ewe_rel_news_ft-int8",
+    "native_codes": {
+      "ewe": "sw"
+    },
     "notes": "M2M100-418M fine-tune, French -> Ewe.",
     "pair": [
       "fr",
@@ -2754,6 +2790,9 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_fr_fon_rel_news_ft",
+    "native_codes": {
+      "fon": "sw"
+    },
     "notes": "M2M100-418M fine-tune, French -> Fon.",
     "pair": [
       "fr",
@@ -2784,6 +2823,9 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_fr_fon_rel_news_ft-int8",
+    "native_codes": {
+      "fon": "sw"
+    },
     "notes": "M2M100-418M fine-tune, French -> Fon.",
     "pair": [
       "fr",
@@ -2814,6 +2856,9 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_fr_mos_rel_news_ft",
+    "native_codes": {
+      "mos": "sw"
+    },
     "notes": "M2M100-418M fine-tune, French -> Mossi.",
     "pair": [
       "fr",
@@ -2844,6 +2889,9 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_fr_mos_rel_news_ft-int8",
+    "native_codes": {
+      "mos": "sw"
+    },
     "notes": "M2M100-418M fine-tune, French -> Mossi.",
     "pair": [
       "fr",
@@ -2874,6 +2922,9 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_mos_fr_rel_news_ft",
+    "native_codes": {
+      "mos": "sw"
+    },
     "notes": "M2M100-418M fine-tune, Mossi -> French.",
     "pair": [
       "mos",
@@ -2904,6 +2955,9 @@
     "license": "AFL-3.0",
     "license_tier": "permissive",
     "model_id": "m2m100_418M_mos_fr_rel_news_ft-int8",
+    "native_codes": {
+      "mos": "sw"
+    },
     "notes": "M2M100-418M fine-tune, Mossi -> French.",
     "pair": [
       "mos",

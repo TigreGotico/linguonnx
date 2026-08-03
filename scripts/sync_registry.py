@@ -193,20 +193,40 @@ BILINGUAL_FINETUNES: Dict[str, Dict] = {
     #: target is forced via `forced_bos_token_id` baked into the export
     #: (mirrors this library's own `target_token` mechanism, so no extra field
     #: is needed here), and cardData.language names exactly the two languages,
-    #: agreeing with the repo name. The low-resource side (bam/bbj/ewe/fon/mos)
-    #: has no dedicated M2M100 vocabulary token - Masakhane's checkpoints read
-    #: it from plain text on the source side, so only the *target* forcing
-    #: matters, and that already lives in the export's own generation config.
-    #: Source: https://huggingface.co/masakhane/m2m100_418M_<pair>
-    "m2m100_418M_bam_fr_rel_news_ft": {"pair": ["bam", "fr"], "notes": "M2M100-418M fine-tune, Bambara -> French."},
-    "m2m100_418M_bbj_fr_rel_news_ft": {"pair": ["bbj", "fr"], "notes": "M2M100-418M fine-tune, Ghomala -> French."},
-    "m2m100_418M_fon_fr_rel_news_ft": {"pair": ["fon", "fr"], "notes": "M2M100-418M fine-tune, Fon -> French."},
-    "m2m100_418M_fr_bam_rel_news_ft": {"pair": ["fr", "bam"], "notes": "M2M100-418M fine-tune, French -> Bambara."},
-    "m2m100_418M_fr_bbj_rel_news_ft": {"pair": ["fr", "bbj"], "notes": "M2M100-418M fine-tune, French -> Ghomala."},
-    "m2m100_418M_fr_ewe_rel_news_ft": {"pair": ["fr", "ewe"], "notes": "M2M100-418M fine-tune, French -> Ewe."},
-    "m2m100_418M_fr_fon_rel_news_ft": {"pair": ["fr", "fon"], "notes": "M2M100-418M fine-tune, French -> Fon."},
-    "m2m100_418M_fr_mos_rel_news_ft": {"pair": ["fr", "mos"], "notes": "M2M100-418M fine-tune, French -> Mossi."},
-    "m2m100_418M_mos_fr_rel_news_ft": {"pair": ["mos", "fr"], "notes": "M2M100-418M fine-tune, Mossi -> French."},
+    #: agreeing with the repo name.
+    #:
+    #: The low-resource side (bam/bbj/ewe/fon/mos) does *not* get plain text -
+    #: this comment previously claimed it did, and that claim was never
+    #: checked against the export. Masakhane kept `facebook/m2m100_418M`'s
+    #: original 100-language token set unmodified (verified against
+    #: `int8/special_tokens_map.json` and `int8/added_tokens.json`, both
+    #: byte-identical across all ten repos - none of them adds a token) and
+    #: reused an *existing* M2M100 token, `__sw__` (Swahili), as the model's
+    #: own stand-in for whichever of the five it does not have a token for.
+    #: Every one of the ten repo cards says so explicitly, e.g.
+    #: https://huggingface.co/TigreGotico/m2m100_418M_bam_fr_rel_news_ft-onnx :
+    #: "You must set the source language on the tokenizer: `tokenizer.src_lang
+    #: = "sw"` ... which is *not* the ISO code of Bambara." Without
+    #: `native_codes` recording that reuse, `native_code("bam")` answers
+    #: `"bam"`, `lang_id("bam")` raises `KeyError` for every call, and
+    #: `forced_bos` does the same on whichever side is the *target* (M2M100's
+    #: forced-token lookup here goes through this library's own
+    #: `native_code`/`lang_id`, not the export's baked `forced_bos_token_id`).
+    #: linguonnx#56 fixed the *shape* of this class of entry (no `languages`
+    #: list -> read codes from the export); it did not check that the codes
+    #: it read cover what the entry actually needs.
+    #: Source: https://huggingface.co/masakhane/m2m100_418M_<pair> and each
+    #: `TigreGotico/m2m100_418M_<pair>-onnx` Hub card's "Selecting the
+    #: language" section.
+    "m2m100_418M_bam_fr_rel_news_ft": {"pair": ["bam", "fr"], "native_codes": {"bam": "sw"}, "notes": "M2M100-418M fine-tune, Bambara -> French."},
+    "m2m100_418M_bbj_fr_rel_news_ft": {"pair": ["bbj", "fr"], "native_codes": {"bbj": "sw"}, "notes": "M2M100-418M fine-tune, Ghomala -> French."},
+    "m2m100_418M_fon_fr_rel_news_ft": {"pair": ["fon", "fr"], "native_codes": {"fon": "sw"}, "notes": "M2M100-418M fine-tune, Fon -> French."},
+    "m2m100_418M_fr_bam_rel_news_ft": {"pair": ["fr", "bam"], "native_codes": {"bam": "sw"}, "notes": "M2M100-418M fine-tune, French -> Bambara."},
+    "m2m100_418M_fr_bbj_rel_news_ft": {"pair": ["fr", "bbj"], "native_codes": {"bbj": "sw"}, "notes": "M2M100-418M fine-tune, French -> Ghomala."},
+    "m2m100_418M_fr_ewe_rel_news_ft": {"pair": ["fr", "ewe"], "native_codes": {"ewe": "sw"}, "notes": "M2M100-418M fine-tune, French -> Ewe."},
+    "m2m100_418M_fr_fon_rel_news_ft": {"pair": ["fr", "fon"], "native_codes": {"fon": "sw"}, "notes": "M2M100-418M fine-tune, French -> Fon."},
+    "m2m100_418M_fr_mos_rel_news_ft": {"pair": ["fr", "mos"], "native_codes": {"mos": "sw"}, "notes": "M2M100-418M fine-tune, French -> Mossi."},
+    "m2m100_418M_mos_fr_rel_news_ft": {"pair": ["mos", "fr"], "native_codes": {"mos": "sw"}, "notes": "M2M100-418M fine-tune, Mossi -> French."},
     #: Published after the above: same family, same shape. cardData.language
     #: names exactly en/ha (Hausa has its own M2M100 639-1 token, unlike the
     #: bam/bbj/ewe/fon/mos low-resource sides above), and its own
