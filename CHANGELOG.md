@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.0a1](https://github.com/TigreGotico/linguonnx/tree/0.9.0a1) (2026-08-03)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.3a1...0.9.0a1)
+
+**Merged pull requests:**
+
+- feat: measured translation quality field in the registry [\#62](https://github.com/TigreGotico/linguonnx/pull/62) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.8.3a1](https://github.com/TigreGotico/linguonnx/tree/0.8.3a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.2a2...0.8.3a1)
