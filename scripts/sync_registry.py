@@ -1312,17 +1312,30 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
         # FLORES shape ("kas_Arab"); normalise it the same way every other
         # multilingual source is, so the registry does not carry a fourth
         # code system for exactly one arch.
+        #
+        # Normalising the *routing* spelling is not enough on its own. The
+        # model's own vocabulary is written in the FLORES tags, and
+        # `IndicProcessor.preprocess` puts the two tags on the input verbatim;
+        # given `en` it raises rather than translating. So the FLORES spelling
+        # has to survive the normalisation as `native_codes`, which is what
+        # `TranslationModel.native_code` reads. Dropping it (as this branch
+        # first did) makes every IndicTrans2 call raise
+        # "'en' is not an IndicTrans2 language tag".
         from linguonnx.detect.labels import to_bcp47
+        native: Dict[str, str] = {}
         def _norm_indic(tags):
             out = []
             for t in tags:
                 try:
-                    out.append(to_bcp47(t))
+                    tag = to_bcp47(t)
                 except Exception:
-                    out.append(t)
+                    tag = t
+                out.append(tag)
+                native[tag] = t
             return sorted(set(out))
         shared["src_languages"], shared["tgt_languages"] = \
             _norm_indic(directions[0]), _norm_indic(directions[1])
+        shared["native_codes"] = dict(sorted(native.items()))
     elif model_id in MULTILINGUAL_LANGUAGE_OVERRIDES:
         shared.update(MULTILINGUAL_LANGUAGE_OVERRIDES[model_id])
     else:

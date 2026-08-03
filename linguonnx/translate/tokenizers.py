@@ -33,7 +33,7 @@ import sentencepiece as spm
 
 __all__ = ["normalize_punctuation", "SpmSeq2SeqTokenizer", "MarianTokenizer",
            "FastUnigramTokenizer", "T5SpmTokenizer", "IndicTransTokenizer",
-           "OpenNmtBpeTokenizer", "load_tokenizer"]
+           "OpenNmtBpeTokenizer", "load_tokenizer", "artifact_lang_codes"]
 
 
 # --------------------------------------------------------------------------
@@ -115,6 +115,47 @@ def _load_spm(path) -> "spm.SentencePieceProcessor":
 # M2M100 / NLLB
 # --------------------------------------------------------------------------
 
+#: M2M100 writes its language tokens wrapped (``__ca__``); NLLB writes them
+#: bare (``cat_Latn``). Only the wrapper is stripped, never the code itself.
+_M2M100_LANG_TOKEN_RE = re.compile(r"^__([^_].*?)__$")
+
+
+def artifact_lang_codes(files: Dict[str, Path]) -> List[str]:
+    """The language codes *this export actually carries*, in its own id order.
+
+    The registry's ``languages`` list is a routing claim. For a bilingual
+    entry it is absent entirely - the pair says what the model is for - and
+    the language block would then be built from nothing, so every call raises
+    ``KeyError: language code 'ca' is not supported by this model`` on a model
+    whose vocabulary does carry ``__ca__``. The claim is not the artifact, so
+    the artifact is read instead: ``special_tokens_map.json``'s
+    ``additional_special_tokens`` is the same list, in the same order, that
+    fixes the ids.
+
+    Order is preserved rather than sorted: it *is* the id order of the
+    language-token block.
+    """
+    path = files.get("special_tokens_map")
+    if path is None:
+        raise ValueError(
+            "no language codes: the registry entry lists none and the export "
+            "ships no special_tokens_map.json to read them from. Without them "
+            "the source tag and the forced target token cannot be built, and "
+            "the model would translate into whatever it guesses.")
+    tokens = _load_json(path).get("additional_special_tokens") or []
+    codes = []
+    for token in tokens:
+        if not isinstance(token, str):
+            continue
+        match = _M2M100_LANG_TOKEN_RE.match(token)
+        codes.append(match.group(1) if match else token)
+    if not codes:
+        raise ValueError(
+            f"{path} carries no additional_special_tokens, so this export "
+            f"declares no language tokens at all")
+    return codes
+
+
 class SpmSeq2SeqTokenizer:
     """M2M100 and NLLB.
 
@@ -145,8 +186,13 @@ class SpmSeq2SeqTokenizer:
         if added_tokens_path is not None and Path(added_tokens_path).exists():
             # Authoritative when present (M2M100 ships one).
             added = _load_json(added_tokens_path)
-            self.lang_code_to_id = {code: int(added[code])
-                                    for code in lang_codes if code in added}
+            # M2M100 spells the key wrapped (`__ca__`) while `lang_codes` is
+            # bare (`ca`); accept either, so the ids come from the file rather
+            # than from counting.
+            self.lang_code_to_id = {
+                code: int(added[key])
+                for code in lang_codes
+                for key in (code, f"__{code}__") if key in added}
             if len(self.lang_code_to_id) != len(lang_codes):
                 self.lang_code_to_id = {code: lang_block_start + i
                                         for i, code in enumerate(lang_codes)}
@@ -174,7 +220,10 @@ class SpmSeq2SeqTokenizer:
 
     def lang_id(self, code: str) -> int:
         if code not in self.lang_code_to_id:
-            raise KeyError(f"language code {code!r} is not supported by this model")
+            raise KeyError(
+                f"language code {code!r} is not supported by this model; its "
+                f"vocabulary carries {len(self.lang_code_to_id)} language "
+                f"tokens")
         return self.lang_code_to_id[code]
 
     # -- encode / decode -------------------------------------------------
@@ -509,10 +558,12 @@ def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str],
         return MarianTokenizer(files["source_spm"], files["target_spm"], files["vocab"],
                                **specials)
     if arch == "m2m100":
-        return SpmSeq2SeqTokenizer(files["spm"], lang_codes, vocab_path=files["vocab"],
+        codes = lang_codes or artifact_lang_codes(files)
+        return SpmSeq2SeqTokenizer(files["spm"], codes, vocab_path=files["vocab"],
                                    added_tokens_path=files.get("added_tokens"))
     if arch == "nllb":
-        return SpmSeq2SeqTokenizer(files["spm"], lang_codes, fairseq_offset=1)
+        codes = lang_codes or artifact_lang_codes(files)
+        return SpmSeq2SeqTokenizer(files["spm"], codes, fairseq_offset=1)
     if arch == "madlad":
         return T5SpmTokenizer(files["spm"])
     if arch == "indictrans2":
