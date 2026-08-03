@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.2a2](https://github.com/TigreGotico/linguonnx/tree/0.8.2a2) (2026-08-03)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.2a1...0.8.2a2)
+
+**Merged pull requests:**
+
+- test: fix a test module that never ran, and what it was hiding [\#58](https://github.com/TigreGotico/linguonnx/pull/58) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.8.2a1](https://github.com/TigreGotico/linguonnx/tree/0.8.2a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.1a1...0.8.2a1)
