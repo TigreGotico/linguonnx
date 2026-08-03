@@ -137,6 +137,8 @@ converges on loading all of them, gets OOM-killed, restarts cold, and pays
 every download again.
 
 ```python
+from linguonnx import load_translator
+
 tx = load_translator(model_cache_size=8)   # more RAM, fewer reloads
 print(tx.loaded_models)                    # least recently used first
 ```

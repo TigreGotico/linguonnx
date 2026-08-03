@@ -112,6 +112,8 @@ uv pip install -e .[test]
 pytest test/ -m "not network"     # unit tests: no download, no model
 pytest test/                      # also runs the real model downloads
 python scripts/check_docs.py      # execute every code sample in these docs
+                                   # (needs network: it downloads real models,
+                                   # same as `pytest -m network`; not run in CI)
 ```
 
 Routing and decoding are tested without any real model. The graph is pure
