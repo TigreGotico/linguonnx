@@ -167,6 +167,73 @@ def test_hitz_gl_eu_no_longer_returns_empty_string(model_id):
     assert out.strip(), f"{model_id} regressed back to an empty translation"
 
 
+# --- multi-architecture state isolation -------------------------------------
+#
+# A real server lazy-loads whatever models a client asks for, into one
+# process, in whatever order requests happen to arrive. Each architecture's
+# `Pipeline` is a process-wide singleton (see `_PIPELINES` in
+# `linguonnx.translate.preprocess`), so any per-call state that pipeline
+# leaves on itself instead of on the `TranslationModel`/`Hop` it was called
+# for would bleed into the next model of that architecture - or, worse, be
+# mistaken by a caller for evidence that architecture order matters at all.
+# IndicTrans2 is the one architecture here with real state to leak (the
+# placeholder map threaded from `encode` to `decode`), so it is the one this
+# guards: load two SentencePiece architectures first, then IndicTrans2, and
+# require every one of them still translates correctly afterwards.
+
+def test_indictrans2_still_works_after_other_architectures_share_the_process(tx):
+    """Loading m2m100 and nllb first must not corrupt IndicTrans2's tags.
+
+    Regression test: a fresh process that loads `m2m100-418M-int8` and
+    `nllb-600M-int8` before touching `indictrans2-en-indic-dist-200M-int8`
+    must not see `'en' is not an IndicTrans2 language tag` - IndicTrans2
+    needs `eng_Latn`/`hin_Deva`-style tags and never sees plain BCP-47
+    unless something upstream leaked the wrong model's tag map into it.
+    """
+    m2m100_out = tx.translate("hello world", src="en", tgt="fr",
+                              model="m2m100-418M-int8")
+    assert m2m100_out.strip()
+
+    indic_model = "indictrans2-en-indic-dist-200M-int8"
+    outputs = {}
+    for tgt in ("hi", "bn", "ta"):
+        out = tx.translate("hello world", src="en", tgt=tgt, model=indic_model)
+        assert out.strip(), (tgt, out)
+        outputs[tgt] = out
+    # Each target must come back in its own script, not collapsed onto one
+    # (the silent failure mode when the src/tgt tags are wrong or the
+    # transliteration step is skipped).
+    assert len(set(outputs.values())) == 3, outputs
+
+    # And m2m100 must still work after IndicTrans2 has run - the leak this
+    # guards against is bidirectional in principle, even though the reported
+    # failure was IndicTrans2 raising.
+    again = tx.translate("hello world", src="en", tgt="fr",
+                         model="m2m100-418M-int8")
+    assert again == m2m100_out
+
+
+def test_indictrans2_after_nllb_in_one_process():
+    """Same guard, with NLLB (a second SentencePiece architecture) in the mix.
+
+    Built as its own `Translator` - NLLB is non-commercial and excluded from
+    the module-level `tx` fixture by default - but still one process, and
+    `_PIPELINES` is process-wide regardless of which `Translator` asked for a
+    model, so this exercises the "across Translator instances" shape of the
+    leak as well as the "one Translator, several models" shape above.
+    """
+    tx_nc = load_translator(models=["nllb-600M-int8",
+                                    "indictrans2-en-indic-dist-200M-int8"])
+    nllb_out = tx_nc.translate("hello world", src="en", tgt="fr",
+                               model="nllb-600M-int8")
+    assert nllb_out.strip()
+
+    indic_out = tx_nc.translate("hello world", src="en", tgt="hi",
+                                model="indictrans2-en-indic-dist-200M-int8")
+    assert indic_out.strip()
+    assert any("ऀ" <= ch <= "ॿ" for ch in indic_out), indic_out
+
+
 # --- the hard constraint ---------------------------------------------------
 
 def test_the_library_never_imports_torch():
