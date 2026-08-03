@@ -1,6 +1,10 @@
 """Download + local cache for linguonnx models.
 
-Models are cached under ``~/.cache/linguonnx/models/<model_id>/<filename>``.
+Models are cached under ``$LINGUONNX_CACHE/models/<model_id>/<filename>``,
+defaulting to ``~/.cache/linguonnx``. Point ``LINGUONNX_CACHE`` at bulk storage
+on a server: the full translation registry is well over 100 GB and ``$HOME`` is
+rarely where that belongs.
+
 Downloads go through ``huggingface_hub.hf_hub_download`` (which does its own
 resumable/verified download into HF's blob cache) and are then copied into our
 cache path atomically: written to a temp sibling whose name is unique per
@@ -45,7 +49,31 @@ from huggingface_hub import hf_hub_download
 
 LOG = logging.getLogger(__name__)
 
-CACHE_ROOT = Path.home() / ".cache" / "linguonnx"
+
+def _cache_root() -> Path:
+    """Where models are cached, ``$LINGUONNX_CACHE`` or the XDG-ish default.
+
+    The default is right for a workstation and wrong for most servers: model
+    weights are tens of gigabytes and ``$HOME`` is usually on the small, fast
+    root volume, while the bulk storage is mounted elsewhere. Without a knob
+    the only fix is a symlink at ``~/.cache/linguonnx``, which is invisible to
+    anyone reading this code and silently fills the root disk the moment it is
+    missing or a service runs as a different user.
+
+    An empty or whitespace-only value is treated as unset, so
+    ``LINGUONNX_CACHE=`` in a compose file or an unexpanded shell variable
+    falls back to the default rather than caching into the process's working
+    directory.
+    """
+    raw = os.environ.get("LINGUONNX_CACHE")
+    if raw is None or not raw.strip():
+        return Path.home() / ".cache" / "linguonnx"
+    return Path(raw).expanduser()
+
+
+#: Root of the on-disk model cache. Read once at import, like the bounds in
+#: :mod:`linguonnx.limits`; set the variable before importing linguonnx.
+CACHE_ROOT = _cache_root()
 MODELS_DIR = CACHE_ROOT / "models"
 INDEX_DIR = Path(__file__).parent / "model_index"
 REGISTRY_PATH = INDEX_DIR / "lid.json"

@@ -27,7 +27,13 @@ pip install linguonnx[distance]   # adds orthography2ipa, for pivot ranking
 ```
 
 Models download from HuggingFace on first use and are cached under
-`~/.cache/linguonnx/models/<model_id>/`.
+`~/.cache/linguonnx/models/<model_id>/`. Set `LINGUONNX_CACHE` to put that
+somewhere else — on a server the weights are tens of gigabytes and `$HOME` is
+usually the small root volume:
+
+```bash
+export LINGUONNX_CACHE=/mnt/bulk/linguonnx
+```
 
 ## Identify a language
 
