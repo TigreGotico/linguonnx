@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.1a1](https://github.com/TigreGotico/linguonnx/tree/0.6.1a1) (2026-08-03)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.6.0a1...0.6.1a1)
+
+**Merged pull requests:**
+
+- fix: CI blockers for PyPI release \(network tests, registry sync, license false-positive, doc bugs\) [\#31](https://github.com/TigreGotico/linguonnx/pull/31) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.6.0a1](https://github.com/TigreGotico/linguonnx/tree/0.6.0a1) (2026-08-02)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.4a2...0.6.0a1)
