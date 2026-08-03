@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.4a1](https://github.com/TigreGotico/linguonnx/tree/0.6.4a1) (2026-08-03)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.6.3a1...0.6.4a1)
+
+**Merged pull requests:**
+
+- fix: mt-hitz-gl-eu returned empty translations \(bad\_words\_ids not enforced\) [\#45](https://github.com/TigreGotico/linguonnx/pull/45) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.6.3a1](https://github.com/TigreGotico/linguonnx/tree/0.6.3a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.6.2a1...0.6.3a1)
