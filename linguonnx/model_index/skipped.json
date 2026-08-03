@@ -1,21 +1,5 @@
 {
-  "TigreGotico/aina-translator-ca-de-onnx": "missing required side files: spm",
-  "TigreGotico/aina-translator-ca-en-onnx": "missing required side files: spm",
-  "TigreGotico/aina-translator-ca-es-onnx": "missing required side files: spm",
-  "TigreGotico/aina-translator-ca-fr-onnx": "missing required side files: spm",
-  "TigreGotico/aina-translator-ca-it-onnx": "missing required side files: spm",
-  "TigreGotico/aina-translator-ca-pt-onnx": "missing required side files: spm",
-  "TigreGotico/aina-translator-de-ca-onnx": "missing required side files: spm",
-  "TigreGotico/aina-translator-en-ca-onnx": "missing required side files: spm",
-  "TigreGotico/aina-translator-es-ca-onnx": "missing required side files: spm",
-  "TigreGotico/aina-translator-eu-ca-onnx": "missing required side files: spm",
-  "TigreGotico/aina-translator-fr-ca-onnx": "missing required side files: spm",
-  "TigreGotico/aina-translator-gl-ca-onnx": "missing required side files: spm",
-  "TigreGotico/aina-translator-it-ca-onnx": "missing required side files: spm",
-  "TigreGotico/aina-translator-pt-ca-onnx": "missing required side files: spm",
-  "TigreGotico/lid218e-onnx": "unknown loss 'loss_name.softmax'",
-  "TigreGotico/opus-mt-tc-big-cat_oci_spa-en-onnx": "cannot read a language pair from the repo name 'opus-mt-tc-big-cat_oci_spa-en-onnx' and the card declares 4 languages",
-  "TigreGotico/opus-mt-tc-big-en-cat_oci_spa-onnx": "cannot read a language pair from the repo name 'opus-mt-tc-big-en-cat_oci_spa-onnx' and the card declares 4 languages",
-  "TigreGotico/translate-eus-cat-onnx": "missing required side files: vocab, bpe_code",
-  "TigreGotico/translate-oci-cat-onnx": "missing required side files: vocab, bpe_code"
+  "TigreGotico/m2m100_418M_en_hau_rel_news_ft-onnx": "the card declares 2 languages (en/ha) but the tokenizer lists 100, 98 of them unclaimed (e.g. af, am, ar, ast, az): a fine-tune wearing its base's token inventory. Add a verified MULTILINGUAL_LANGUAGE_OVERRIDES entry for 'm2m100_418M_en_hau_rel_news_ft' to register it",
+  "TigreGotico/opus-mt-gmq-en-onnx": "vocab.json has no >>xxx<< target-prefix tokens",
+  "TigreGotico/opus-mt-tc-big-zle-en-onnx": "vocab.json has no >>xxx<< target-prefix tokens"
 }

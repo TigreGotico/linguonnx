@@ -65,6 +65,38 @@
     },
     "size_mb": 33
   },
+  "lid218e": {
+    "engine": "fasttext-onnx",
+    "hf_repo": "TigreGotico/lid218e-onnx",
+    "license": "CC-BY-NC-4.0",
+    "loss": "softmax",
+    "model_id": "lid218e",
+    "num_labels": 218,
+    "onnx_file": "lid218e.onnx",
+    "precision": "fp32",
+    "side_files": {
+      "vocab": "vocab.txt",
+      "labels": "labels.json",
+      "config": "config.json"
+    },
+    "size_mb": 1
+  },
+  "lid218e-int8": {
+    "engine": "fasttext-onnx",
+    "hf_repo": "TigreGotico/lid218e-onnx",
+    "license": "CC-BY-NC-4.0",
+    "loss": "softmax",
+    "model_id": "lid218e-int8",
+    "num_labels": 218,
+    "onnx_file": "lid218e.int8.onnx",
+    "precision": "int8",
+    "side_files": {
+      "vocab": "vocab.txt",
+      "labels": "labels.json",
+      "config": "config.json"
+    },
+    "size_mb": 295
+  },
   "openlid": {
     "engine": "fasttext-onnx",
     "hf_repo": "TigreGotico/openlid-onnx",

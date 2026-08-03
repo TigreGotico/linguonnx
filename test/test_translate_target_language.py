@@ -146,8 +146,21 @@ def _multi_target_entries():
     path = Path(linguonnx.__file__).parent / "model_index" / "translate.json"
     with open(path, encoding="utf-8") as handle:
         registry = json.load(handle)
-    return [(model_id, entry) for model_id, entry in sorted(registry.items())
-            if not entry.get("pair")]
+    entries = []
+    for model_id, entry in sorted(registry.items()):
+        if entry.get("pair"):
+            continue
+        # `opus-mt-tc-big-cat_oci_spa-en`: many sources, one fixed target, no
+        # `>>xxx<<` token in its vocabulary at all - there is genuinely
+        # nothing to disambiguate, so it is not a "multi-target" entry in the
+        # sense this guard cares about. Same exemption as
+        # `entry_runnability` in graph.py.
+        targets = entry.get("tgt_languages") if entry.get("tgt_languages") is not None \
+            else entry.get("languages")
+        if isinstance(targets, list) and len(targets) == 1:
+            continue
+        entries.append((model_id, entry))
+    return entries
 
 
 #: Architectures that put the target language on the *encoder input*. For

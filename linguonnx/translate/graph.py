@@ -251,7 +251,18 @@ def entry_runnability(entry: Dict) -> Tuple[bool, Optional[str]]:
     """
     if entry.get("runnable") is False:
         return False, entry.get("unrunnable_reason") or "the registry marks it unrunnable"
-    multi_target = entry["arch"] == "marian" and not entry.get("pair")
+    # A model with no `pair` and only one selectable target - a many-source,
+    # one-fixed-target group export, e.g. `opus-mt-tc-big-cat_oci_spa-en`
+    # (Catalan/Occitan/Spanish -> English, no `>>xxx<<` token in its
+    # vocabulary at all) - has nothing to disambiguate, so it is not held to
+    # the token requirement below. `tgt_languages`/`languages` both absent (a
+    # `pair`-less, set-less entry would be malformed) counts as ambiguous, not
+    # as "no targets to disambiguate".
+    targets = entry.get("tgt_languages") if entry.get("tgt_languages") is not None \
+        else entry.get("languages")
+    single_target = isinstance(targets, list) and len(targets) == 1
+    multi_target = entry["arch"] == "marian" and not entry.get("pair") \
+        and not single_target
     if multi_target and not (entry.get("target_token")
                              or entry.get("target_token_template")):
         LOG.warning(
