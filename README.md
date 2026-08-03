@@ -105,6 +105,15 @@ to opt in.
 Runnable scripts live in [`examples/`](examples/). Each says in its docstring
 what it demonstrates and what it downloads.
 
+## Use it from OpenVoiceOS
+
+[`ovos-plugin-linguonnx`](https://github.com/OpenVoiceOS/ovos-plugin-linguonnx)
+wraps this library as two OVOS plugins from one install: a language detector
+(`opm.lang.detect`, id `ovos-lang-detect-plugin-linguonnx`) and a translator
+(`opm.lang.translate`, id `ovos-translate-plugin-linguonnx`). Both load their
+models on first use, and every knob in `load_detector` and `load_translator` is
+reachable from `mycroft.conf`.
+
 ## Development
 
 ```bash
