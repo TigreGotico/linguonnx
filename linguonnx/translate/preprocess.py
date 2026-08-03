@@ -129,9 +129,18 @@ class SpmLangTokenPipeline(Pipeline):
         return model.tokenizer.decode(ids)
 
 
-@register("marian")
+@register("marian", "pegasus-fast")
 class MarianPipeline(Pipeline):
-    """opus-mt. The model is the pair; only group models take a target token."""
+    """opus-mt. The model is the pair; only group models take a target token.
+
+    ``pegasus-fast`` (Softcatalà's ``translate-eus-cat``/``translate-oci-cat``)
+    shares this pipeline: its tokenizer is a different implementation
+    (:class:`~linguonnx.translate.tokenizers.FastUnigramTokenizer`, over a
+    ``tokenizers``-library ``tokenizer.json`` rather than a SentencePiece
+    ``.model``) but the same ``encode(text, target_token=...)`` /
+    ``decode(ids)`` shape, and like Marian's dedicated pairs it never needs a
+    target token.
+    """
 
     def encode(self, model, text, src, tgt, target_token=None):
         return self.check_length(

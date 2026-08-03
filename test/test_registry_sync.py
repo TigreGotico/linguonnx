@@ -12,6 +12,7 @@ returns fluent text in a language nobody asked for, so the claims are checked
 against what each architecture can actually serve.
 """
 
+import importlib.util
 import json
 import subprocess
 import sys
@@ -26,6 +27,21 @@ from linguonnx.translate.graph import (LICENSE_TIERS, NoRouteError,
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SYNC_SCRIPT = REPO_ROOT / "scripts" / "sync_registry.py"
+
+
+def _load_sync_registry():
+    """Import ``scripts/sync_registry.py`` as a module, for unit-testing its
+    pure functions (``_arch``, ``_marian_group_target_tokens``, ...) without
+    a network call. It is a script, not a package, so it is not importable
+    the normal way.
+    """
+    spec = importlib.util.spec_from_file_location("sync_registry", SYNC_SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+sync_registry = _load_sync_registry()
 
 TRANSLATE = model_manager.list_models(kind="translate")
 LID = model_manager.list_models(kind="lid")
@@ -51,7 +67,8 @@ def test_translate_entry_is_complete(model_id):
     assert entry["model_id"] == model_id
     assert entry["hf_repo"].startswith("TigreGotico/")
     assert entry["arch"] in (
-        "marian", "m2m100", "nllb", "madlad", "indictrans2", "opennmt-bpe")
+        "marian", "m2m100", "nllb", "madlad", "indictrans2", "opennmt-bpe",
+        "pegasus-fast")
     assert entry["precision"] in ("fp32", "int8")
     assert entry["size_mb"] > 0
 
@@ -91,6 +108,7 @@ def test_translate_entry_carries_side_files_its_tokenizer_needs(model_id):
         "madlad": {"spm", "config"},
         "indictrans2": {"spm_src", "spm_tgt", "dict_src", "dict_tgt", "config"},
         "opennmt-bpe": {"vocab", "config", "bpe_code"},
+        "pegasus-fast": {"tokenizer_json", "config"},
     }[entry["arch"]]
     assert required <= set(side), \
         f"{model_id} ({entry['arch']}) is missing {required - set(side)}"
@@ -158,7 +176,7 @@ def test_basque_is_served_only_by_models_that_actually_have_it():
         endpoints = {normalize_tag(c) for c in entry.get("pair", ())}
         endpoints |= {normalize_tag(c) for c in entry.get("languages", ())}
         if "eu" in endpoints:
-            assert entry["arch"] in ("marian", "nllb", "madlad"), \
+            assert entry["arch"] in ("marian", "nllb", "madlad", "pegasus-fast"), \
                 f"{model_id} claims Basque with arch {entry['arch']}"
 
 
@@ -199,9 +217,21 @@ def test_group_models_carry_a_target_token_template():
     which one from a ``>>ita<<`` prefix token. An entry with neither a pair
     nor a way to build that token cannot select a target at all, and answers
     fluently in the wrong language rather than raising.
+
+    ``opus-mt-tc-big-cat_oci_spa-en`` is the one genuine exception: many
+    sources, one fixed target, no ``>>xxx<<`` token in its vocabulary at all
+    (verified by hand - see ``_KNOWN_UNRESOLVED_GROUP_MODELS`` in
+    ``scripts/sync_registry.py``), so there is nothing to disambiguate and no
+    template is needed. It is recognised the same way
+    ``entry_runnability`` recognises it: no ``pair``, and exactly one
+    selectable target.
     """
     for model_id, entry in TRANSLATE.items():
         if entry["arch"] != "marian" or entry.get("pair"):
+            continue
+        targets = entry.get("tgt_languages") if entry.get("tgt_languages") is not None \
+            else entry.get("languages")
+        if isinstance(targets, list) and len(targets) == 1:
             continue
         template = entry.get("target_token_template", "")
         assert "{code}" in template, (
@@ -218,6 +248,198 @@ def test_target_tokens_are_only_set_where_they_are_needed():
             continue
         assert entry["arch"] == "marian", \
             f"{model_id} sets target_token but is {entry['arch']}"
+
+
+# ---------------------------------------------------------------------------
+# The 19 models excluded for an architecture/tokenizer mismatch, now resolved
+# ---------------------------------------------------------------------------
+
+#: The 14 `aina-translator-ca-*` pairs: tagged `model_type: m2m_100` but
+#: actually ship a dual Marian tokenizer (`source.spm` + `target.spm` +
+#: `vocab.json`). See `_arch()` in scripts/sync_registry.py.
+_AINA_MARIAN_PAIRS = (
+    "aina-translator-ca-de", "aina-translator-ca-en", "aina-translator-ca-es",
+    "aina-translator-ca-fr", "aina-translator-ca-it", "aina-translator-ca-pt",
+    "aina-translator-de-ca", "aina-translator-en-ca", "aina-translator-es-ca",
+    "aina-translator-eu-ca", "aina-translator-fr-ca", "aina-translator-gl-ca",
+    "aina-translator-it-ca", "aina-translator-pt-ca",
+)
+
+#: Softcatalà's two exports: tagged `model_type: pegasus` but ship a
+#: `tokenizers`-library `tokenizer.json` instead of an OpenNMT BPE vocab.
+_SOFTCATALA_PEGASUS_FAST = ("translate-eus-cat", "translate-oci-cat")
+
+#: The 3 `opus-mt-tc-big-*` group models: underscore-joined macro-language
+#: names (`cat_oci_spa`) or a family/collection code (`itc`) that the repo
+#: name's own `xx-yy` shape hides real per-checkpoint coverage behind.
+_OPUS_MT_TC_BIG_GROUP_MODELS = (
+    "opus-mt-tc-big-cat_oci_spa-en",
+    "opus-mt-tc-big-en-cat_oci_spa",
+    "opus-mt-tc-big-itc-itc",
+)
+
+
+@pytest.mark.parametrize("model_id", _AINA_MARIAN_PAIRS)
+def test_aina_pairs_are_registered_as_marian(model_id):
+    assert model_id in TRANSLATE, f"{model_id} is still unregistered"
+    assert TRANSLATE[model_id]["arch"] == "marian"
+    assert "source_spm" in TRANSLATE[model_id]["side_files"]
+    assert "target_spm" in TRANSLATE[model_id]["side_files"]
+
+
+@pytest.mark.parametrize("model_id", _SOFTCATALA_PEGASUS_FAST)
+def test_softcatala_exports_are_registered_as_pegasus_fast(model_id):
+    assert model_id in TRANSLATE, f"{model_id} is still unregistered"
+    assert TRANSLATE[model_id]["arch"] == "pegasus-fast"
+    assert "tokenizer_json" in TRANSLATE[model_id]["side_files"]
+
+
+@pytest.mark.parametrize("model_id", _OPUS_MT_TC_BIG_GROUP_MODELS)
+def test_opus_mt_tc_big_group_models_are_registered(model_id):
+    assert model_id in TRANSLATE, f"{model_id} is still unregistered"
+    entry = TRANSLATE[model_id]
+    assert entry["arch"] == "marian"
+    assert not entry.get("pair"), (
+        f"{model_id} is a group model; it must not be registered as a "
+        f"single dedicated pair")
+    # Every one of these needs *some* way to name its target: either a
+    # multi-target token template, or (the one no-token exception) exactly
+    # one fixed target.
+    template = entry.get("target_token_template", "")
+    single_fixed_target = (isinstance(entry.get("tgt_languages"), list)
+                           and len(entry["tgt_languages"]) == 1)
+    assert "{code}" in template or single_fixed_target, (
+        f"{model_id} can select neither a token-based target nor a single "
+        f"fixed one")
+
+
+def test_opus_mt_tc_big_itc_itc_excludes_the_unverified_kea_token():
+    """`kea` (Kabuverdianu) has a real `>>kea<<` vocab token but a real
+    translation into it came back as fluent Spanish, not Kabuverdianu -
+    confirmed with GlotLID. Registering it would repeat the MADLAD failure
+    mode this project already fixed once.
+    """
+    entry = TRANSLATE.get("opus-mt-tc-big-itc-itc")
+    if entry is None:
+        pytest.skip("opus-mt-tc-big-itc-itc is not registered")
+    assert "kea" not in entry["languages"]
+
+
+def test_opus_mt_tc_big_cat_oci_spa_en_is_directional_not_multi_target():
+    """No `>>xxx<<` token in this checkpoint's vocabulary at all: many
+    sources, one fixed target, nothing to disambiguate."""
+    entry = TRANSLATE.get("opus-mt-tc-big-cat_oci_spa-en")
+    if entry is None:
+        pytest.skip("opus-mt-tc-big-cat_oci_spa-en is not registered")
+    assert entry.get("src_languages") and entry.get("tgt_languages") == ["en"]
+    assert "target_token_template" not in entry
+
+
+#: Two more many-source/one-fixed-target group models, found by a live
+#: registry audit after the three above were resolved: same shape as
+#: `opus-mt-tc-big-cat_oci_spa-en`, but reached through `_marian_pair`'s
+#: `GroupModel` path (their family code - `gmq` Scandinavian, `zle`
+#: East-Slavic - IS a recognised ISO 639-5 collection, unlike `cat_oci_spa`),
+#: not the underscore-joined-name special case. Both resolve through the same
+#: `_marian_group_entry` with no per-repo code.
+_DIRECTIONAL_GROUP_MODELS_NO_TOKEN = ("opus-mt-gmq-en", "opus-mt-tc-big-zle-en")
+
+
+@pytest.mark.parametrize("model_id", _DIRECTIONAL_GROUP_MODELS_NO_TOKEN)
+def test_directional_group_models_with_no_token_are_registered(model_id):
+    """A group model whose vocabulary has zero `>>xxx<<` tokens is not
+    broken - it is many-to-one, with nothing to disambiguate. Generalises
+    the `cat_oci_spa-en` case rather than special-casing it alone."""
+    assert model_id in TRANSLATE, f"{model_id} is still unregistered"
+    entry = TRANSLATE[model_id]
+    assert entry["arch"] == "marian"
+    assert not entry.get("pair")
+    assert entry.get("tgt_languages") == ["en"]
+    assert entry.get("src_languages")
+    assert "target_token_template" not in entry
+
+
+def test_m2m100_en_hau_finetune_is_registered_as_a_bilingual_pair():
+    """Same shape as the other Masakhane m2m100_418M_*_rel_news_ft
+    fine-tunes already in BILINGUAL_FINETUNES: card names exactly en/ha,
+    and the export's own generation_config.json bakes in forced_bos_token_id
+    - so no per-call target token is needed, same as its siblings."""
+    entry = TRANSLATE.get("m2m100_418M_en_hau_rel_news_ft")
+    if entry is None:
+        pytest.skip("m2m100_418M_en_hau_rel_news_ft is not registered")
+    assert entry["arch"] == "m2m100"
+    assert entry["pair"] == ["en", "ha"]
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for the arch-detection logic itself
+# ---------------------------------------------------------------------------
+
+def test_arch_prefers_dual_spm_over_model_type():
+    """A dual source.spm/target.spm/vocab.json is Marian, whatever
+    `config.model_type` claims - the exact `aina-translator-ca-*` mismatch."""
+    detail = {"config": {"model_type": "m2m_100"}}
+    files = {"source.spm": 1, "target.spm": 1, "vocab.json": 1}
+    assert sync_registry._arch(detail, files) == "marian"
+
+
+def test_arch_still_reads_m2m100_without_dual_spm():
+    """A real M2M100 export (single merged sentencepiece.bpe.model, no
+    source.spm/target.spm) must not be reclassified as Marian."""
+    detail = {"config": {"model_type": "m2m_100"}}
+    files = {"sentencepiece.bpe.model": 1, "vocab.json": 1}
+    assert sync_registry._arch(detail, files) == "m2m100"
+
+
+def test_arch_still_reads_nllb_without_vocab_json():
+    detail = {"config": {"model_type": "m2m_100"}}
+    files = {"sentencepiece.bpe.model": 1}
+    assert sync_registry._arch(detail, files) == "nllb"
+
+
+def test_arch_reads_pegasus_fast_from_tokenizer_json():
+    """`model_type: pegasus` with a tokenizers-library tokenizer.json (no
+    OpenNMT BPE vocab file) is Softcatalà's shape, not ProxectoNos'."""
+    detail = {"config": {"model_type": "pegasus"}}
+    files = {"tokenizer.json": 1}
+    assert sync_registry._arch(detail, files) == "pegasus-fast"
+
+
+def test_arch_still_reads_opennmt_bpe_variants():
+    detail = {"config": {"model_type": "pegasus"}}
+    assert sync_registry._arch(detail, {"onmt_vocab.json": 1}) == "opennmt-bpe"
+    assert sync_registry._arch(detail, {"nos_vocab.json": 1}) == "opennmt-bpe"
+
+
+def test_arch_refuses_unrecognised_pegasus_tokenizer_shape():
+    detail = {"config": {"model_type": "pegasus"}}
+    with pytest.raises(sync_registry.SkipRepo):
+        sync_registry._arch(detail, {})
+
+
+def test_marian_special_tokens_reads_both_json_shapes(tmp_path):
+    """Standard opus-mt spells special tokens as plain strings; the
+    `aina-translator-ca-*` family (a `tokenizers`-library export) wraps each
+    in an object. Both have to be read the same way."""
+    from linguonnx.translate.tokenizers import _marian_special_tokens
+
+    flat = tmp_path / "flat.json"
+    flat.write_text(json.dumps({"eos_token": "</s>", "pad_token": "<pad>",
+                                "unk_token": "<unk>"}))
+    assert sync_registry  # keep the module import used (silence linters)
+    assert _marian_special_tokens(flat) == {
+        "eos_token": "</s>", "pad_token": "<pad>", "unk_token": "<unk>"}
+
+    wrapped = tmp_path / "wrapped.json"
+    wrapped.write_text(json.dumps({
+        "eos_token": {"content": "</s>"},
+        "pad_token": {"content": "<blank>"},
+        "unk_token": {"content": "<unk>"},
+    }))
+    assert _marian_special_tokens(wrapped) == {
+        "eos_token": "</s>", "pad_token": "<blank>", "unk_token": "<unk>"}
+
+    assert _marian_special_tokens(None) == {}
 
 
 # ---------------------------------------------------------------------------
@@ -324,7 +546,7 @@ def test_hi_to_ta_resolves_direct(translator):
 #: for. Kept as a literal set rather than read from the registry, so that
 #: adding an entry for an architecture nobody wrote a pipeline for fails here.
 RUNNABLE_ARCHS = {"marian", "m2m100", "nllb", "madlad", "indictrans2",
-                  "opennmt-bpe"}
+                  "opennmt-bpe", "pegasus-fast"}
 
 
 @pytest.mark.parametrize("model_id", sorted(TRANSLATE))

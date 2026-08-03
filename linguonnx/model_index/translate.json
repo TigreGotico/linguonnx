@@ -58,6 +58,342 @@
     },
     "size_mb": 1862
   },
+  "aina-translator-ca-de": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-ca-de-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-ca-de",
+    "notes": "Marian, Catalan -> German.",
+    "pair": [
+      "ca",
+      "de"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 3204
+  },
+  "aina-translator-ca-de-int8": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-ca-de-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-ca-de-int8",
+    "notes": "Marian, Catalan -> German.",
+    "pair": [
+      "ca",
+      "de"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 1732
+  },
+  "aina-translator-ca-en": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-ca-en-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-ca-en",
+    "notes": "Marian, Catalan -> English.",
+    "pair": [
+      "ca",
+      "en"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 3290
+  },
+  "aina-translator-ca-en-int8": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-ca-en-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-ca-en-int8",
+    "notes": "Marian, Catalan -> English.",
+    "pair": [
+      "ca",
+      "en"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 1819
+  },
+  "aina-translator-ca-es": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-ca-es-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-ca-es",
+    "notes": "Marian, Catalan -> Spanish.",
+    "pair": [
+      "ca",
+      "es"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 3460
+  },
+  "aina-translator-ca-es-int8": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-ca-es-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-ca-es-int8",
+    "notes": "Marian, Catalan -> Spanish.",
+    "pair": [
+      "ca",
+      "es"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 1988
+  },
+  "aina-translator-ca-fr": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-ca-fr-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-ca-fr",
+    "notes": "Marian, Catalan -> French.",
+    "pair": [
+      "ca",
+      "fr"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 3208
+  },
+  "aina-translator-ca-fr-int8": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-ca-fr-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-ca-fr-int8",
+    "notes": "Marian, Catalan -> French.",
+    "pair": [
+      "ca",
+      "fr"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 1737
+  },
+  "aina-translator-ca-it": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-ca-it-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-ca-it",
+    "notes": "Marian, Catalan -> Italian.",
+    "pair": [
+      "ca",
+      "it"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 3152
+  },
+  "aina-translator-ca-it-int8": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-ca-it-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-ca-it-int8",
+    "notes": "Marian, Catalan -> Italian.",
+    "pair": [
+      "ca",
+      "it"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 1680
+  },
+  "aina-translator-ca-pt": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-ca-pt-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-ca-pt",
+    "notes": "Marian, Catalan -> Portuguese.",
+    "pair": [
+      "ca",
+      "pt"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 3160
+  },
+  "aina-translator-ca-pt-int8": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-ca-pt-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-ca-pt-int8",
+    "notes": "Marian, Catalan -> Portuguese.",
+    "pair": [
+      "ca",
+      "pt"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 1689
+  },
   "aina-translator-ca-zh": {
     "arch": "m2m100",
     "extra_files": [
@@ -117,6 +453,118 @@
       "added_tokens": "int8/added_tokens.json"
     },
     "size_mb": 2345
+  },
+  "aina-translator-de-ca": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-de-ca-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-de-ca",
+    "notes": "Marian, German -> Catalan.",
+    "pair": [
+      "de",
+      "ca"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 3078
+  },
+  "aina-translator-de-ca-int8": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-de-ca-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-de-ca-int8",
+    "notes": "Marian, German -> Catalan.",
+    "pair": [
+      "de",
+      "ca"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 1607
+  },
+  "aina-translator-en-ca": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-en-ca-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-en-ca",
+    "notes": "Marian, English -> Catalan.",
+    "pair": [
+      "en",
+      "ca"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 3295
+  },
+  "aina-translator-en-ca-int8": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-en-ca-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-en-ca-int8",
+    "notes": "Marian, English -> Catalan.",
+    "pair": [
+      "en",
+      "ca"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 1823
   },
   "aina-translator-es-an": {
     "arch": "nllb",
@@ -231,6 +679,314 @@
       "special_tokens_map": "int8/special_tokens_map.json"
     },
     "size_mb": 1862
+  },
+  "aina-translator-es-ca": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-es-ca-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-es-ca",
+    "notes": "Marian, Spanish -> Catalan.",
+    "pair": [
+      "es",
+      "ca"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 3460
+  },
+  "aina-translator-eu-ca": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-eu-ca-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-eu-ca",
+    "notes": "Marian, Basque -> Catalan.",
+    "pair": [
+      "eu",
+      "ca"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 3053
+  },
+  "aina-translator-eu-ca-int8": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-eu-ca-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-eu-ca-int8",
+    "notes": "Marian, Basque -> Catalan.",
+    "pair": [
+      "eu",
+      "ca"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 1581
+  },
+  "aina-translator-fr-ca": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-fr-ca-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-fr-ca",
+    "notes": "Marian, French -> Catalan.",
+    "pair": [
+      "fr",
+      "ca"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 3208
+  },
+  "aina-translator-fr-ca-int8": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-fr-ca-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-fr-ca-int8",
+    "notes": "Marian, French -> Catalan.",
+    "pair": [
+      "fr",
+      "ca"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 1737
+  },
+  "aina-translator-gl-ca": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-gl-ca-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-gl-ca",
+    "notes": "Marian, Galician -> Catalan.",
+    "pair": [
+      "gl",
+      "ca"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 3115
+  },
+  "aina-translator-gl-ca-int8": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-gl-ca-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-gl-ca-int8",
+    "notes": "Marian, Galician -> Catalan.",
+    "pair": [
+      "gl",
+      "ca"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 1644
+  },
+  "aina-translator-it-ca": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-it-ca-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-it-ca",
+    "notes": "Marian, Italian -> Catalan.",
+    "pair": [
+      "it",
+      "ca"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 3152
+  },
+  "aina-translator-it-ca-int8": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-it-ca-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-it-ca-int8",
+    "notes": "Marian, Italian -> Catalan.",
+    "pair": [
+      "it",
+      "ca"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 1680
+  },
+  "aina-translator-pt-ca": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-pt-ca-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-pt-ca",
+    "notes": "Marian, Portuguese -> Catalan.",
+    "pair": [
+      "pt",
+      "ca"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 3163
+  },
+  "aina-translator-pt-ca-int8": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-pt-ca-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-pt-ca-int8",
+    "notes": "Marian, Portuguese -> Catalan.",
+    "pair": [
+      "pt",
+      "ca"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 1691
   },
   "aina-translator-zh-ca": {
     "arch": "m2m100",
@@ -1417,6 +2173,62 @@
       "added_tokens": "int8/added_tokens.json"
     },
     "size_mb": 1207
+  },
+  "m2m100_418M_en_hau_rel_news_ft": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_en_hau_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_en_hau_rel_news_ft",
+    "notes": "M2M100-418M fine-tune, English -> Hausa.",
+    "pair": [
+      "en",
+      "ha"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 4760
+  },
+  "m2m100_418M_en_hau_rel_news_ft-int8": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_en_hau_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_en_hau_rel_news_ft-int8",
+    "notes": "M2M100-418M fine-tune, English -> Hausa.",
+    "pair": [
+      "en",
+      "ha"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 3175
   },
   "m2m100_418M_fon_fr_rel_news_ft": {
     "arch": "m2m100",
@@ -6644,6 +7456,76 @@
     },
     "size_mb": 84
   },
+  "opus-mt-gmq-en": {
+    "arch": "marian",
+    "base_model": "Helsinki-NLP/opus-mt-gmq-en",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/opus-mt-gmq-en-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "opus-mt-gmq-en",
+    "notes": "opus-mt group model ('opus-mt-gmq-en-onnx' names a collection code 'gmq' on the source side: a language family, not a language). Many sources, one fixed target ('en'); its vocabulary carries no >>xxx<< token, so there is nothing to disambiguate.",
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 860,
+    "src_languages": [
+      "da",
+      "fo",
+      "is",
+      "nb",
+      "sv"
+    ],
+    "tgt_languages": [
+      "en"
+    ]
+  },
+  "opus-mt-gmq-en-int8": {
+    "arch": "marian",
+    "base_model": "Helsinki-NLP/opus-mt-gmq-en",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/opus-mt-gmq-en-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "opus-mt-gmq-en-int8",
+    "notes": "opus-mt group model ('opus-mt-gmq-en-onnx' names a collection code 'gmq' on the source side: a language family, not a language). Many sources, one fixed target ('en'); its vocabulary carries no >>xxx<< token, so there is nothing to disambiguate.",
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 219,
+    "src_languages": [
+      "da",
+      "fo",
+      "is",
+      "nb",
+      "sv"
+    ],
+    "tgt_languages": [
+      "en"
+    ]
+  },
   "opus-mt-it-en": {
     "arch": "marian",
     "base_model": "Helsinki-NLP/opus-mt-it-en",
@@ -7136,6 +8018,466 @@
     },
     "size_mb": 169
   },
+  "opus-mt-tc-big-cat_oci_spa-en": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/opus-mt-tc-big-cat_oci_spa-en-onnx",
+    "license": "CC-BY-4.0",
+    "license_tier": "permissive",
+    "model_id": "opus-mt-tc-big-cat_oci_spa-en",
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 2195,
+    "src_languages": [
+      "ca",
+      "es",
+      "oc"
+    ],
+    "tgt_languages": [
+      "en"
+    ]
+  },
+  "opus-mt-tc-big-cat_oci_spa-en-int8": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/opus-mt-tc-big-cat_oci_spa-en-onnx",
+    "license": "CC-BY-4.0",
+    "license_tier": "permissive",
+    "model_id": "opus-mt-tc-big-cat_oci_spa-en-int8",
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 553,
+    "src_languages": [
+      "ca",
+      "es",
+      "oc"
+    ],
+    "tgt_languages": [
+      "en"
+    ]
+  },
+  "opus-mt-tc-big-en-cat_oci_spa": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/opus-mt-tc-big-en-cat_oci_spa-onnx",
+    "languages": [
+      "ca",
+      "es",
+      "oc"
+    ],
+    "license": "CC-BY-4.0",
+    "license_tier": "permissive",
+    "model_id": "opus-mt-tc-big-en-cat_oci_spa",
+    "native_codes": {
+      "ca": "cat",
+      "oc": "oci",
+      "es": "spa"
+    },
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 2194,
+    "target_token_template": ">>{code}<<"
+  },
+  "opus-mt-tc-big-en-cat_oci_spa-int8": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/opus-mt-tc-big-en-cat_oci_spa-onnx",
+    "languages": [
+      "ca",
+      "es",
+      "oc"
+    ],
+    "license": "CC-BY-4.0",
+    "license_tier": "permissive",
+    "model_id": "opus-mt-tc-big-en-cat_oci_spa-int8",
+    "native_codes": {
+      "ca": "cat",
+      "oc": "oci",
+      "es": "spa"
+    },
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 553,
+    "target_token_template": ">>{code}<<"
+  },
+  "opus-mt-tc-big-itc-itc": {
+    "arch": "marian",
+    "base_model": "Helsinki-NLP/opus-mt-tc-big-itc-itc",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/opus-mt-tc-big-itc-itc-onnx",
+    "languages": [
+      "acf",
+      "an",
+      "aoa",
+      "ast",
+      "ca",
+      "cbk",
+      "ccd",
+      "cks",
+      "co",
+      "cri",
+      "crs",
+      "dlm",
+      "drc",
+      "egl",
+      "es",
+      "ext",
+      "fab",
+      "fax",
+      "fr",
+      "frc",
+      "frm",
+      "fro",
+      "frp",
+      "fur",
+      "gcf",
+      "gcr",
+      "gl",
+      "ht",
+      "idb",
+      "ist",
+      "it",
+      "itk",
+      "kmv",
+      "la",
+      "la-Grek",
+      "lad",
+      "lad-Latn",
+      "lij",
+      "lld",
+      "lmo",
+      "lou",
+      "mcm",
+      "mfe",
+      "mwl",
+      "mxi",
+      "mzs",
+      "nap",
+      "nrf",
+      "oc",
+      "osc",
+      "osp",
+      "pap",
+      "pcd",
+      "pln",
+      "pms",
+      "pob",
+      "pov",
+      "pre",
+      "pro",
+      "pt",
+      "qbb",
+      "qhr",
+      "rcf",
+      "rgn",
+      "rm",
+      "ro",
+      "ruo",
+      "rup",
+      "ruq",
+      "sc",
+      "scf",
+      "scn",
+      "sdc",
+      "sdn",
+      "spq",
+      "spx",
+      "src",
+      "sro",
+      "tmg",
+      "tvy",
+      "vec",
+      "vkp",
+      "wa",
+      "xfa",
+      "xum"
+    ],
+    "license": "CC-BY-4.0",
+    "license_tier": "permissive",
+    "model_id": "opus-mt-tc-big-itc-itc",
+    "native_codes": {
+      "an": "arg",
+      "ca": "cat",
+      "co": "cos",
+      "fr": "fra",
+      "gl": "glg",
+      "ht": "hat",
+      "it": "ita",
+      "lad-Latn": "lad_Latn",
+      "la": "lat",
+      "la-Grek": "lat_Grek",
+      "ro": "ron",
+      "oc": "oci",
+      "pt": "por",
+      "rm": "roh",
+      "es": "spa",
+      "sc": "srd",
+      "wa": "wln"
+    },
+    "notes": "opus-mt group model ('opus-mt-tc-big-itc-itc-onnx' names a collection code 'itc' on the source side: a language family, not a language). Any-to-any across the 85 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically.",
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 1797,
+    "target_token_template": ">>{code}<<"
+  },
+  "opus-mt-tc-big-itc-itc-int8": {
+    "arch": "marian",
+    "base_model": "Helsinki-NLP/opus-mt-tc-big-itc-itc",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/opus-mt-tc-big-itc-itc-onnx",
+    "languages": [
+      "acf",
+      "an",
+      "aoa",
+      "ast",
+      "ca",
+      "cbk",
+      "ccd",
+      "cks",
+      "co",
+      "cri",
+      "crs",
+      "dlm",
+      "drc",
+      "egl",
+      "es",
+      "ext",
+      "fab",
+      "fax",
+      "fr",
+      "frc",
+      "frm",
+      "fro",
+      "frp",
+      "fur",
+      "gcf",
+      "gcr",
+      "gl",
+      "ht",
+      "idb",
+      "ist",
+      "it",
+      "itk",
+      "kmv",
+      "la",
+      "la-Grek",
+      "lad",
+      "lad-Latn",
+      "lij",
+      "lld",
+      "lmo",
+      "lou",
+      "mcm",
+      "mfe",
+      "mwl",
+      "mxi",
+      "mzs",
+      "nap",
+      "nrf",
+      "oc",
+      "osc",
+      "osp",
+      "pap",
+      "pcd",
+      "pln",
+      "pms",
+      "pob",
+      "pov",
+      "pre",
+      "pro",
+      "pt",
+      "qbb",
+      "qhr",
+      "rcf",
+      "rgn",
+      "rm",
+      "ro",
+      "ruo",
+      "rup",
+      "ruq",
+      "sc",
+      "scf",
+      "scn",
+      "sdc",
+      "sdn",
+      "spq",
+      "spx",
+      "src",
+      "sro",
+      "tmg",
+      "tvy",
+      "vec",
+      "vkp",
+      "wa",
+      "xfa",
+      "xum"
+    ],
+    "license": "CC-BY-4.0",
+    "license_tier": "permissive",
+    "model_id": "opus-mt-tc-big-itc-itc-int8",
+    "native_codes": {
+      "an": "arg",
+      "ca": "cat",
+      "co": "cos",
+      "fr": "fra",
+      "gl": "glg",
+      "ht": "hat",
+      "it": "ita",
+      "lad-Latn": "lad_Latn",
+      "la": "lat",
+      "la-Grek": "lat_Grek",
+      "ro": "ron",
+      "oc": "oci",
+      "pt": "por",
+      "rm": "roh",
+      "es": "spa",
+      "sc": "srd",
+      "wa": "wln"
+    },
+    "notes": "opus-mt group model ('opus-mt-tc-big-itc-itc-onnx' names a collection code 'itc' on the source side: a language family, not a language). Any-to-any across the 85 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically.",
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 453,
+    "target_token_template": ">>{code}<<"
+  },
+  "opus-mt-tc-big-zle-en": {
+    "arch": "marian",
+    "base_model": "Helsinki-NLP/opus-mt-tc-big-zle-en",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/opus-mt-tc-big-zle-en-onnx",
+    "license": "CC-BY-4.0",
+    "license_tier": "permissive",
+    "model_id": "opus-mt-tc-big-zle-en",
+    "notes": "opus-mt group model ('opus-mt-tc-big-zle-en-onnx' names a collection code 'zle' on the source side: a language family, not a language). Many sources, one fixed target ('en'); its vocabulary carries no >>xxx<< token, so there is nothing to disambiguate.",
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 2326,
+    "src_languages": [
+      "be",
+      "ru",
+      "uk"
+    ],
+    "tgt_languages": [
+      "en"
+    ]
+  },
+  "opus-mt-tc-big-zle-en-int8": {
+    "arch": "marian",
+    "base_model": "Helsinki-NLP/opus-mt-tc-big-zle-en",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/opus-mt-tc-big-zle-en-onnx",
+    "license": "CC-BY-4.0",
+    "license_tier": "permissive",
+    "model_id": "opus-mt-tc-big-zle-en-int8",
+    "notes": "opus-mt group model ('opus-mt-tc-big-zle-en-onnx' names a collection code 'zle' on the source side: a language family, not a language). Many sources, one fixed target ('en'); its vocabulary carries no >>xxx<< token, so there is nothing to disambiguate.",
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 587,
+    "src_languages": [
+      "be",
+      "ru",
+      "uk"
+    ],
+    "tgt_languages": [
+      "en"
+    ]
+  },
   "opus-mt-tr-en": {
     "arch": "marian",
     "base_model": "Helsinki-NLP/opus-mt-tr-en",
@@ -7297,5 +8639,109 @@
       "generation_config": "int8/generation_config.json"
     },
     "size_mb": 172
+  },
+  "translate-eus-cat": {
+    "arch": "pegasus-fast",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/translate-eus-cat-onnx",
+    "license": "MIT",
+    "license_tier": "permissive",
+    "model_id": "translate-eus-cat",
+    "notes": "Marian, Basque -> Catalan.",
+    "pair": [
+      "eu",
+      "ca"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "tokenizer_json": "tokenizer.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 788
+  },
+  "translate-eus-cat-int8": {
+    "arch": "pegasus-fast",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/translate-eus-cat-onnx",
+    "license": "MIT",
+    "license_tier": "permissive",
+    "model_id": "translate-eus-cat-int8",
+    "notes": "Marian, Basque -> Catalan.",
+    "pair": [
+      "eu",
+      "ca"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "tokenizer_json": "int8/tokenizer.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 590
+  },
+  "translate-oci-cat": {
+    "arch": "pegasus-fast",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/translate-oci-cat-onnx",
+    "license": "MIT",
+    "license_tier": "permissive",
+    "model_id": "translate-oci-cat",
+    "notes": "Marian, Occitan -> Catalan.",
+    "pair": [
+      "oc",
+      "ca"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "tokenizer_json": "tokenizer.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 788
+  },
+  "translate-oci-cat-int8": {
+    "arch": "pegasus-fast",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/translate-oci-cat-onnx",
+    "license": "MIT",
+    "license_tier": "permissive",
+    "model_id": "translate-oci-cat-int8",
+    "notes": "Marian, Occitan -> Catalan.",
+    "pair": [
+      "oc",
+      "ca"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "tokenizer_json": "int8/tokenizer.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 590
   }
 }

@@ -32,8 +32,8 @@ from typing import Dict, List, Optional, Sequence
 import sentencepiece as spm
 
 __all__ = ["normalize_punctuation", "SpmSeq2SeqTokenizer", "MarianTokenizer",
-           "T5SpmTokenizer", "IndicTransTokenizer", "OpenNmtBpeTokenizer",
-           "load_tokenizer"]
+           "FastUnigramTokenizer", "T5SpmTokenizer", "IndicTransTokenizer",
+           "OpenNmtBpeTokenizer", "load_tokenizer"]
 
 
 # --------------------------------------------------------------------------
@@ -207,6 +207,16 @@ class MarianTokenizer:
     def __init__(self, source_spm, target_spm, vocab_path,
                  eos_token: str = "</s>", pad_token: str = "<pad>",
                  unk_token: str = "<unk>"):
+        """``eos_token``/``pad_token``/``unk_token`` default to the standard
+        opus-mt spellings, but not every Marian export uses them: Softcatalà/
+        BSC's fairseq-derived exports (e.g. ``aina-translator-ca-*``) spell
+        the pad token ``<blank>`` instead of ``<pad>``. Looking the wrong
+        string up in ``vocab.json`` is a ``KeyError``, not a silent wrong
+        answer, so a mismatched repo fails loudly here rather than mistranslating
+        - see :func:`load_tokenizer`, which reads the real strings out of the
+        repo's own ``special_tokens_map.json`` before falling back to these
+        defaults.
+        """
         self.spm_source = _load_spm(source_spm)
         self.spm_target = _load_spm(target_spm)
         self.vocab: Dict[str, int] = _load_json(vocab_path)
@@ -235,6 +245,54 @@ class MarianTokenizer:
         pieces = [p for p in pieces if isinstance(p, str)
                   and not (p.startswith(">>") and p.endswith("<<"))]
         return self.spm_target.DecodePieces(pieces)
+
+
+class FastUnigramTokenizer:
+    """Softcatalà's ``translate-eus-cat``/``translate-oci-cat``: a Marian-
+    shaped Pegasus export whose tokenizer is not a raw SentencePiece
+    ``.model`` at all - it is a single Unigram model serialized in HF's
+    ``tokenizers`` (Rust) library JSON format (``tokenizer.json``), complete
+    with its own precompiled-charsmap normaliser and decoder. `sentencepiece`
+    cannot read this file; it needs the ``tokenizers`` package instead.
+
+    Each of the two repos this loads for is a plain dedicated pair with no
+    group-model ambiguity (confirmed by inspecting ``vocab.json``: neither
+    ships any ``>>xxx<<`` token), so, like :class:`MarianTokenizer`, it never
+    needs a target token.
+    """
+
+    def __init__(self, tokenizer_json, eos_token: str = "</s>",
+                 pad_token: str = "<blank>", unk_token: str = "<unk>"):
+        try:
+            from tokenizers import Tokenizer
+        except ImportError as exc:
+            raise ImportError(
+                "this model's tokenizer is a `tokenizers`-library "
+                "tokenizer.json, which needs the 'tokenizers' package. "
+                "Install it: pip install 'linguonnx[fast-tokenizers]'") from exc
+        self._tok = Tokenizer.from_file(str(tokenizer_json))
+        vocab = self._tok.get_vocab()
+        self.eos_id = vocab[eos_token]
+        self.pad_id = vocab[pad_token]
+        self.unk_id = vocab[unk_token]
+        self._specials = {self.eos_id, self.pad_id, self.unk_id}
+
+    def encode(self, text: str, target_token: Optional[str] = None) -> List[int]:
+        # `target_token` is accepted only so this class has the same call
+        # shape as `MarianTokenizer` and can share `MarianPipeline`; neither
+        # repo this loads for has a group-model prefix token, so a caller
+        # that passes one gets a clear error rather than a silently ignored
+        # argument.
+        if target_token:
+            raise KeyError(
+                f"{target_token!r} was requested but this model has no "
+                f"target-selection tokens; it is a plain dedicated pair")
+        ids = self._tok.encode(text, add_special_tokens=False).ids
+        return ids + [self.eos_id]
+
+    def decode(self, ids: Sequence[int]) -> str:
+        ids = [i for i in ids if i not in self._specials]
+        return self._tok.decode(ids, skip_special_tokens=False)
 
 
 class T5SpmTokenizer:
@@ -415,11 +473,41 @@ def _require_opennmt(module: str):
             f"pip install 'linguonnx[opennmt]'") from exc
 
 
+def _marian_special_tokens(special_tokens_map_path: Optional[Path]) -> Dict[str, str]:
+    """Read ``eos_token``/``pad_token``/``unk_token`` off a Marian repo's own
+    ``special_tokens_map.json``, if it shipped one.
+
+    Standard opus-mt exports spell them as plain strings
+    (``{"pad_token": "<pad>"}``); HF's ``tokenizers``-library exports (the
+    ``aina-translator-*`` family) wrap each in an object
+    (``{"pad_token": {"content": "<blank>", ...}}``). Both shapes are read;
+    an absent file, or a value that is neither shape, falls back to
+    :class:`MarianTokenizer`'s opus-mt defaults so nothing changes for the
+    repos already relying on them.
+    """
+    if special_tokens_map_path is None:
+        return {}
+    try:
+        raw = _load_json(special_tokens_map_path)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    out: Dict[str, str] = {}
+    for key in ("eos_token", "pad_token", "unk_token"):
+        value = raw.get(key)
+        if isinstance(value, str):
+            out[key] = value
+        elif isinstance(value, dict) and isinstance(value.get("content"), str):
+            out[key] = value["content"]
+    return out
+
+
 def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str],
                    pair: Optional[Sequence[str]] = None):
     """Build the right tokenizer for ``arch`` from the downloaded ``files``."""
     if arch == "marian":
-        return MarianTokenizer(files["source_spm"], files["target_spm"], files["vocab"])
+        specials = _marian_special_tokens(files.get("special_tokens_map"))
+        return MarianTokenizer(files["source_spm"], files["target_spm"], files["vocab"],
+                               **specials)
     if arch == "m2m100":
         return SpmSeq2SeqTokenizer(files["spm"], lang_codes, vocab_path=files["vocab"],
                                    added_tokens_path=files.get("added_tokens"))
@@ -435,4 +523,7 @@ def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str],
             raise ValueError("opennmt-bpe models are bilingual; `pair` is required")
         return OpenNmtBpeTokenizer(files["vocab"], files["bpe_code"],
                                    src_lang=pair[0], tgt_lang=pair[1])
+    if arch == "pegasus-fast":
+        specials = _marian_special_tokens(files.get("special_tokens_map"))
+        return FastUnigramTokenizer(files["tokenizer_json"], **specials)
     raise ValueError(f"unknown architecture {arch!r}")

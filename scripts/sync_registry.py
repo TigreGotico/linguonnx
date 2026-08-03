@@ -207,6 +207,12 @@ BILINGUAL_FINETUNES: Dict[str, Dict] = {
     "m2m100_418M_fr_fon_rel_news_ft": {"pair": ["fr", "fon"], "notes": "M2M100-418M fine-tune, French -> Fon."},
     "m2m100_418M_fr_mos_rel_news_ft": {"pair": ["fr", "mos"], "notes": "M2M100-418M fine-tune, French -> Mossi."},
     "m2m100_418M_mos_fr_rel_news_ft": {"pair": ["mos", "fr"], "notes": "M2M100-418M fine-tune, Mossi -> French."},
+    #: Published after the above: same family, same shape. cardData.language
+    #: names exactly en/ha (Hausa has its own M2M100 639-1 token, unlike the
+    #: bam/bbj/ewe/fon/mos low-resource sides above), and its own
+    #: generation_config.json bakes in forced_bos_token_id=128034.
+    #: Source: https://huggingface.co/masakhane/m2m100_418M_en_hau_rel_news_ft
+    "m2m100_418M_en_hau_rel_news_ft": {"pair": ["en", "ha"], "notes": "M2M100-418M fine-tune, English -> Hausa."},
 
     #: ProxectoNos' `nos-mt-*` family - the same OpenNMT-py/Pegasus-shaped
     #: export as `nos-coda_iacobus`, one hand-verified one-way pair each,
@@ -230,56 +236,64 @@ BILINGUAL_FINETUNES: Dict[str, Dict] = {
     "translate-oci-cat": {"pair": ["oc", "ca"], "notes": "Marian, Occitan -> Catalan."},
 }
 
-#: `opus-mt-tc-big-*` repos that cover more than two languages and cannot be
-#: resolved to one pair by name + base-model cross-check (see
-#: `_non_opus_marian_pair`): these are genuine *group* models (Ibero-Romance
-#: <-> English/Catalan), not bilingual fine-tunes, so they do not belong in
-#: BILINGUAL_FINETUNES.
+#: RESOLVED. A Marian *group* export's real coverage is always read from its
+#: own `vocab.json` (`_marian_group_entry`), never guessed from the repo
+#: name - whether the name hides a recognised ISO 639-5 collection code
+#: (`opus-mt-itc-itc`, `opus-mt-gmq-en`, `opus-mt-tc-big-zle-en`: these raise
+#: `GroupModel` out of `_marian_pair`) or an underscore-joined macro-language
+#: name that isn't a registered collection at all (`cat_oci_spa` -
+#: `tag_scope("cat_oci_spa")` is `None`, so `opus-mt-tc-big-cat_oci_spa-en`/
+#: `opus-mt-tc-big-en-cat_oci_spa` never reach that path and are matched by
+#: name in `translate_entries` instead, but resolved through the exact same
+#: `_marian_group_entry`).
 #:
-#: The *family*-coded ones (`itc-itc`, and every `mul-en`/`sla-en`/`gem-gem`
-#: to come) are no longer here: `_marian_group_languages` reads their real
-#: coverage and their mandatory `>>xxx<<` token out of their own vocab.json.
-#: What is still unresolved is the underscore-joined macro-language grouping
-#: (`cat_oci_spa`), whose repo name names three languages at once. Left out on
-#: purpose rather than guessed at; tracked as a known gap, not silently
-#: dropped - and now also recorded in `model_index/skipped.json`.
-_KNOWN_UNRESOLVED_GROUP_MODELS = (
-    "opus-mt-tc-big-cat_oci_spa-en",
-    "opus-mt-tc-big-en-cat_oci_spa",
-)
+#: A `>>xxx<<` target-prefix token set makes an export many-to-many (the
+#: token is mandatory). **No** tokens at all is not a defect - some group
+#: exports genuinely have nothing to disambiguate:
+#:
+#: - `opus-mt-tc-big-cat_oci_spa-en`, `opus-mt-gmq-en`,
+#:   `opus-mt-tc-big-zle-en`: many sources, one fixed target (`en` every
+#:   time so far), each confirmed by the repo name's final segment matching
+#:   one of the card's own declared languages, with the rest of the card
+#:   becoming the source set. Represented as `src_languages`/`tgt_languages`,
+#:   the directional-coverage shape IndicTrans2 already uses.
+#: - `opus-mt-tc-big-en-cat_oci_spa`: the reverse direction, which *does*
+#:   carry `>>cat<<`/`>>oci<<`/`>>spa<<` tokens matching the card's three
+#:   non-English languages exactly, so it takes the many-to-many branch
+#:   instead.
+#:
+#: All of the above verified with real translations (see the PR
+#: description); none of them are guessed at, from either the family code or
+#: the token count alone.
+_KNOWN_UNRESOLVED_GROUP_MODELS: Tuple[str, ...] = ()
 
-#: Real architecture-classification gaps, found while closing the "43 missing
-#: models" registry-completeness bug. `_arch()` keys the tokenizer class
-#: purely off `config.model_type`, and for these two families that field
-#: disagrees with the tokenizer the repo actually ships:
+#: RESOLVED. Both of the architecture-classification gaps found while closing
+#: the "43 missing models" registry-completeness bug are now handled directly
+#: by `_arch()`, from the artifacts rather than `config.model_type` alone:
 #:
 #: - `aina-translator-ca-<xx>` / `<xx>-ca` (14 of the 18 Catalan pairs; the
-#:   other 4 - `ca-zh`, `zh-ca`, `es-an`, `es-ast` - resolve fine): the graph
-#:   reports `model_type: m2m_100`, which `_arch()` reads as the M2M100
-#:   tokenizer family (a single merged `sentencepiece.bpe.model`, loaded by
-#:   `SpmSeq2SeqTokenizer`). The actual tokenizer shipped is `MarianTokenizer`
-#:   over a *dual* `source.spm` + `target.spm` + `vocab.json` - the Marian
-#:   tokenizer shape, loaded by a different class entirely
-#:   (`linguonnx/translate/tokenizers.py`). Forcing `arch="marian"` onto the
-#:   registry entry without knowing whether the ONNX graph itself was also
-#:   exported Marian-shaped (decoder I/O, `forced_bos` handling) risks a
-#:   wrong-but-silent runtime pickup for real users - worse than staying
-#:   unregistered. Needs a maintainer to inspect one of these repos' actual
-#:   ONNX graph I/O signature, not just its tokenizer, before either fixing
-#:   `_arch()` or adding a new hybrid tokenizer variant.
+#:   other 4 - `ca-zh`, `zh-ca`, `es-an`, `es-ast` - already resolved fine):
+#:   the graph reports `model_type: m2m_100`, but the repo ships a *dual*
+#:   `source.spm` + `target.spm` + `vocab.json` - the Marian tokenizer shape,
+#:   which M2M100 never has (a single merged `sentencepiece.bpe.model`
+#:   instead). `_arch()` now checks for that dual-SPM pair before consulting
+#:   `model_type` at all, so it reads `marian` regardless of the graph's own
+#:   tag. Confirmed end to end, not just on the tokenizer: both directions of
+#:   `aina-translator-ca-en` and `aina-translator-de-ca` were loaded and run
+#:   for real (see the PR description for the translated output).
+#:   `special_tokens_map.json` is also read now (`_marian_special_tokens` in
+#:   `tokenizers.py`), because this family spells its pad token `<blank>`
+#:   where opus-mt spells it `<pad>` - `MarianTokenizer`'s old hardcoded
+#:   default would `KeyError` on this family's vocabulary.
 #: - `translate-eus-cat`, `translate-oci-cat` (Softcatalà): `model_type:
-#:   pegasus`, same as ProxectoNos' `nos-mt-*`/`nos-coda_iacobus-*` - but
-#:   those ship OpenNMT BPE vocab files and these ship a SentencePiece
-#:   `tokenizer.json` instead. A third tokenizer shape hiding under the same
-#:   `model_type`, same reasoning as above for not guessing.
-_KNOWN_ARCH_MISMATCH: Tuple[str, ...] = (
-    "aina-translator-ca-de", "aina-translator-ca-en", "aina-translator-ca-es",
-    "aina-translator-ca-fr", "aina-translator-ca-it", "aina-translator-ca-pt",
-    "aina-translator-de-ca", "aina-translator-en-ca", "aina-translator-es-ca",
-    "aina-translator-eu-ca", "aina-translator-fr-ca", "aina-translator-gl-ca",
-    "aina-translator-it-ca", "aina-translator-pt-ca",
-    "translate-eus-cat", "translate-oci-cat",
-)
+#:   pegasus`, same as ProxectoNos' `nos-mt-*`/`nos-coda_iacobus-*`, but a
+#:   third tokenizer shape hides under that one tag - a `tokenizers`-library
+#:   `tokenizer.json` (Unigram model, HF-fast-tokenizer-shaped) rather than
+#:   either OpenNMT-BPE vocab shape. `_arch()` now returns `pegasus-fast` for
+#:   it, and `FastUnigramTokenizer` (`tokenizers.py`) loads it with the
+#:   `tokenizers` package instead of `sentencepiece`. Both directions were
+#:   run for real; see the PR description.
+_KNOWN_ARCH_MISMATCH: Tuple[str, ...] = ()
 
 #: Hand-verified fix-ups for a *multilingual* Marian export whose target is
 #: chosen by a `<2xx>` prefix token read straight out of its own vocab.json
@@ -360,6 +374,13 @@ SIDE_FILES: Dict[str, Dict[str, str]] = {
         "vocab": "vocab.json",
         "config": "config.json",
         "generation_config": "generation_config.json",
+        # Optional: not every Marian export ships one, but when it does it is
+        # the ground truth for the pad/eos/unk *strings* - see
+        # `_marian_special_tokens` in tokenizers.py. Some exports (the
+        # `aina-translator-*` family) spell the pad token `<blank>` instead of
+        # opus-mt's `<pad>`; without this, `MarianTokenizer`'s hardcoded
+        # default raises `KeyError` on their vocab.
+        "special_tokens_map": "special_tokens_map.json",
     },
     "m2m100": {
         "spm": "sentencepiece.bpe.model",
@@ -403,6 +424,15 @@ SIDE_FILES: Dict[str, Dict[str, str]] = {
         "config": "config.json",
         "generation_config": "generation_config.json",
     },
+    # Softcatalà's exports, also shaped as Pegasus graphs but tokenized with a
+    # `tokenizers`-library `tokenizer.json` instead of an OpenNMT BPE vocab
+    # (see `_arch`).
+    "pegasus-fast": {
+        "tokenizer_json": "tokenizer.json",
+        "config": "config.json",
+        "generation_config": "generation_config.json",
+        "special_tokens_map": "special_tokens_map.json",
+    },
 }
 
 #: Architectures whose inference pipeline this library does not implement yet,
@@ -424,6 +454,7 @@ REQUIRED_SIDE_FILES: Dict[str, Tuple[str, ...]] = {
     "madlad": ("spm", "config"),
     "indictrans2": ("spm_src", "spm_tgt", "dict_src", "dict_tgt", "config"),
     "opennmt-bpe": ("vocab", "config", "bpe_code"),
+    "pegasus-fast": ("tokenizer_json", "config"),
 }
 
 GRAPHS: Dict[str, str] = {
@@ -621,6 +652,16 @@ _PREFIX_TARGET_TOKEN_RE = re.compile(r"^<2([A-Za-z]{2,3}(?:_[A-Za-z]+)?)>$")
 #: read a *group* model's real target inventory out of its own vocab.json.
 _GROUP_TARGET_TOKEN_RE = re.compile(r"^>>([A-Za-z]{2,3}(?:_[A-Za-z]{4})?)<<$")
 
+#: Hand-verified: retired ISO 639-3 codes that collapse onto the same BCP-47
+#: tag as their replacement, where `is_registered_subtag` cannot tell them
+#: apart (the IANA data behind it carries only the 2-letter subtag once one
+#: exists, so a 3-letter retired code and its 3-letter replacement are
+#: equally "unregistered" to it - see `_marian_group_languages`'s `rank`).
+#: `mol` -> `ron`: confirmed on `opus-mt-tc-big-itc-itc-onnx`, whose own
+#: vocabulary carries both tokens - sending it `>>mol<<` for a `ro` request
+#: returned fluent Spanish, not Romanian.
+_RETIRED_SUBTAGS: Tuple[str, ...] = ("mol",)
+
 #: MADLAD's vocabulary also carries a handful of bare ISO-3166 REGION tokens
 #: (`<2CA>`, `<2IR>`, `<2NL>`, `<2RU>`, `<2ZW>`). They match the target-token
 #: shape but name a country, not a language, so claiming them as coverage
@@ -630,6 +671,21 @@ _REGION_ONLY_TOKEN_RE = re.compile(r"^[A-Z]{2}$")
 
 
 def _arch(detail: dict, files: Dict[str, int]) -> str:
+    """``config.model_type`` proposes an architecture; the tokenizer files
+    actually shipped confirm or override it.
+
+    ``model_type`` alone is not trustworthy: it names the *graph's* Hub
+    library tag, not what the export actually tokenizes with. The
+    `aina-translator-ca-*` family tags its graph `m2m_100` but ships a dual
+    `source.spm` + `target.spm` + `vocab.json` - the Marian tokenizer's shape,
+    never M2M100's (M2M100 has one merged `sentencepiece.bpe.model` and no
+    per-side SPMs at all). Any repo shipping that dual-SPM pair is Marian,
+    regardless of its declared `model_type` - see the `_KNOWN_ARCH_MISMATCH`
+    docstring for how this was confirmed on the actual Hub artifacts.
+    """
+    dual_spm = "source.spm" in files and "target.spm" in files
+    if dual_spm and "vocab.json" in files:
+        return "marian"
     model_type = (detail.get("config") or {}).get("model_type", "")
     if model_type == "marian":
         return "marian"
@@ -638,7 +694,24 @@ def _arch(detail: dict, files: Dict[str, int]) -> str:
     if model_type == "IndicTrans":
         return "indictrans2"
     if model_type == "pegasus":
-        return "opennmt-bpe"
+        # ProxectoNos' OpenNMT-BPE exports (`nos-mt-*` ships `nos_vocab.json`
+        # + `source.bpe`; `nos-coda_iacobus-*` ships `onmt_vocab.json` +
+        # `<src>_35k.code` - see the per-entry handling in
+        # `translate_entries`) and Softcatalà's SentencePiece
+        # (`tokenizer.json`, HF-fast-tokenizer-shaped) exports both tag their
+        # graph `pegasus`. Only the former ships a `.bpe`/`.code` merge table;
+        # the latter (`translate-eus-cat`, `translate-oci-cat`) ships a
+        # `tokenizer.json` instead - a third tokenizer shape this library
+        # does not implement a loader for yet (see `_KNOWN_ARCH_MISMATCH`) -
+        # do not guess opennmt-bpe onto it.
+        if "onmt_vocab.json" in files or "nos_vocab.json" in files:
+            return "opennmt-bpe"
+        if "tokenizer.json" in files:
+            return "pegasus-fast"
+        raise SkipRepo(
+            "model_type=pegasus but neither an OpenNMT-BPE vocab file nor a "
+            "tokenizer.json: an unrecognised tokenizer shape under this "
+            "model_type")
     # M2M100 and NLLB share `model_type: m2m_100`; the tokenizer tells them
     # apart. M2M100 ships a vocab.json and reads ids from it; NLLB has none and
     # uses fairseq's sp_id + 1 offset instead.
@@ -916,7 +989,28 @@ def _marian_multilingual_languages(repo_id: str, files: Dict[str, int],
     return codes, native_codes
 
 
-def _marian_group_languages(repo_id: str, files: Dict[str, int]
+#: Hand-verified: a `>>xxx<<` token that exists in a group model's vocabulary
+#: but does not work - the model produces fluent text in a different
+#: language instead of the one requested, the same silent failure this whole
+#: mechanism exists to prevent. Vocabulary presence is necessary evidence of
+#: coverage but not sufficient; this is where a spot-check disproved it.
+#:
+#: ``opus-mt-tc-big-itc-itc``: `>>kea<<` (Kabuverdianu) is a real, unshared
+#: vocabulary token, but `pt -> kea` came back as fluent Spanish (confirmed
+#: with GlotLID: `spa_Latn`, 0.999), not Kabuverdianu. Every other spot-check
+#: on this checkpoint (`it -> fr/pt/ro`) came back correct and distinct, so
+#: this looks like one under-trained token rather than a systemic problem -
+#: but it is exactly the failure mode a caller cannot detect from the
+#: registry alone, so `kea` is excluded rather than assumed to work along
+#: with the other ~85 untested languages this entry still carries on the
+#: same unverified-by-exhaustive-testing basis as the rest of the registry.
+_MARIAN_GROUP_EXCLUSIONS: Dict[str, Tuple[str, ...]] = {
+    "opus-mt-tc-big-itc-itc": ("kea",),
+}
+
+
+def _marian_group_languages(repo_id: str, files: Dict[str, int],
+                            model_id: Optional[str] = None
                             ) -> Tuple[List[str], Dict[str, str]]:
     """Codes (+ native spellings) for a `>>xxx<<`-prefix Marian *group* model.
 
@@ -934,12 +1028,20 @@ def _marian_group_languages(repo_id: str, files: Dict[str, int]
     if "vocab.json" not in files:
         raise SkipRepo("no vocab.json to read >>xxx<< target tokens from")
     vocab = json.loads(raw_file(repo_id, "vocab.json"))
+    excluded = set(_MARIAN_GROUP_EXCLUSIONS.get(model_id or "", ()))
     raw_codes = sorted({
         match.group(1) for key in vocab
         if (match := _GROUP_TARGET_TOKEN_RE.match(key))
+        and match.group(1) not in excluded
     })
     if not raw_codes:
-        raise SkipRepo("vocab.json has no >>xxx<< target-prefix tokens")
+        # No >>xxx<< tokens at all: not a defect, a *many-to-one* group model
+        # (opus-mt-gmq-en, opus-mt-tc-big-zle-en, opus-mt-tc-big-cat_oci_spa-en
+        # - Scandinavian/East-Slavic/Ibero-Romance all -> English). Nothing to
+        # disambiguate, so there is no target token to read - the caller
+        # (`_marian_group_entry`) is the one that knows what an empty result
+        # means for its shape.
+        return [], {}
 
     from linguonnx.detect.labels import is_registered_subtag, tag_scope, to_bcp47
 
@@ -963,7 +1065,20 @@ def _marian_group_languages(repo_id: str, files: Dict[str, int]
         # both Romanian, `>>bul<<`/`>>bul_Latn<<` both Bulgarian. Prefer a
         # code IANA still registers (`mol` was withdrawn for `ron`) and an
         # unscripted one, so the token sent to the model is the live spelling.
-        return (not is_registered_subtag(raw), "_" in raw, raw)
+        #
+        # `is_registered_subtag` cannot actually settle `mol` vs `ron`: the
+        # IANA data `language_data` ships only carries the 2-letter `ro`
+        # entry, so both 3-letter codes are equally "unregistered" to it and
+        # the tie falls through to alphabetical order - which picks `mol`,
+        # the *retired* one, over `ron`. Confirmed empirically on
+        # `opus-mt-tc-big-itc-itc-onnx`: sending its own `>>mol<<` for a `ro`
+        # request came back as fluent Spanish, not Romanian - the exact
+        # silent-wrong-target failure this whole table exists to prevent.
+        # `_RETIRED_SUBTAG_PREFERENCE` is a small, hand-verified fixup for the
+        # cases the automatic check cannot reach; `is_registered_subtag`
+        # still wins whenever it actually knows the answer.
+        return (raw in _RETIRED_SUBTAGS,
+                not is_registered_subtag(raw), "_" in raw, raw)
 
     native: Dict[str, str] = {}
     for tag, raws in candidates.items():
@@ -971,6 +1086,53 @@ def _marian_group_languages(repo_id: str, files: Dict[str, int]
         if raw != tag:
             native[tag] = raw
     return sorted(candidates), native
+
+
+def _marian_group_entry(repo_id: str, name: str, files: Dict[str, int],
+                        declared_langs: object, model_id: str) -> Dict[str, object]:
+    """The registry ``shared`` fields for any Marian *group* export - a
+    family/collection code (``itc``, ``gmq``, ``zle``) or an underscore-joined
+    macro-language name (``cat_oci_spa``) that ``_marian_pair``'s plain
+    ``xx-yy`` pair extraction cannot resolve to one dedicated direction.
+
+    Real per-checkpoint coverage always comes from ``vocab.json``, never the
+    repo name:
+
+    - A ``>>xxx<<`` target-prefix token set (``opus-mt-itc-itc``,
+      ``opus-mt-tc-big-en-cat_oci_spa``) makes it many-to-many: the token is
+      mandatory, and ``TranslationModel`` applies it automatically from
+      ``target_token_template``.
+    - **No** tokens at all (``opus-mt-gmq-en``, ``opus-mt-tc-big-zle-en``,
+      ``opus-mt-tc-big-cat_oci_spa-en``) is not a defect - it means nothing
+      needs disambiguating: a many-source, one-fixed-target export. The
+      fixed target is the repo name's own final segment, but that alone is
+      never trusted (a prior sweep proved family-code-from-name wrong): it
+      has to also be one of the card's own declared languages, with the
+      remaining declared languages becoming the source set. A repo name
+      whose final segment disagrees with the card is refused rather than
+      guessed.
+    """
+    codes, native = _marian_group_languages(repo_id, files, model_id)
+    if codes:
+        entry: Dict[str, object] = {
+            "languages": codes,
+            "target_token_template": ">>{code}<<",
+        }
+        if native:
+            entry["native_codes"] = native
+        return entry
+
+    stem = name[:-len("-onnx")] if name.endswith("-onnx") else name
+    tgt = stem.rsplit("-", 1)[-1]
+    declared = {str(code) for code in (declared_langs or ())}
+    srcs = sorted(declared - {tgt})
+    if not srcs or tgt not in declared:
+        raise SkipRepo(
+            f"{name!r} is a group model with no >>xxx<< target token and "
+            f"its final name segment {tgt!r} does not agree with the "
+            f"card's declared languages {sorted(declared)}; refusing to "
+            f"guess the fixed target")
+    return {"src_languages": srcs, "tgt_languages": [tgt]}
 
 
 def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict]:
@@ -1009,27 +1171,43 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
         shared["target_token_template"] = "<2{code}>"
         if native_codes:
             shared["native_codes"] = native_codes
+    elif arch == "marian" and (name.startswith("opus-mt-tc-big-cat_oci_spa-en")
+                               or name.startswith("opus-mt-tc-big-en-cat_oci_spa")):
+        # `_marian_pair`'s regex only matches a plain `opus-mt-XX-YY` name;
+        # these two have a `tc-big-` infix and an underscore-joined
+        # macro-language side (`cat_oci_spa` = Catalan+Occitan+Spanish), which
+        # is not an ISO 639-5 *collection* code (`tag_scope("cat_oci_spa")` is
+        # `None`) - so they never raise `GroupModel` either. Handled through
+        # the same `_marian_group_entry` the `GroupModel` branch below uses -
+        # it reads real coverage from `vocab.json` regardless of why the name
+        # didn't parse as a plain pair.
+        shared.update(_marian_group_entry(repo_id, name, files, declared_langs, model_id))
     elif arch == "marian":
         try:
             pair, base, token = _marian_pair(name, readme, detail)
         except GroupModel as err:
-            # A family model (`opus-mt-itc-itc`): any-to-any inside the
-            # family, target chosen by a `>>xxx<<` prefix token, read from the
-            # export's own vocabulary. Same shape as the `<2xx>` multilingual
-            # Marian above, different token spelling.
-            codes, native = _marian_group_languages(repo_id, files)
-            shared["languages"] = codes
-            shared["target_token_template"] = ">>{code}<<"
-            if native:
-                shared["native_codes"] = native
+            # A family/collection-code model (`opus-mt-itc-itc`,
+            # `opus-mt-gmq-en`, `opus-mt-tc-big-zle-en`): any-to-any inside
+            # the family if its vocabulary carries `>>xxx<<` tokens
+            # (target chosen by the mandatory prefix), or many-source/
+            # one-fixed-target if it carries none at all (nothing to
+            # disambiguate - see `_marian_group_entry`).
+            shared.update(_marian_group_entry(repo_id, name, files, declared_langs, model_id))
             base_match = _BASE_MODEL_RE.search(readme)
             if base_match:
                 shared["base_model"] = f"Helsinki-NLP/{base_match.group(1)}"
-            shared["notes"] = (
-                f"opus-mt group model ({err}). Any-to-any across the "
-                f"{len(codes)} languages its own vocabulary carries a "
-                f">>xxx<< target token for; the token is mandatory and is "
-                f"applied automatically.")
+            if "languages" in shared:
+                shared["notes"] = (
+                    f"opus-mt group model ({err}). Any-to-any across the "
+                    f"{len(shared['languages'])} languages its own vocabulary "
+                    f"carries a >>xxx<< target token for; the token is "
+                    f"mandatory and is applied automatically.")
+            else:
+                shared["notes"] = (
+                    f"opus-mt group model ({err}). Many sources, one fixed "
+                    f"target ({shared['tgt_languages'][0]!r}); its vocabulary "
+                    f"carries no >>xxx<< token, so there is nothing to "
+                    f"disambiguate.")
         else:
             shared["pair"] = pair
             shared["base_model"] = base if "/" in base else f"Helsinki-NLP/{base}"
@@ -1218,10 +1396,20 @@ def _sorted_json(registry: Dict[str, dict]) -> str:
                       sort_keys=False) + "\n"
 
 
-def build() -> Tuple[Dict[str, dict], Dict[str, dict], List[Tuple[str, str]]]:
+#: Where `test_registry_invariants.py` reads the one fact not derivable from
+#: the committed registry JSON: what each repo's own Hub card declares.
+#: Written by this script (see `build`/`main`) so it never goes stale by
+#: hand-editing - a repo missing from it would make the card-bound-coverage
+#: tests skip exactly the entry they exist to catch.
+CARD_LANGUAGES_PATH = REPO_ROOT / "test" / "data" / "hub_card_languages.json"
+
+
+def build() -> Tuple[Dict[str, dict], Dict[str, dict], List[Tuple[str, str]],
+                     Dict[str, List[str]]]:
     translate: Dict[str, dict] = {}
     lid: Dict[str, dict] = {}
     skipped: List[Tuple[str, str]] = []
+    card_languages: Dict[str, List[str]] = {}
 
     repos = list_repos()
     for index, summary in enumerate(sorted(repos, key=lambda r: r["id"]), 1):
@@ -1232,6 +1420,14 @@ def build() -> Tuple[Dict[str, dict], Dict[str, dict], List[Tuple[str, str]]]:
         except Exception as err:
             skipped.append((repo_id, f"detail fetch failed: {err}"))
             continue
+        # Every repo gets a key, even when its card declares no language list
+        # at all (MADLAD's does not) - `None` there is itself the fact the
+        # invariant tests need: "the card says nothing", not "not looked up
+        # yet". Only a real list becomes a list of codes.
+        declared = (detail.get("cardData") or {}).get("language")
+        card_languages[repo_id] = ([str(code) for code in declared]
+                                   if isinstance(declared, list) and declared
+                                   else None)
         files = _files_of(detail)
         kind = classify(files)
         if kind is None:
@@ -1246,7 +1442,7 @@ def build() -> Tuple[Dict[str, dict], Dict[str, dict], List[Tuple[str, str]]]:
             skipped.append((repo_id, str(err)))
         except Exception as err:
             skipped.append((repo_id, f"{type(err).__name__}: {err}"))
-    return translate, lid, skipped
+    return translate, lid, skipped, card_languages
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -1256,7 +1452,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                              "differs from what the Hub now says")
     args = parser.parse_args(argv)
 
-    translate, lid, skipped = build()
+    translate, lid, skipped, card_languages = build()
     if not translate or not lid:
         print("refusing to write an empty registry; is the Hub reachable?",
               file=sys.stderr)
@@ -1282,6 +1478,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         else:
             skipped_path.write_text(skipped_text, encoding="utf-8")
             print(f"skipped.json: wrote {len(skipped)} entries")
+
+    # test_registry_invariants.py's card-bound-coverage tests need this cache
+    # to include every repo the registry currently cites, or they silently
+    # skip exactly the entry they exist to catch (see CARD_LANGUAGES_PATH).
+    card_text = json.dumps(dict(sorted(card_languages.items())), indent=2,
+                           ensure_ascii=False) + "\n"
+    card_current = CARD_LANGUAGES_PATH.read_text(encoding="utf-8") \
+        if CARD_LANGUAGES_PATH.exists() else ""
+    if card_current != card_text:
+        drift = True
+        if args.check:
+            print("hub_card_languages.json: DRIFT - the cached card "
+                  "languages changed", file=sys.stderr)
+        else:
+            CARD_LANGUAGES_PATH.write_text(card_text, encoding="utf-8")
+            print(f"hub_card_languages.json: wrote {len(card_languages)} entries")
 
     for kind, generated in (("translate", translate), ("lid", lid)):
         path = INDEX_DIR / f"{kind}.json"

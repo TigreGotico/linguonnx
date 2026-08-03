@@ -826,7 +826,12 @@ def test_a_cap_trades_long_tail_languages_for_short_chains():
     # not decide what the test measures.
     full = TranslationGraph(caps, count_cached_as_free=False)
     small = TranslationGraph(caps, max_model_mb=500, count_cached_as_free=False)
-    assert len(small.languages) < len(full.languages) / 4
+    # The ratio tightened from 1/4 once `opus-mt-tc-big-itc-itc-int8` (453 MB,
+    # under the cap) joined the registry with ~85 languages of its own via a
+    # `>>xxx<<` prefix token - a genuinely well-covered small model, not a
+    # test regression. The cap still trims the tail hard; it just does not
+    # trim it as hard as before this one model's coverage was recognised.
+    assert len(small.languages) < len(full.languages) / 2
     assert all(cap.size_mb > 500 for cap in small.oversized_capabilities)
     # pt->ru was one M2M100 hop; under the cap it is a chain of small models.
     chain = small.route("pt", "ru")
