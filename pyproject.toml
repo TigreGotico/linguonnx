@@ -19,6 +19,11 @@ dependencies = [
     "numpy>=1.21.0",
     "huggingface_hub>=0.20.0",  # stable `revision=` handling in hf_hub_download
     "langcodes>=3.3.0",
+    # Already pulled in by langcodes; declared because linguonnx now reads the
+    # IANA Language Subtag Registry out of it directly, to tell a language
+    # from a language *family* (`itc`, `sla`, `ber`) - see
+    # `linguonnx.detect.labels.tag_scope`.
+    "language_data>=1.1",
     "sentencepiece>=0.1.99",
 ]
 classifiers = [

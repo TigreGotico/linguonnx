@@ -58,6 +58,26 @@ A repo called ``opus-mt-en-pl-onnx`` is not necessarily an export of
 So: when the base model's target segment differs from the repo's target, a
 target token is **required**. If the README does not show one, the entry is
 skipped rather than published with a coverage claim that cannot be honoured.
+
+A repo whose *name* spells a side with a language family - ``opus-mt-itc-itc``,
+``opus-mt-mul-en``, ``opus-mt-sla-en`` - has no pair at all. ``itc`` is the
+Italic family, not a language, so nobody can ask for it; minting
+``pair: ["itc", "itc"]`` published 645 MB of a working Romance model as an
+edge no caller could reach, with the mandatory prefix token missing because
+the "base target differs from repo target" test cannot fire when both sides
+say ``itc``. Those repos take the ``>>xxx<<`` path instead: coverage and
+target token both read out of the export's own ``vocab.json``. See
+:func:`_marian_group_languages`.
+
+What is *not* written
+---------------------
+
+Every repo this script refuses is recorded in ``model_index/skipped.json``,
+next to the registries. A skip used to be a line on stderr and nothing else,
+which is how 43 published models stayed invisible: ``--check`` diffs the
+committed JSON against a fresh one, and a repo that fails extraction on every
+run is missing from both sides of that diff every time. Committed, a dropped
+model becomes a reviewable diff.
 """
 
 from __future__ import annotations
@@ -213,17 +233,19 @@ BILINGUAL_FINETUNES: Dict[str, Dict] = {
 #: `opus-mt-tc-big-*` repos that cover more than two languages and cannot be
 #: resolved to one pair by name + base-model cross-check (see
 #: `_non_opus_marian_pair`): these are genuine *group* models (Ibero-Romance
-#: <-> English/Catalan, or all-pairs-within-Italic), not bilingual fine-tunes,
-#: so they do not belong in BILINGUAL_FINETUNES - representing them correctly
-#: needs the same multi-language + prefix-token machinery as `liv4ever-mt`
-#: (`_marian_multilingual_languages`), which does not yet handle the
-#: underscore-joined macro-language grouping these repo names use
-#: (`cat_oci_spa`, `itc-itc`). Left out on purpose rather than guessed at;
-#: tracked as a known gap, not silently dropped.
+#: <-> English/Catalan), not bilingual fine-tunes, so they do not belong in
+#: BILINGUAL_FINETUNES.
+#:
+#: The *family*-coded ones (`itc-itc`, and every `mul-en`/`sla-en`/`gem-gem`
+#: to come) are no longer here: `_marian_group_languages` reads their real
+#: coverage and their mandatory `>>xxx<<` token out of their own vocab.json.
+#: What is still unresolved is the underscore-joined macro-language grouping
+#: (`cat_oci_spa`), whose repo name names three languages at once. Left out on
+#: purpose rather than guessed at; tracked as a known gap, not silently
+#: dropped - and now also recorded in `model_index/skipped.json`.
 _KNOWN_UNRESOLVED_GROUP_MODELS = (
     "opus-mt-tc-big-cat_oci_spa-en",
     "opus-mt-tc-big-en-cat_oci_spa",
-    "opus-mt-tc-big-itc-itc",
 )
 
 #: Real architecture-classification gaps, found while closing the "43 missing
@@ -275,6 +297,31 @@ MARIAN_MULTILINGUAL_OVERRIDES: Dict[str, Dict] = {
         "notes": "en/et/lv <-> Livonian (liv). Target chosen by a <2xx> "
                  "prefix token; the vocabulary spells Livonian '<2li>', which "
                  "collides with ISO's 'li' (Limburgish) - fixed up to 'liv'.",
+    },
+}
+
+#: Hand-verified covering sets for a *multilingual* model whose tokenizer
+#: over-claims: a fine-tune keeps its base's whole token inventory, so
+#: `_multilingual_languages` would read 100 languages off a model finetuned
+#: for eight. `_assert_declared_covers` refuses those; an entry here is how a
+#: maintainer states the real set instead. `native_codes` records the model's
+#: own spelling wherever BCP-47 normalisation loses it.
+#:
+#: ``m2m100-418M-smugri``: TartuNLP's Finno-Ugric fine-tune of M2M100-418M.
+#: The card names en/et/fi/lv/liv/vro/sma/sme, and each of the four added
+#: languages has a real token in the export's own `added_tokens.json`
+#: (``__liv__``, ``__vro__``, ``__sma__``, ``__sme__``) - so the set is both
+#: card-declared and token-backed. The other 96 M2M100 tokens survive in the
+#: tokenizer but the weights were finetuned away from them; publishing them
+#: advertised ``th -> sw`` through a Livonian model.
+#: Source: https://huggingface.co/tartuNLP/m2m100_418M_smugri
+MULTILINGUAL_LANGUAGE_OVERRIDES: Dict[str, Dict] = {
+    "m2m100-418M-smugri": {
+        "languages": ["en", "et", "fi", "lv", "liv", "vro", "sma", "se"],
+        "native_codes": {"se": "sme"},
+        "notes": "TartuNLP Finno-Ugric fine-tune of M2M100-418M. Coverage is "
+                 "the card's eight languages, not the 104 tokens the base "
+                 "tokenizer still carries.",
     },
 }
 
@@ -388,6 +435,28 @@ GRAPHS: Dict[str, str] = {
 
 class SkipRepo(Exception):
     """This repo will not get a registry entry, and why."""
+
+
+class GroupModel(Exception):
+    """This Marian export covers a language *family*, not one pair.
+
+    Raised by :func:`_marian_pair` when the repo name spells a side with an
+    ISO 639-5 collection code (``itc``, ``sla``, ``gem``, ``roa``, ``bnt``,
+    ...) or an IANA special code (``mul``). Such a repo has no pair to mint:
+    the caller has to be able to name a real language, and the model has to be
+    told which one with a ``>>xxx<<`` prefix token. See
+    :func:`_marian_group_languages`, which reads that token set out of the
+    export's own ``vocab.json``.
+    """
+
+
+#: Keys :func:`merge_preserving` carries across a re-sync. Everything else in
+#: an entry belongs to this script, including the ability to **remove** it: a
+#: key the generator stops emitting (``runnable`` after its architecture's
+#: pipeline landed, say) must disappear from the committed JSON, and a
+#: preserve-everything merge would make it immortal *and* invisible to
+#: ``--check``, which compares after the merge.
+HUMAN_OWNED_KEYS: Tuple[str, ...] = ("notes",)
 
 
 # ---------------------------------------------------------------------------
@@ -548,6 +617,10 @@ INDICTRANS2_DIRECTIONS: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...]]] = {
 #: instead (see `_TARGET_TOKEN_RE`).
 _PREFIX_TARGET_TOKEN_RE = re.compile(r"^<2([A-Za-z]{2,3}(?:_[A-Za-z]+)?)>$")
 
+#: The opus-mt spelling of the same idea: `>>por<<`, `>>lat_Latn<<`. Used to
+#: read a *group* model's real target inventory out of its own vocab.json.
+_GROUP_TARGET_TOKEN_RE = re.compile(r"^>>([A-Za-z]{2,3}(?:_[A-Za-z]{4})?)<<$")
+
 #: MADLAD's vocabulary also carries a handful of bare ISO-3166 REGION tokens
 #: (`<2CA>`, `<2IR>`, `<2NL>`, `<2RU>`, `<2ZW>`). They match the target-token
 #: shape but name a country, not a language, so claiming them as coverage
@@ -589,17 +662,26 @@ def _non_opus_marian_pair(repo_name: str, detail: dict
     set. A name and a card that disagree mean nobody actually knows which
     direction the weights run, and that is a skip.
     """
+    from linguonnx.detect.labels import tag_scope
+
     card = detail.get("cardData") or {}
     declared = [str(code) for code in (card.get("language") or [])]
-    if len(declared) != 2:
-        raise SkipRepo(
-            f"cannot read a language pair from the repo name {repo_name!r} and "
-            f"the card declares {len(declared)} languages")
     stem = repo_name[:-len("-onnx")] if repo_name.endswith("-onnx") else repo_name
     parts = stem.split("-")
     if len(parts) < 2:
         raise SkipRepo(f"cannot read a language pair from {repo_name!r}")
     src, tgt = parts[-2], parts[-1]
+    # Same rule as in `_marian_pair`: a family code is never a pair side.
+    for side, code in (("source", src), ("target", tgt)):
+        scope = tag_scope(code)
+        if scope is not None:
+            raise GroupModel(
+                f"{repo_name!r} names a {scope} code {code!r} on the {side} "
+                f"side: a language family, not a language")
+    if len(declared) != 2:
+        raise SkipRepo(
+            f"cannot read a language pair from the repo name {repo_name!r} and "
+            f"the card declares {len(declared)} languages")
     if {src, tgt} != set(declared):
         raise SkipRepo(
             f"repo name {repo_name!r} says {src}->{tgt} but the card declares "
@@ -622,6 +704,23 @@ def _marian_pair(repo_name: str, readme: str, detail: dict
     if not match:
         return _non_opus_marian_pair(repo_name, detail)
     src, tgt = match.group(1), match.group(2)
+
+    # `opus-mt-([a-z]{2,3})-([a-z]{2,3})-onnx` matches every ISO 639-5
+    # *collection* code as readily as a language: `itc`, `sla`, `roa`, `gem`,
+    # `bnt`, `dra`, `cpf`, `bat`, and IANA's special `mul`. Minting
+    # `pair: ["itc", "itc"]` from one of those publishes an edge no caller can
+    # ask for (nobody translates "into Italic"), hides the mandatory `>>xxx<<`
+    # target token (the `base_tgt != tgt` test below cannot fire when both
+    # sides are the same collection code), and slips past the multi-target
+    # safety net in `entry_runnability`, which only refuses a Marian entry
+    # that has *no* pair. So a collection code is never a pair side.
+    from linguonnx.detect.labels import tag_scope
+    for side, code in (("source", src), ("target", tgt)):
+        scope = tag_scope(code)
+        if scope is not None:
+            raise GroupModel(
+                f"{repo_name!r} names a {scope} code {code!r} on the {side} "
+                f"side: a language family, not a language")
 
     base_match = _BASE_MODEL_RE.search(readme)
     if not base_match:
@@ -651,31 +750,64 @@ def _marian_pair(repo_name: str, readme: str, detail: dict
     return [src, tgt], base, token
 
 
-def _assert_not_narrow_finetune(detail: dict, model_id: str) -> None:
-    """Refuse to read a covering set off a *bilingual fine-tune*.
+def _declared_languages(detail: dict) -> Optional[List[str]]:
+    """``cardData.language`` normalised, or None when the card names no languages.
+
+    ``None`` means "the card makes no concrete claim": either there is no
+    ``language`` key, or it is the ``["multilingual"]`` placeholder a general
+    model uses. Anything else is a list of real languages the publisher wrote
+    down, and this script treats it as an upper bound.
+    """
+    from linguonnx.detect.labels import to_bcp47
+
+    raw = (detail.get("cardData") or {}).get("language")
+    if not isinstance(raw, list) or not raw or "multilingual" in raw:
+        return None
+    declared = []
+    for code in raw:
+        try:
+            declared.append(to_bcp47(str(code)))
+        except Exception:
+            declared.append(str(code))
+    return declared
+
+
+def _assert_declared_covers(detail: dict, model_id: str,
+                            languages: Sequence[str]) -> None:
+    """Refuse to publish more coverage than the model's own card claims.
 
     A fine-tune keeps the whole base tokenizer, so ``special_tokens_map.json``
-    still lists all 100 (or 202) languages long after the weights stopped being
-    able to serve them. Masakhane's ``m2m100_418M_bbj_fr_rel_news_ft`` is a
-    French <-> Ghomala' model wearing M2M100's full token inventory; trusting
-    the tokenizer would publish a 100-language claim for a two-language model
-    and let the router send anything through it.
+    still lists all 100 (or 202) languages long after the weights stopped
+    being able to serve them. Two real examples, and why the test is a subset
+    test rather than a count:
 
-    The tell is ``cardData.language``: general models declare
-    ``["multilingual"]``, fine-tunes name their two or three languages. Those
-    need a hand-verified :data:`BILINGUAL_FINETUNES` entry stating the pair in
-    the model's own codes, because which token a fine-tune reused for a
-    language the base never had is not recoverable from the export.
+    - Masakhane's ``m2m100_418M_bbj_fr_rel_news_ft`` is a French <-> Ghomala'
+      model wearing M2M100's full token inventory. Two declared languages.
+    - TartuNLP's ``m2m100-418M-smugri`` is a Finno-Ugric fine-tune declaring
+      ``en/et/fi/lv/liv/vro/sma/sme``. **Eight** declared languages - which
+      sailed straight through the old "3 or fewer languages is a fine-tune"
+      threshold and published a 104-language claim, including ``th -> sw``.
+
+    A threshold cannot tell those apart from a general model; a subset test
+    can. Anything the tokenizer lists and the card does not is coverage nobody
+    has claimed, so the repo is skipped until a maintainer states the real set
+    in :data:`MULTILINGUAL_LANGUAGE_OVERRIDES` (or the pair in
+    :data:`BILINGUAL_FINETUNES`), in the model's own codes - which token a
+    fine-tune reused for a language the base never had is not recoverable from
+    the export.
     """
-    languages = (detail.get("cardData") or {}).get("language") or []
-    if not isinstance(languages, list) or "multilingual" in languages:
+    declared = _declared_languages(detail)
+    if declared is None:
         return
-    if 0 < len(languages) <= 3:
+    extra = sorted(set(languages) - set(declared))
+    if extra:
         raise SkipRepo(
-            f"bilingual fine-tune ({'/'.join(languages)}) of a multilingual "
-            f"base: its tokenizer still lists every base language, so coverage "
-            f"cannot be derived. Add a verified BILINGUAL_FINETUNES entry for "
-            f"{model_id!r} to register it")
+            f"the card declares {len(declared)} languages "
+            f"({'/'.join(declared)}) but the tokenizer lists {len(languages)}, "
+            f"{len(extra)} of them unclaimed (e.g. {', '.join(extra[:5])}): a "
+            f"fine-tune wearing its base's token inventory. Add a verified "
+            f"MULTILINGUAL_LANGUAGE_OVERRIDES entry for {model_id!r} to "
+            f"register it")
 
 
 def _multilingual_languages(repo_id: str, files: Dict[str, int]) -> List[str]:
@@ -709,7 +841,20 @@ def _multilingual_languages(repo_id: str, files: Dict[str, int]) -> List[str]:
         except Exception:
             tag = code
         normalized.add(tag or code)
-    return sorted(normalized)
+    return sorted(_without_families(normalized))
+
+
+def _without_families(codes: Iterable[str]) -> List[str]:
+    """Drop the codes that name a language *family* or a placeholder.
+
+    Model vocabularies carry them: MADLAD has a `<2ber>` piece for "Berber
+    languages", opus-mt group vocabularies carry their own family token. They
+    are real pieces, but no caller asks to translate into Berber-in-general
+    and no output can honour it, so they are never published as coverage.
+    """
+    from linguonnx.detect.labels import tag_scope
+
+    return sorted({code for code in codes if tag_scope(code) is None})
 
 
 def _madlad_languages(repo_id: str, files: Dict[str, int]) -> List[str]:
@@ -743,7 +888,7 @@ def _madlad_languages(repo_id: str, files: Dict[str, int]) -> List[str]:
     })
     if not codes:
         raise SkipRepo("spiece.model has no <2xx> target-prefix pieces")
-    return codes
+    return _without_families(codes)
 
 
 def _marian_multilingual_languages(repo_id: str, files: Dict[str, int],
@@ -769,6 +914,63 @@ def _marian_multilingual_languages(repo_id: str, files: Dict[str, int],
     codes = sorted({fixups.get(code, code) for code in codes})
     native_codes = {fixups[raw]: raw for raw in fixups}
     return codes, native_codes
+
+
+def _marian_group_languages(repo_id: str, files: Dict[str, int]
+                            ) -> Tuple[List[str], Dict[str, str]]:
+    """Codes (+ native spellings) for a `>>xxx<<`-prefix Marian *group* model.
+
+    ``opus-mt-itc-itc`` and its relatives translate any-to-any inside one
+    language family, choosing the target with a ``>>ita<<``-style prefix token
+    that has to be in the model's own vocabulary to work at all. So the
+    vocabulary *is* the coverage claim - a language with no token cannot be
+    selected, whatever the upstream card lists, and the export is often
+    trimmed relative to that card.
+
+    Returns the normalised BCP-47 codes plus the ``tag -> the model's own
+    spelling`` map, because normalisation is lossy here in a way that matters:
+    ``ita`` becomes ``it``, and sending the model ``>>it<<`` selects nothing.
+    """
+    if "vocab.json" not in files:
+        raise SkipRepo("no vocab.json to read >>xxx<< target tokens from")
+    vocab = json.loads(raw_file(repo_id, "vocab.json"))
+    raw_codes = sorted({
+        match.group(1) for key in vocab
+        if (match := _GROUP_TARGET_TOKEN_RE.match(key))
+    })
+    if not raw_codes:
+        raise SkipRepo("vocab.json has no >>xxx<< target-prefix tokens")
+
+    from linguonnx.detect.labels import is_registered_subtag, tag_scope, to_bcp47
+
+    candidates: Dict[str, List[str]] = {}
+    for raw in raw_codes:
+        # A group vocabulary can itself carry a family token (`>>roa<<`).
+        # It is a real vocabulary entry, but not a language anyone can ask
+        # for, so it is not published as coverage.
+        if tag_scope(raw) is not None:
+            continue
+        try:
+            tag = to_bcp47(raw)
+        except Exception:
+            tag = raw
+        candidates.setdefault(tag or raw, []).append(raw)
+    if not candidates:
+        raise SkipRepo("vocab.json's >>xxx<< tokens are all collection codes")
+
+    def rank(raw: str) -> tuple:
+        # Several tokens can collapse onto one tag: `>>mol<<`/`>>ron<<` are
+        # both Romanian, `>>bul<<`/`>>bul_Latn<<` both Bulgarian. Prefer a
+        # code IANA still registers (`mol` was withdrawn for `ron`) and an
+        # unscripted one, so the token sent to the model is the live spelling.
+        return (not is_registered_subtag(raw), "_" in raw, raw)
+
+    native: Dict[str, str] = {}
+    for tag, raws in candidates.items():
+        raw = min(raws, key=rank)
+        if raw != tag:
+            native[tag] = raw
+    return sorted(candidates), native
 
 
 def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict]:
@@ -808,11 +1010,31 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
         if native_codes:
             shared["native_codes"] = native_codes
     elif arch == "marian":
-        pair, base, token = _marian_pair(name, readme, detail)
-        shared["pair"] = pair
-        shared["base_model"] = base if "/" in base else f"Helsinki-NLP/{base}"
-        if token:
-            shared["target_token"] = token
+        try:
+            pair, base, token = _marian_pair(name, readme, detail)
+        except GroupModel as err:
+            # A family model (`opus-mt-itc-itc`): any-to-any inside the
+            # family, target chosen by a `>>xxx<<` prefix token, read from the
+            # export's own vocabulary. Same shape as the `<2xx>` multilingual
+            # Marian above, different token spelling.
+            codes, native = _marian_group_languages(repo_id, files)
+            shared["languages"] = codes
+            shared["target_token_template"] = ">>{code}<<"
+            if native:
+                shared["native_codes"] = native
+            base_match = _BASE_MODEL_RE.search(readme)
+            if base_match:
+                shared["base_model"] = f"Helsinki-NLP/{base_match.group(1)}"
+            shared["notes"] = (
+                f"opus-mt group model ({err}). Any-to-any across the "
+                f"{len(codes)} languages its own vocabulary carries a "
+                f">>xxx<< target token for; the token is mandatory and is "
+                f"applied automatically.")
+        else:
+            shared["pair"] = pair
+            shared["base_model"] = base if "/" in base else f"Helsinki-NLP/{base}"
+            if token:
+                shared["target_token"] = token
     elif arch == "madlad":
         shared["languages"] = _madlad_languages(repo_id, files)
     elif arch == "indictrans2":
@@ -827,9 +1049,12 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
                 f"({', '.join(INDICTRANS2_DIRECTIONS)})")
         shared["src_languages"], shared["tgt_languages"] = \
             list(directions[0]), list(directions[1])
+    elif model_id in MULTILINGUAL_LANGUAGE_OVERRIDES:
+        shared.update(MULTILINGUAL_LANGUAGE_OVERRIDES[model_id])
     else:
-        _assert_not_narrow_finetune(detail, model_id)
-        shared["languages"] = _multilingual_languages(repo_id, files)
+        languages = _multilingual_languages(repo_id, files)
+        _assert_declared_covers(detail, model_id, languages)
+        shared["languages"] = languages
 
     entries: Dict[str, dict] = {}
     for suffix, prefix in (("", ""), ("-int8", "int8/")):
@@ -962,17 +1187,19 @@ def lid_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict]:
 
 def merge_preserving(existing: Dict[str, dict],
                      generated: Dict[str, dict]) -> Dict[str, dict]:
-    """Generated values win; hand-authored *extra* keys survive.
+    """Generated values win; the hand-authored keys in :data:`HUMAN_OWNED_KEYS` survive.
 
-    A curated ``notes``, a pinned override, anything a human added to an entry
-    and the API knows nothing about is carried across. Only keys this script
-    produces are allowed to change, so a re-run never silently discards
-    editorial work.
+    A curated ``notes`` is carried across so a re-run never discards editorial
+    work. Nothing else is: preserving *every* key the generator no longer
+    emits makes a stale key immortal, and because ``--check`` compares the
+    merged text, the staleness never shows up as drift either. The generator
+    owns the entry; a human owns the allow-list.
     """
     merged = {}
     for model_id, entry in generated.items():
         previous = existing.get(model_id, {})
-        kept = {k: v for k, v in previous.items() if k not in entry}
+        kept = {k: v for k, v in previous.items()
+                if k in HUMAN_OWNED_KEYS and k not in entry}
         combined = dict(entry)
         combined.update(kept)
         merged[model_id] = combined
@@ -1036,6 +1263,26 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 2
 
     drift = False
+    # A skipped repo used to exist only as a line on stderr, so a model that
+    # dropped out of the registry left no trace anywhere a reviewer looks:
+    # `--check` diffs the committed JSON against a freshly generated one, and
+    # a repo that fails extraction on every run is missing from both sides of
+    # that diff every time. Committing the skip list turns "this model quietly
+    # stopped being published" into a reviewable diff.
+    skipped_path = INDEX_DIR / "skipped.json"
+    skipped_text = json.dumps(dict(sorted(skipped)), indent=2,
+                              ensure_ascii=False) + "\n"
+    skipped_current = skipped_path.read_text(encoding="utf-8") \
+        if skipped_path.exists() else ""
+    if skipped_current != skipped_text:
+        drift = True
+        if args.check:
+            print("skipped.json: DRIFT - the set of unregisterable repos "
+                  "changed", file=sys.stderr)
+        else:
+            skipped_path.write_text(skipped_text, encoding="utf-8")
+            print(f"skipped.json: wrote {len(skipped)} entries")
+
     for kind, generated in (("translate", translate), ("lid", lid)):
         path = INDEX_DIR / f"{kind}.json"
         existing = json.loads(path.read_text(encoding="utf-8")) \

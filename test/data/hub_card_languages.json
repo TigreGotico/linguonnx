@@ -1,0 +1,473 @@
+{
+  "TigreGotico/aina-translator-ca-zh-onnx": [
+    "zh",
+    "ca"
+  ],
+  "TigreGotico/aina-translator-es-an-onnx": [
+    "es",
+    "an"
+  ],
+  "TigreGotico/aina-translator-es-ast-onnx": [
+    "es",
+    "ast"
+  ],
+  "TigreGotico/aina-translator-es-oc-onnx": [
+    "es",
+    "oc"
+  ],
+  "TigreGotico/aina-translator-zh-ca-onnx": [
+    "zh",
+    "ca"
+  ],
+  "TigreGotico/indictrans2-en-indic-dist-200M-onnx": [
+    "as",
+    "bn",
+    "brx",
+    "doi",
+    "en",
+    "gom",
+    "gu",
+    "hi",
+    "kn",
+    "ks",
+    "mai",
+    "ml",
+    "mr",
+    "mni",
+    "ne",
+    "or",
+    "pa",
+    "sa",
+    "sat",
+    "sd",
+    "ta",
+    "te",
+    "ur"
+  ],
+  "TigreGotico/indictrans2-indic-en-dist-200M-onnx": [
+    "as",
+    "bn",
+    "brx",
+    "doi",
+    "en",
+    "gom",
+    "gu",
+    "hi",
+    "kn",
+    "ks",
+    "mai",
+    "ml",
+    "mr",
+    "mni",
+    "ne",
+    "or",
+    "pa",
+    "sa",
+    "sat",
+    "sd",
+    "ta",
+    "te",
+    "ur"
+  ],
+  "TigreGotico/indictrans2-indic-indic-dist-320M-onnx": [
+    "as",
+    "bn",
+    "brx",
+    "doi",
+    "en",
+    "gom",
+    "gu",
+    "hi",
+    "kn",
+    "ks",
+    "mai",
+    "ml",
+    "mr",
+    "mni",
+    "ne",
+    "or",
+    "pa",
+    "sa",
+    "sat",
+    "sd",
+    "ta",
+    "te",
+    "ur"
+  ],
+  "TigreGotico/liv4ever-mt-onnx": [
+    "en",
+    "et",
+    "lv",
+    "liv"
+  ],
+  "TigreGotico/m2m100-1.2B-onnx": [
+    "multilingual"
+  ],
+  "TigreGotico/m2m100-418M-onnx": [
+    "multilingual"
+  ],
+  "TigreGotico/m2m100-418M-smugri-onnx": [
+    "en",
+    "et",
+    "fi",
+    "lv",
+    "liv",
+    "vro",
+    "sma",
+    "sme"
+  ],
+  "TigreGotico/m2m100_418M_bam_fr_rel_news_ft-onnx": [
+    "bam",
+    "fr"
+  ],
+  "TigreGotico/m2m100_418M_bbj_fr_rel_news_ft-onnx": [
+    "bbj",
+    "fr"
+  ],
+  "TigreGotico/m2m100_418M_fon_fr_rel_news_ft-onnx": [
+    "fon",
+    "fr"
+  ],
+  "TigreGotico/m2m100_418M_fr_bam_rel_news_ft-onnx": [
+    "fr",
+    "bam"
+  ],
+  "TigreGotico/m2m100_418M_fr_bbj_rel_news_ft-onnx": [
+    "fr",
+    "bbj"
+  ],
+  "TigreGotico/m2m100_418M_fr_ewe_rel_news_ft-onnx": [
+    "fr",
+    "ewe"
+  ],
+  "TigreGotico/m2m100_418M_fr_fon_rel_news_ft-onnx": [
+    "fr",
+    "fon"
+  ],
+  "TigreGotico/m2m100_418M_fr_mos_rel_news_ft-onnx": [
+    "fr",
+    "mos"
+  ],
+  "TigreGotico/m2m100_418M_mos_fr_rel_news_ft-onnx": [
+    "mos",
+    "fr"
+  ],
+  "TigreGotico/madlad400-3b-mt-onnx": null,
+  "TigreGotico/mt-hitz-ca-eu-onnx": [
+    "ca",
+    "eu"
+  ],
+  "TigreGotico/mt-hitz-en-eu-onnx": [
+    "en",
+    "eu"
+  ],
+  "TigreGotico/mt-hitz-es-eu-onnx": [
+    "es",
+    "eu"
+  ],
+  "TigreGotico/mt-hitz-eu-en-onnx": [
+    "eu",
+    "en"
+  ],
+  "TigreGotico/mt-hitz-eu-es-onnx": [
+    "eu",
+    "es"
+  ],
+  "TigreGotico/mt-hitz-gl-eu-onnx": [
+    "gl",
+    "eu"
+  ],
+  "TigreGotico/nllb-200-distilled-600M-onnx": [
+    "multilingual"
+  ],
+  "TigreGotico/nos-coda_iacobus-en-es-onnx": [
+    "en",
+    "es"
+  ],
+  "TigreGotico/nos-coda_iacobus-en-gl-onnx": [
+    "en",
+    "gl"
+  ],
+  "TigreGotico/nos-coda_iacobus-en-pt-onnx": [
+    "en",
+    "pt"
+  ],
+  "TigreGotico/nos-coda_iacobus-es-gl-onnx": [
+    "es",
+    "gl"
+  ],
+  "TigreGotico/nos-coda_iacobus-es-pt-onnx": [
+    "es",
+    "pt"
+  ],
+  "TigreGotico/nos-coda_iacobus-pt-gl-onnx": [
+    "pt",
+    "gl"
+  ],
+  "TigreGotico/nos-mt-en-gl-onnx": [
+    "en",
+    "gl"
+  ],
+  "TigreGotico/nos-mt-es-arg-onnx": [
+    "es",
+    "an"
+  ],
+  "TigreGotico/nos-mt-es-arn-onnx": [
+    "es",
+    "oc"
+  ],
+  "TigreGotico/nos-mt-es-ast-onnx": [
+    "es",
+    "ast"
+  ],
+  "TigreGotico/nos-mt-es-gl-onnx": [
+    "es",
+    "gl"
+  ],
+  "TigreGotico/nos-mt-gl-en-onnx": [
+    "gl",
+    "en"
+  ],
+  "TigreGotico/nos-mt-gl-es-onnx": [
+    "gl",
+    "es"
+  ],
+  "TigreGotico/opus-mt-ar-en-onnx": [
+    "ar",
+    "en"
+  ],
+  "TigreGotico/opus-mt-ca-en-onnx": [
+    "ca",
+    "en"
+  ],
+  "TigreGotico/opus-mt-ca-es-onnx": [
+    "ca",
+    "es"
+  ],
+  "TigreGotico/opus-mt-ca-fr-onnx": [
+    "ca",
+    "fr"
+  ],
+  "TigreGotico/opus-mt-ca-it-onnx": [
+    "ca",
+    "it"
+  ],
+  "TigreGotico/opus-mt-de-en-onnx": [
+    "de",
+    "en"
+  ],
+  "TigreGotico/opus-mt-en-ar-onnx": [
+    "en",
+    "ar"
+  ],
+  "TigreGotico/opus-mt-en-bg-onnx": [
+    "en",
+    "bg"
+  ],
+  "TigreGotico/opus-mt-en-ca-onnx": [
+    "en",
+    "ca"
+  ],
+  "TigreGotico/opus-mt-en-cs-onnx": [
+    "en",
+    "cs"
+  ],
+  "TigreGotico/opus-mt-en-da-onnx": [
+    "en",
+    "da"
+  ],
+  "TigreGotico/opus-mt-en-de-onnx": [
+    "en",
+    "de"
+  ],
+  "TigreGotico/opus-mt-en-el-onnx": [
+    "en",
+    "el"
+  ],
+  "TigreGotico/opus-mt-en-es-onnx": [
+    "en",
+    "es"
+  ],
+  "TigreGotico/opus-mt-en-eu-onnx": [
+    "en",
+    "eu"
+  ],
+  "TigreGotico/opus-mt-en-fi-onnx": [
+    "en",
+    "fi"
+  ],
+  "TigreGotico/opus-mt-en-fr-onnx": [
+    "en",
+    "fr"
+  ],
+  "TigreGotico/opus-mt-en-gl-onnx": [
+    "en",
+    "gl"
+  ],
+  "TigreGotico/opus-mt-en-he-onnx": [
+    "en",
+    "he"
+  ],
+  "TigreGotico/opus-mt-en-hi-onnx": [
+    "en",
+    "hi"
+  ],
+  "TigreGotico/opus-mt-en-hu-onnx": [
+    "en",
+    "hu"
+  ],
+  "TigreGotico/opus-mt-en-id-onnx": [
+    "en",
+    "id"
+  ],
+  "TigreGotico/opus-mt-en-it-onnx": [
+    "en",
+    "it"
+  ],
+  "TigreGotico/opus-mt-en-ko-onnx": [
+    "en",
+    "ko"
+  ],
+  "TigreGotico/opus-mt-en-nl-onnx": [
+    "en",
+    "nl"
+  ],
+  "TigreGotico/opus-mt-en-pl-onnx": [
+    "en",
+    "pl"
+  ],
+  "TigreGotico/opus-mt-en-pt-onnx": [
+    "en",
+    "pt"
+  ],
+  "TigreGotico/opus-mt-en-ro-onnx": [
+    "en",
+    "ro"
+  ],
+  "TigreGotico/opus-mt-en-ru-onnx": [
+    "en",
+    "ru"
+  ],
+  "TigreGotico/opus-mt-en-sv-onnx": [
+    "en",
+    "sv"
+  ],
+  "TigreGotico/opus-mt-en-tr-onnx": [
+    "en",
+    "tr"
+  ],
+  "TigreGotico/opus-mt-en-uk-onnx": [
+    "en",
+    "uk"
+  ],
+  "TigreGotico/opus-mt-en-vi-onnx": [
+    "en",
+    "vi"
+  ],
+  "TigreGotico/opus-mt-en-zh-onnx": [
+    "en",
+    "zh"
+  ],
+  "TigreGotico/opus-mt-es-ca-onnx": [
+    "es",
+    "ca"
+  ],
+  "TigreGotico/opus-mt-es-en-onnx": [
+    "es",
+    "en"
+  ],
+  "TigreGotico/opus-mt-es-eu-onnx": [
+    "es",
+    "eu"
+  ],
+  "TigreGotico/opus-mt-es-gl-onnx": [
+    "es",
+    "gl"
+  ],
+  "TigreGotico/opus-mt-eu-en-onnx": [
+    "eu",
+    "en"
+  ],
+  "TigreGotico/opus-mt-eu-es-onnx": [
+    "eu",
+    "es"
+  ],
+  "TigreGotico/opus-mt-fr-ca-onnx": [
+    "fr",
+    "ca"
+  ],
+  "TigreGotico/opus-mt-fr-en-onnx": [
+    "fr",
+    "en"
+  ],
+  "TigreGotico/opus-mt-gl-en-onnx": [
+    "gl",
+    "en"
+  ],
+  "TigreGotico/opus-mt-gl-es-onnx": [
+    "gl",
+    "es"
+  ],
+  "TigreGotico/opus-mt-gl-pt-onnx": [
+    "gl",
+    "pt"
+  ],
+  "TigreGotico/opus-mt-it-en-onnx": [
+    "it",
+    "en"
+  ],
+  "TigreGotico/opus-mt-itc-itc-onnx": [
+    "it",
+    "ca",
+    "rm",
+    "es",
+    "ro",
+    "gl",
+    "sc",
+    "co",
+    "wa",
+    "pt",
+    "oc",
+    "an",
+    "id",
+    "fr",
+    "ht",
+    "itc"
+  ],
+  "TigreGotico/opus-mt-nl-en-onnx": [
+    "nl",
+    "en"
+  ],
+  "TigreGotico/opus-mt-pl-en-onnx": [
+    "pl",
+    "en"
+  ],
+  "TigreGotico/opus-mt-pt-ca-onnx": [
+    "pt",
+    "ca"
+  ],
+  "TigreGotico/opus-mt-pt-en-onnx": [
+    "pt",
+    "en"
+  ],
+  "TigreGotico/opus-mt-pt-gl-onnx": [
+    "pt",
+    "gl"
+  ],
+  "TigreGotico/opus-mt-ru-en-onnx": [
+    "ru",
+    "en"
+  ],
+  "TigreGotico/opus-mt-tr-en-onnx": [
+    "tr",
+    "en"
+  ],
+  "TigreGotico/opus-mt-uk-en-onnx": [
+    "uk",
+    "en"
+  ],
+  "TigreGotico/opus-mt-zh-en-onnx": [
+    "zh",
+    "en"
+  ]
+}

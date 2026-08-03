@@ -57,9 +57,23 @@ REGISTRY_PATHS = {
 }
 
 #: Cold fetches larger than this fail fast rather than occupying a request
-#: thread for an unbounded time. The biggest registry model is ~7.4 GB, so the
-#: default refuses nothing; it exists so a server can lower it and keep the
-#: request path predictable. ``0`` or negative disables the check.
+#: thread for an unbounded time. ``0`` or negative disables the check.
+#:
+#: This does **not** refuse nothing. The registry outgrew that: fp32
+#: ``madlad400-3b-mt`` is ~19.7 GB and fp32 ``m2m100-1.2B`` ~9.3 GB, both over
+#: this budget. The number is kept where it is on purpose - 8 GB is already a
+#: multi-minute fetch on a normal connection, and a library that downloads 20 GB
+#: because a caller passed ``precision="fp32"`` is not a library anyone can
+#: deploy - and the routing graph is made to *agree* with it instead: see
+#: :func:`download_budget_mb` and ``TranslationGraph._check_max_model_mb``,
+#: which default the routing size cap to this budget. Without that, the graph
+#: would happily plan a MADLAD hop for the 270 languages only MADLAD serves,
+#: ``can_translate`` would answer True, and ``translate`` would then raise
+#: :class:`DownloadTooLargeError` - the lying-``can_translate`` failure this
+#: library already fixed once for unrunnable architectures.
+#:
+#: Raise ``LINGUONNX_MAX_DOWNLOAD_MB`` (or pass ``max_model_mb=None``) to route
+#: over the big fp32 exports deliberately.
 DEFAULT_MAX_DOWNLOAD_MB = 8192
 
 #: A download this big is worth a line in the log even on a healthy host: it is
@@ -84,6 +98,17 @@ def _max_download_mb() -> int:
     except ValueError:
         raise ValueError("LINGUONNX_MAX_DOWNLOAD_MB must be an integer, "
                          f"got {raw!r}") from None
+
+
+def download_budget_mb() -> Optional[int]:
+    """The cold-download budget in MB, or ``None`` when it is disabled.
+
+    The public form of :func:`_max_download_mb`, for callers that have to
+    *agree* with the budget rather than enforce it - chiefly the routing
+    graph, which must not propose a model the download path will refuse.
+    """
+    budget = _max_download_mb()
+    return budget if budget > 0 else None
 
 
 def _load_registry(kind: str = "lid") -> Dict[str, Any]:

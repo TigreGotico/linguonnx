@@ -166,8 +166,16 @@ python scripts/sync_registry.py --check    # exit 1 if the committed JSON drifte
 and which are stale, so "someone published a model and forgot the registry"
 shows up as a failing check instead of a silent gap. Re-running the generator
 on an unchanged Hub produces a byte-identical file, and hand-authored keys the
-script does not generate — a curated `notes`, a pinned default — survive
-regeneration.
+script does not generate — a curated `notes` — survive regeneration. Nothing
+else does: a key the generator stops emitting has to be able to disappear, and
+because `--check` compares the *merged* text, a preserved stale key would never
+report as drift.
+
+Every repo the script refuses is written to `linguonnx/model_index/skipped.json`
+alongside the registries, with the reason. A skip used to reach stderr and
+nowhere else, which is how 43 published models stayed invisible: `--check`
+diffs the committed registry against a fresh one, and a repo that fails
+extraction on every run is missing from both sides of that diff every time.
 
 ### What is derived from where
 
@@ -178,7 +186,8 @@ Everything the Hub can answer is read from the Hub, never typed out:
 | `arch` | `config.model_type` from the repo's own config; then the tokenizer files. A repo with `vocab.json` reads ids straight out of it (M2M100); one without uses fairseq's `id = sp_id + 1` (NLLB). |
 | `license` | `cardData.license` when the card has YAML front matter, else the `**License:**` line in the README body — most opus-mt exports have no front matter. |
 | `languages` | `additional_special_tokens` in the model's own `special_tokens_map.json`. |
-| `pair` | The repo name, cross-checked against the base model named in the card. |
+| `pair` | The repo name, cross-checked against the base model named in the card. Never a language *family*: `itc`, `sla`, `mul` and the other ISO 639-5 collection codes are refused as pair sides, and the repo takes the group-model path below. |
+| `target_token_template` + `native_codes` | For a model that picks its target with a prefix token. The token set is read from the model's own vocabulary — `<2xx>` for MADLAD and `liv4ever-mt`, `>>xxx<<` for the opus-mt group models — and `native_codes` maps the BCP-47 tag the graph uses back to the model's own spelling, so the graph sees `it` and the model still gets `>>ita<<`. |
 | `size_mb` | Summed blob sizes of the files the entry actually references. Load-bearing twice over: it breaks ties in the route ranking, and it is what `max_model_mb` compares against, so an entry that under-reports its size gets routed onto hosts that cannot afford it. See [routing](routing.md#size-budget). |
 | `runnable` | Written as `false`, with an `unrunnable_reason`, for an architecture whose inference pipeline this library does not implement. The router excludes those models. Delete the architecture from `UNRUNNABLE_ARCHS` in the script when its pipeline lands. |
 
@@ -196,11 +205,26 @@ disagrees it records the `target_token` the export was verified against, and
 skips the repo entirely if the card does not show one. Publishing a coverage
 claim that cannot be honoured is worse than publishing nothing.
 
+A repo whose *name* is a family — `opus-mt-itc-itc`, `opus-mt-mul-en` — is not
+a pair at all and is not treated as one. `itc` is the Italic family, so no
+caller can ask for it; the entry that used to say `pair: ["itc", "itc"]` was an
+edge nobody could reach, and the mandatory prefix token was missing because the
+"base target differs from repo target" test cannot fire when both sides say
+`itc`. These take the token path instead: the `>>xxx<<` keys in the export's own
+`vocab.json` are the coverage, because a language with no token cannot be
+selected whatever the card lists.
+
 **Bilingual fine-tunes of multilingual bases.** A fine-tune keeps the whole
 base tokenizer, so `special_tokens_map.json` still lists all 100 or 202
 languages long after the weights stopped serving them. Those need a verified
 entry in `BILINGUAL_FINETUNES` stating the pair in the model's own codes, and
-are skipped with a printed reason until someone adds one. `aina-es-oc` is one
+are skipped with a recorded reason until someone adds one. The test is a
+subset test, not a count: the entry may not claim a language its own Hub card
+does not. A threshold cannot tell a narrow fine-tune from a general model —
+`m2m100-418M-smugri` is a Finno-Ugric fine-tune declaring **eight** languages,
+which walked past the old "three or fewer" rule and published a 104-language
+claim including `th -> sw`. A model whose real set is narrower than its
+tokenizer states it in `MULTILINGUAL_LANGUAGE_OVERRIDES`. `aina-es-oc` is one
 of these: an NLLB-600M fine-tune whose tokenizer claims 202 languages and whose
 weights do Spanish into Aranese, one way.
 
