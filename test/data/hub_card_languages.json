@@ -301,6 +301,14 @@
     "mos",
     "fr"
   ],
+  "TigreGotico/m2m100_418m-eng-nso-onnx": [
+    "en",
+    "nso"
+  ],
+  "TigreGotico/m2m100_418m-nso-eng-onnx": [
+    "nso",
+    "en"
+  ],
   "TigreGotico/madlad400-3b-mt-onnx": null,
   "TigreGotico/marblenet-vad-coreml": null,
   "TigreGotico/mfcc-onnx": null,

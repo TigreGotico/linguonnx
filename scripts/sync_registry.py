@@ -247,6 +247,33 @@ BILINGUAL_FINETUNES: Dict[str, Dict] = {
     #: Source: https://huggingface.co/masakhane/m2m100_418M_en_hau_rel_news_ft
     "m2m100_418M_en_hau_rel_news_ft": {"pair": ["en", "ha"], "notes": "M2M100-418M fine-tune, English -> Hausa."},
 
+    #: DSFSI (Data Science for Social Impact, University of Pretoria)
+    #: fine-tunes of `facebook/m2m100_418M`, same shape as the Masakhane
+    #: entries above: the card declares 2 languages but the tokenizer still
+    #: carries the base model's full 100-language `added_tokens.json`/
+    #: `special_tokens_map.json` inventory. Northern Sotho / Sepedi's own
+    #: token is `__ns__` (m2m100 spells it with the ISO 639-1 code `ns`, not
+    #: the BCP-47/ISO 639-3 macrolanguage code `nso`); `to_bcp47("ns")`
+    #: cannot resolve it (it is not a registered IANA subtag on its own), so
+    #: routing uses `nso` and `native_codes` carries the model's own `ns`
+    #: spelling through to the tokenizer - same fix shape as PR #56, not a
+    #: `normalize_tag` alias.
+    #: Source: https://huggingface.co/dsfsi/m2m100_418m-eng-nso ,
+    #: https://huggingface.co/dsfsi/m2m100_418m-nso-eng
+    "m2m100_418m-eng-nso": {"pair": ["en", "nso"], "native_codes": {"nso": "ns"},
+                            "notes": "DSFSI M2M100-418M fine-tune, English -> "
+                                     "Northern Sotho/Sepedi (nso). Card declares "
+                                     "2 languages; tokenizer carries the base "
+                                     "model's full 100-language inventory, 98 "
+                                     "unclaimed. nso's own token is '__ns__'."},
+    "m2m100_418m-nso-eng": {"pair": ["nso", "en"], "native_codes": {"nso": "ns"},
+                            "notes": "DSFSI M2M100-418M fine-tune, Northern "
+                                     "Sotho/Sepedi (nso) -> English. Card "
+                                     "declares 2 languages; tokenizer carries "
+                                     "the base model's full 100-language "
+                                     "inventory, 98 unclaimed. nso's own token "
+                                     "is '__ns__'."},
+
     #: ProxectoNos' `nos-mt-*` family - the same OpenNMT-py/Pegasus-shaped
     #: export as `nos-coda_iacobus`, one hand-verified one-way pair each,
     #: cardData.language agreeing with the repo name.
@@ -326,7 +353,46 @@ _KNOWN_UNRESOLVED_GROUP_MODELS: Tuple[str, ...] = ()
 #:   it, and `FastUnigramTokenizer` (`tokenizers.py`) loads it with the
 #:   `tokenizers` package instead of `sentencepiece`. Both directions were
 #:   run for real; see the PR description.
-_KNOWN_ARCH_MISMATCH: Tuple[str, ...] = ()
+#:
+#: ``vinai-translate-vi2en-v2``: tags its graph `mbart`, and `_arch()` raises
+#: `SkipRepo` for it deliberately (see the `model_type == "mbart"` branch) -
+#: it is not NLLB despite sharing NLLB's lone sentencepiece.bpe.model +
+#: special_tokens_map.json shape, and no mBART loader exists in this library.
+#:
+#: ``arat5-arabic-dialects-translation``: tags its graph `t5`, which `_arch()`
+#: only recognises as the MADLAD shape. This export ships a fast tokenizer
+#: (`tokenizer.json`) instead of MADLAD's raw `spiece.model`, so
+#: `_madlad_languages` raises `SkipRepo` for it too - a real AraT5 loader
+#: is not implemented.
+#:
+#: ``arabic-MARBERT-dialect-identification-city``: a MARBERT (BERT-family)
+#: sequence classifier over Arabic *cities*, not BCP-47 language tags - even
+#: a working tokenizer-based classifier engine would still not belong in
+#: `lid.json`, whose contract is a BCP-47 tag out. `lid_entries` raises
+#: `SkipRepo` for it via the transformer-classifier branch above; hand-tested
+#: directly with `transformers`+`onnxruntime` outside this library, it does
+#: correctly top-1 Cairo for Egyptian Arabic input at both precisions - the
+#: model itself is not the problem, this library has no classifier engine or
+#: dialect/city registry section for it to live in.
+#:
+#: ``afrolid_1.5``: XLM-R sequence classifier over ~500 African language
+#: codes - its output shape *would* fit `lid.json`'s BCP-47 contract, but
+#: `lid_entries` still raises `SkipRepo` for it, for the same reason: no
+#: tokenizer-based transformer classifier loader exists in
+#: `linguonnx.detect`. Separately investigated for a suspected label-mapping
+#: defect (a genuine Yoruba sentence classified Fula/Wolof, `yor` absent from
+#: the top 5): the exported `config.json`'s `id2label` is byte-identical to
+#: `UBC-NLP/afrolid_1.5`'s own `config.json` at every checked index, and
+#: running the unmodified upstream PyTorch model directly through
+#: `transformers` on the same sentence reproduces the identical
+#: Fula/Wolof-over-Yoruba misclassification - confirmed genuine upstream
+#: model behaviour, not an export or preprocessing defect.
+_KNOWN_ARCH_MISMATCH: Tuple[str, ...] = (
+    "vinai-translate-vi2en-v2",
+    "arat5-arabic-dialects-translation",
+    "arabic-MARBERT-dialect-identification-city",
+    "afrolid_1.5",
+)
 
 #: Hand-verified fix-ups for a *multilingual* Marian export whose target is
 #: chosen by a `<2xx>` prefix token read straight out of its own vocab.json
@@ -789,6 +855,23 @@ def classify(files: Dict[str, int]) -> Optional[str]:
         return "lid"
     if "encoder_model.onnx" in files:
         return "translate"
+    # A transformer sequence-classification export (an XLM-R/BERT dialect or
+    # language classifier, e.g. AfroLID or a MARBERT dialect-city model)
+    # looks like a LID candidate from a distance - one ONNX graph, one label
+    # over the output - but ships none of GlotLID's fastText side files
+    # (`vocab.txt` sized for feature *hashing*, `labels.json`, a
+    # `*_hash.py` featurizer). `linguonnx.detect` only implements the
+    # fastText-hash engine (`GlotLIDFeaturizer` + softmax/hs ONNX graph);
+    # nothing in this library tokenizes with a Hub `tokenizer.json` and runs
+    # a transformer classification head. Classify it as "lid" anyway so
+    # `lid_entries` can raise a `SkipRepo` that names the real reason,
+    # instead of the repo vanishing from both the registry and
+    # `skipped.json` without a trace (`classify` returning `None` here is
+    # invisible - `build()` just `continue`s).
+    if "model.onnx" in files and "config.json" in files and \
+            "labels.json" not in files and \
+            ("tokenizer.json" in files or "vocab.txt" in files):
+        return "lid"
     return None
 
 
@@ -885,6 +968,23 @@ def _arch(detail: dict, files: Dict[str, int]) -> str:
             "model_type=pegasus but neither an OpenNMT-BPE vocab file nor a "
             "tokenizer.json: an unrecognised tokenizer shape under this "
             "model_type")
+    if model_type == "mbart":
+        # mBART ships the same lone `sentencepiece.bpe.model` +
+        # `special_tokens_map.json` shape as NLLB (see `vinai-translate-vi2en
+        # -v2-onnx`), so falling through to the `vocab.json`-absent branch
+        # below would silently mislabel it "nllb". It is not: mBART selects
+        # its target with a *trailing* `</s> <lang>` decoder-start token and
+        # spells its codes `en_XX`/`vi_VN`, not NLLB's fairseq id+1 offset and
+        # FLORES `eng_Latn` spelling - `SpmSeq2SeqTokenizer` built for NLLB
+        # would tokenize and force the wrong ids on every call. No mBART
+        # loader exists in `linguonnx.translate.tokenizers` or `graph.py`;
+        # this is an honest capability gap, not a guessable one.
+        raise SkipRepo(
+            "model_type=mbart: mBART is a distinct architecture (trailing "
+            "decoder-start language token, en_XX-style codes) that this "
+            "library implements no tokenizer or graph loader for - it is "
+            "not NLLB despite sharing NLLB's single sentencepiece.bpe.model "
+            "+ special_tokens_map.json file shape")
     # M2M100 and NLLB share `model_type: m2m_100`; the tokenizer tells them
     # apart. M2M100 ships a vocab.json and reads ids from it; NLLB has none and
     # uses fairseq's sp_id + 1 offset instead.
@@ -1703,6 +1803,29 @@ def lid_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict]:
         name, name[:-len("-onnx")] if name.endswith("-onnx") else name)
     files = _files_of(detail)
     license_id = _license_of(detail, readme)
+
+    if "labels.json" not in files:
+        # Reached only through `classify()`'s transformer-classifier branch:
+        # a `model.onnx` + `config.json` + tokenizer export with no GlotLID
+        # side files at all. `linguonnx.detect.LanguageDetector` hard-codes
+        # the fastText-hash pipeline (`GlotLIDFeaturizer` reads `vocab.txt`
+        # as a feature-hashing word list sized by `config.json`'s `nwords`/
+        # `minn`/`maxn`/`bucket`, and its ONNX graph is a bag-of-hashes
+        # matmul) - it cannot tokenize with a Hub `tokenizer.json` or run a
+        # transformer classification head, whatever id2label the export's
+        # own `config.json` carries. Registering this shape under `"lid"`
+        # would either crash on the missing fastText fields or silently
+        # skip straight to `GlotLIDFeaturizer`'s failure mode. No such loader
+        # exists in this codebase.
+        config = json.loads(raw_file(repo_id, "config.json"))
+        arches = config.get("architectures") or [config.get("model_type", "?")]
+        raise SkipRepo(
+            f"transformer sequence-classification export "
+            f"(architectures={arches}, id2label size="
+            f"{len(config.get('id2label') or {})}): linguonnx.detect only "
+            f"implements the fastText-hash LID engine (GlotLIDFeaturizer + "
+            f"vocab.txt/labels.json/*_hash.py); no tokenizer-based "
+            f"transformer classifier loader exists for it")
 
     config = json.loads(raw_file(repo_id, "config.json"))
     labels = json.loads(raw_file(repo_id, "labels.json"))
