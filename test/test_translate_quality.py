@@ -302,3 +302,22 @@ def test_the_repetition_guard_is_still_off_by_default():
     from linguonnx.translate.decode import GenerationConfig
 
     assert GenerationConfig().no_repeat_ngram_size == 0
+
+
+@pytest.mark.parametrize("model_id", [
+    "m2m100_418M_bbj_fr_rel_news_ft", "m2m100_418M_bbj_fr_rel_news_ft-int8",
+    "m2m100_418M_mos_fr_rel_news_ft", "m2m100_418M_mos_fr_rel_news_ft-int8",
+])
+def test_the_mafand_scores_record_the_decode_config_that_produced_them(model_id):
+    """`mode` alone does not pin a chrF score down.
+
+    `GenerationConfig` caps generation at 128 tokens while these models' own
+    `generation_config.json` says 512, and a cap that truncates long output
+    moves chrF - and truncates exactly the phrase loops these numbers were
+    measuring. A score nobody can reproduce from the repo is the same problem
+    as a score with no sample size next to it.
+    """
+    quality = REGISTRY[model_id]["quality"]
+    assert quality["mode"] == "beam4"
+    assert quality["max_new_tokens"] == 128
+    assert quality["length_penalty"] == 1.0

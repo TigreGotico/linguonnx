@@ -3,20 +3,27 @@
 Where it comes from
 --------------------
 
-A model's ``quality`` field, when present, comes from an actual FLORES-200
-devtest re-measurement, not a guess and not the library's old n=5-20
+A model's ``quality`` field, when present, comes from an actual re-measurement
+against a human reference corpus, not a guess and not the library's old n=5-20
 hand-written, exact-match-scored parity numbers - a campaign that turned out
 to be noise-sized (``opus-mt-az-en`` beam4 read 40%, then 100%, then 14%
 across three sample sizes on the same model). See ``docs/routing.md`` for the
-full write-up of why chrF-vs-reference is the metric and FLORES-200 is the
-corpus.
+full write-up of why chrF-vs-reference is the metric.
+
+FLORES-200 devtest is the corpus wherever the language is in it. It is not
+always: Ghomala' and Mossi are in no FLORES release, and
+``m2m100_418M_bbj_fr_rel_news_ft``/``m2m100_418M_mos_fr_rel_news_ft`` are
+measured on MAFAND-MT test instead. ``corpus`` says which, per entry - see
+"Corpora are not interchangeable" below for what that does and does not buy.
 
 The registry entry carries, when measured:
 
 ``corpus``
-    Which reference corpus, e.g. ``"flores200-devtest"``.
+    Which reference corpus, e.g. ``"flores200-devtest"`` or
+    ``"mafand-test"``. Read it before comparing two scores; nothing in this
+    module does that for you.
 ``metric``
-    ``"chrf"`` for chrF against the FLORES human reference (the headline
+    ``"chrf"`` for chrF against the `corpus` human reference (the headline
     number - "is this precision's output actually good"), or
     ``"chrf_agreement_int8_vs_fp32"`` for chrF of int8's output scored
     against fp32's own output (a secondary diagnostic - "do the two
@@ -25,12 +32,20 @@ The registry entry carries, when measured:
     presence never gets mistaken for the headline).
 ``mode``
     Decoding mode the number was measured under, ``"greedy"`` or ``"beam4"``.
+``max_new_tokens`` / ``length_penalty``
+    The rest of the decode configuration, when recorded. ``mode`` alone does
+    not pin a score down: :class:`~linguonnx.translate.decode.GenerationConfig`
+    caps generation at 128 tokens by default while several of these models'
+    own ``generation_config.json`` says 512, and a cap that truncates long
+    outputs moves chrF. Older entries predate these two keys and were taken
+    at the library defaults of the day; new measurements should record them
+    so the number can be reproduced from the repo.
 ``n``
     Sample size. Always shown next to the score - an n=5 or n=20 score reads
     very differently from an n=100 one, and this campaign's worst failure
     mode was a score with no visible sample size next to it.
 ``chrf_vs_ref``
-    This precision's own chrF against the FLORES reference. Present only
+    This precision's own chrF against the ``corpus`` human reference. Present only
     when actually measured against the reference; a model can be genuinely
     unmeasured, and that must never be confused with "measured and bad" - so
     its absence, not a zero or a guess, is how "not measured" is spelled.
@@ -60,6 +75,23 @@ Two independent checks, either sufficient on its own:
   (Helsinki en-es/en-fr/en-de) alike - showed int8 within ~0.6 chrF of fp32
   against the reference, so 2.0 leaves headroom before flagging while still
   catching a real regression.
+
+Corpora are not interchangeable
+-------------------------------
+
+Both checks above compare ``chrf_vs_ref`` as a bare number, and so does
+``min_chrf=`` in :func:`linguonnx.translate._select_entries`. Neither reads
+``corpus``. chrF is not calibrated across corpora - a hard low-resource
+reference and an easy high-resource one do not put "good" at the same number -
+so a floor applied across a mixed registry is a rough instrument, not a fair
+comparison.
+
+It is left rough on purpose rather than made corpus-aware, because
+corpus-awareness would need a per-corpus floor, and there is no principled way
+to set one for a corpus measured on two models. What the field does buy is
+that a *human* can always tell the scores apart, and that the flag message
+names the corpus it is quoting, so nobody reads 23.9 on ``mafand-test`` as if
+it were 23.9 on FLORES-200. If a third corpus ever arrives, revisit this.
 
 Flagging never excludes a model from the registry - the "publish everything"
 rule holds regardless of quality. It only informs :func:`_select_entries`
