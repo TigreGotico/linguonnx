@@ -1,8 +1,21 @@
 # Changelog
 
+## [0.9.3a2](https://github.com/TigreGotico/linguonnx/tree/0.9.3a2) (2026-08-04)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.9.3a1...0.9.3a2)
+
+**Merged pull requests:**
+
+- fix: a registry re-sync no longer destroys hand-verified data [\#71](https://github.com/TigreGotico/linguonnx/pull/71) ([JarbasAl](https://github.com/JarbasAl))
+- Register the DSFSI Northern Sotho pair; record two arch gaps and two unengineable classifiers [\#70](https://github.com/TigreGotico/linguonnx/pull/70) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.9.3a1](https://github.com/TigreGotico/linguonnx/tree/0.9.3a1) (2026-08-04)
 
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.9.1a1...0.9.3a1)
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.9.2a1...0.9.3a1)
+
+## [0.9.2a1](https://github.com/TigreGotico/linguonnx/tree/0.9.2a1) (2026-08-04)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.9.1a1...0.9.2a1)
 
 **Merged pull requests:**
 
