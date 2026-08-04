@@ -12,6 +12,18 @@ Run it::
     python scripts/sync_registry.py            # rewrite the JSON in place
     python scripts/sync_registry.py --check    # exit 1 if the committed JSON drifted
 
+Generated, but not the only author
+----------------------------------
+
+The registry also holds facts a crawl cannot produce: a ``quality`` block of
+chrF numbers measured against a FLORES-200/MAFAND reference, and ``notes``
+caveats found by reading real output. So the merge is a positive rule - this
+script owns :data:`GENERATED_KEYS` and may overwrite or remove those; every
+other field in a committed entry survives untouched, and
+:data:`HUMAN_OWNED_KEYS` survive even against a competing generated value.
+Disagreements are printed rather than applied, and a run that would destroy
+curated content refuses to write. See :func:`merge_preserving`.
+
 What is derived from where
 --------------------------
 
@@ -89,7 +101,8 @@ import sys
 import time
 import http.client
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import (Dict, FrozenSet, Iterable, List, Optional, Sequence,
+                    Tuple)
 
 HF_API = "/api/models"
 HF_RAW = "/{repo}/raw/main/{path}"
@@ -572,23 +585,82 @@ class GroupModel(Exception):
     """
 
 
-#: Keys :func:`merge_preserving` carries across a re-sync. Everything else in
-#: an entry belongs to this script, including the ability to **remove** it: a
-#: key the generator stops emitting (``runnable`` after its architecture's
-#: pipeline landed, say) must disappear from the committed JSON, and a
-#: preserve-everything merge would make it immortal *and* invisible to
-#: ``--check``, which compares after the merge.
+#: Every key this script is allowed to own, and therefore the only keys a
+#: re-sync may overwrite or **remove**. The removal half matters: a key the
+#: generator stops emitting has to disappear from the committed JSON - once
+#: an architecture's pipeline lands, its ``runnable``/``unrunnable_reason``
+#: pair is dropped from :data:`UNRUNNABLE_ARCHS` and both keys must leave
+#: every entry - so a merge that preserved *everything* would make a stale
+#: key immortal and invisible.
+#:
+#: This is deliberately a positive rule - "the generator owns this list,
+#: a human owns the rest" - and not the blocklist it replaces. A blocklist
+#: of human-owned keys fails silently once: the day someone curates a field
+#: nobody remembered to add to it, the next crawl deletes the work with
+#: nothing on stderr. An allow-list of generated keys fails the other way,
+#: which is the safe way: an undeclared field is kept.
+#:
+#: :func:`_assert_generated_keys_declared` refuses to run if the generator
+#: emits a key that is not listed here, so adding a derived field is a
+#: deliberate act rather than an accident that starts eating curated data.
+GENERATED_KEYS: FrozenSet[str] = frozenset({
+    # shared / all architectures
+    "arch", "base_model", "extra_files", "graphs", "hf_repo", "license",
+    "license_tier", "model_id", "precision", "provenance_org",
+    "release_date", "side_files", "size_mb",
+    # language coverage, read out of each export's own tokenizer files
+    "languages", "native_codes", "pair", "src_languages", "tgt_languages",
+    "target_token", "target_token_template",
+    # LID
+    "engine", "loss", "num_labels", "onnx_file",
+    # emitted together whenever `arch in UNRUNNABLE_ARCHS`, and consumed as a
+    # live contract by `linguonnx/translate/graph.py`. The dict is empty
+    # today, which is exactly why these have to be declared now: repopulating
+    # it is a one-line maintenance act, and an undeclared key aborts the sync
+    # *after* a 280-repo crawl has already rewritten skipped.json.
+    "runnable", "unrunnable_reason",
+    # prose default, overridden by a curated note - see HUMAN_OWNED_KEYS
+    "notes",
+})
+
+#: Keys a human wins outright: if the committed registry already carries one,
+#: it survives a re-sync even when the generator emits a competing value.
+#:
+#: ``notes`` is here because the generator only ever writes a *default*
+#: one-line description ("M2M100-418M fine-tune, Ghomala -> French."), while
+#: the committed note may carry a measured caveat that no Hub crawl can
+#: rediscover ("6 of 100 in-domain sentences end in a phrase loop"). Leaving
+#: ``notes`` as plain generator-owned is what destroyed 22 entries' caveats:
+#: the old merge only kept a human key when the generator emitted *nothing*
+#: for it, and for these entries it always emits something.
 #:
 #: ``quality`` (chrF-vs-FLORES-reference measurements, see
-#: :mod:`linguonnx.translate.quality`) belongs here for the same reason as
-#: ``notes``: it comes from an offline benchmarking campaign against the
-#: real Hub weights, not from anything this script can derive off a repo's
-#: file listing. A re-sync has no way to *regenerate* it, only to blow it
-#: away if it were left off this list - a re-crawl of the same repo would
-#: silently drop every measured number the next time ``sync_registry.py``
-#: ran, with nothing in ``--check`` to catch the loss because the merge
-#: compares the post-merge state, not against what a human curated in.
+#: :mod:`linguonnx.translate.quality`) is not in :data:`GENERATED_KEYS` at
+#: all - a file listing cannot produce a chrF number - so it would survive on
+#: the allow-list rule alone. It is named here as well to state the intent.
+#:
+#: The generator is not silenced, only outvoted: :func:`merge_preserving`
+#: reports every entry where its value disagrees with the committed one, so
+#: "the model card genuinely changed upstream" still reaches a reviewer
+#: instead of being applied behind their back.
 HUMAN_OWNED_KEYS: Tuple[str, ...] = ("notes", "quality")
+
+
+def _assert_generated_keys_declared(registry: Dict[str, dict]) -> None:
+    """Refuse to write a field the allow-list has never heard of.
+
+    Under the positive rule an undeclared generated key is preserved from the
+    previous run forever - the merge cannot tell it apart from curated data.
+    Failing here turns that into a one-line fix (add the key to
+    :data:`GENERATED_KEYS`) instead of a field that quietly stops updating.
+    """
+    undeclared = sorted({k for entry in registry.values() for k in entry}
+                        - GENERATED_KEYS)
+    if undeclared:
+        raise RuntimeError(
+            f"the generator emits {undeclared} which is not in "
+            f"GENERATED_KEYS; declare it there (or in HUMAN_OWNED_KEYS if a "
+            f"human curates it) before writing the registry")
 
 
 # ---------------------------------------------------------------------------
@@ -1400,6 +1472,41 @@ def _marian_group_entry(repo_id: str, name: str, files: Dict[str, int],
     return {"src_languages": srcs, "tgt_languages": [tgt]}
 
 
+def _marian_group_note(err: str, shared: Dict[str, object]) -> str:
+    """The registry ``notes`` for a Marian group export.
+
+    Three shapes, and they are not interchangeable - the note is what a
+    caller reads to find out which direction the model actually runs:
+
+    - ``languages``: family -> the same family, any-to-any.
+    - ``src_languages`` + a ``>>xxx<<`` template: one language -> a family.
+      The token set is the *target* side; the encoder reads one source.
+    - ``src_languages`` and no template: many sources, one fixed target,
+      nothing to disambiguate.
+
+    The middle case used to fall through to the third and print the model
+    backwards: ``opus-mt-en-gmq`` was described as "many sources, one fixed
+    target ('da')" while the same run wrote ``src_languages: ["en"]`` beside
+    it. Correcting that by hand in the committed JSON is what the old merge
+    then reverted on every sync.
+    """
+    if "languages" in shared:
+        return (f"opus-mt group model ({err}). Any-to-any across the "
+                f"{len(shared['languages'])} languages its own vocabulary "
+                f"carries a >>xxx<< target token for; the token is mandatory "
+                f"and is applied automatically.")
+    source = shared["src_languages"][0]
+    if "target_token_template" in shared:
+        return (f"opus-mt group model ({err}). {source} -> the "
+                f"{len(shared['tgt_languages'])} languages its own vocabulary "
+                f"carries a >>xxx<< target token for; the token is mandatory "
+                f"and is applied automatically. The token set is the *target* "
+                f"side only - the encoder was trained on {source} alone.")
+    return (f"opus-mt group model ({err}). Many sources, one fixed target "
+            f"({shared['tgt_languages'][0]!r}); its vocabulary carries no "
+            f">>xxx<< token, so there is nothing to disambiguate.")
+
+
 def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict]:
     """Every precision variant of one translation repo."""
     name = repo_id.split("/")[1]
@@ -1465,18 +1572,7 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
             base_match = _BASE_MODEL_RE.search(readme)
             if base_match:
                 shared["base_model"] = f"Helsinki-NLP/{base_match.group(1)}"
-            if "languages" in shared:
-                shared["notes"] = (
-                    f"opus-mt group model ({err}). Any-to-any across the "
-                    f"{len(shared['languages'])} languages its own vocabulary "
-                    f"carries a >>xxx<< target token for; the token is "
-                    f"mandatory and is applied automatically.")
-            else:
-                shared["notes"] = (
-                    f"opus-mt group model ({err}). Many sources, one fixed "
-                    f"target ({shared['tgt_languages'][0]!r}); its vocabulary "
-                    f"carries no >>xxx<< token, so there is nothing to "
-                    f"disambiguate.")
+            shared["notes"] = _marian_group_note(str(err), shared)
         else:
             shared["pair"] = pair
             shared["base_model"] = base if "/" in base else f"Helsinki-NLP/{base}"
@@ -1665,25 +1761,73 @@ def lid_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict]:
 # Merge + write
 # ---------------------------------------------------------------------------
 
-def merge_preserving(existing: Dict[str, dict],
-                     generated: Dict[str, dict]) -> Dict[str, dict]:
-    """Generated values win; the hand-authored keys in :data:`HUMAN_OWNED_KEYS` survive.
+_MISSING = object()
 
-    A curated ``notes`` is carried across so a re-run never discards editorial
-    work. Nothing else is: preserving *every* key the generator no longer
-    emits makes a stale key immortal, and because ``--check`` compares the
-    merged text, the staleness never shows up as drift either. The generator
-    owns the entry; a human owns the allow-list.
+
+def merge_preserving(existing: Dict[str, dict],
+                     generated: Dict[str, dict],
+                     ) -> Tuple[Dict[str, dict],
+                                Dict[str, Dict[str, object]]]:
+    """Merge a fresh crawl into the committed registry without losing curation.
+
+    The rule is positive: this script owns :data:`GENERATED_KEYS` and nothing
+    else. A generated key is written (or dropped, if the generator stopped
+    emitting it); every other key in the committed entry is carried across
+    untouched, whether or not anyone remembered to name it. Keys in
+    :data:`HUMAN_OWNED_KEYS` win even against a competing generated value -
+    that is the ``notes`` case, where the generator writes a default sentence
+    and the committed text may carry a measured caveat.
+
+    Returns ``(merged, overruled)``. ``overruled`` maps ``model_id -> {key:
+    the value the generator wanted}`` for every field where the committed
+    value won. It is committed to ``model_index/overruled.json``, which is
+    what keeps a curated field from freezing the entry: the merged registry
+    text no longer changes when an upstream card is rewritten, but that file
+    does, so the rewrite still lands in front of a reviewer as drift.
     """
-    merged = {}
+    merged: Dict[str, dict] = {}
+    overruled: Dict[str, Dict[str, object]] = {}
     for model_id, entry in generated.items():
         previous = existing.get(model_id, {})
-        kept = {k: v for k, v in previous.items()
-                if k in HUMAN_OWNED_KEYS and k not in entry}
-        combined = dict(entry)
-        combined.update(kept)
+        combined = {k: v for k, v in entry.items() if k in GENERATED_KEYS}
+        for key, value in previous.items():
+            if key not in GENERATED_KEYS or key in HUMAN_OWNED_KEYS:
+                if key in entry and entry[key] != value:
+                    overruled.setdefault(model_id, {})[key] = entry[key]
+                combined[key] = value
         merged[model_id] = combined
-    return merged
+    return merged, overruled
+
+
+def human_owned_losses(existing: Dict[str, dict],
+                       merged: Dict[str, dict]) -> List[Tuple[str, str]]:
+    """``(model_id, key)`` pairs whose curated value this run would destroy.
+
+    **This is a tripwire on :func:`merge_preserving`, not a runtime guard.**
+    As long as that function is correct this cannot fire, and it never has:
+    the merge copies every key in exactly the set checked here verbatim, so
+    the two agree by construction. Stating that plainly matters, because a
+    check that cannot fail is easy to mistake for a check that is passing.
+
+    It is kept because the thing it watches is the thing that broke. The old
+    merge lost 22 curated notes and ``--check`` reported ordinary drift,
+    since it compared the merged text against the committed file - by which
+    point the loss had already been folded into both sides. This compares the
+    merge *inputs* instead, so the next edit to that function that reaches
+    past :data:`GENERATED_KEYS` stops the sync by name rather than shipping.
+    """
+    losses = []
+    for model_id, previous in existing.items():
+        after = merged.get(model_id)
+        if after is None:  # entry withdrawn from the Hub; reported as stale
+            continue
+        for key, value in previous.items():
+            if key in GENERATED_KEYS and key not in HUMAN_OWNED_KEYS:
+                continue
+            if after.get(key, _MISSING) != value:
+                losses.append((model_id, key))
+    return losses
+
 
 
 def _sorted_json(registry: Dict[str, dict]) -> str:
@@ -1801,7 +1945,75 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         path = INDEX_DIR / f"{kind}.json"
         existing = json.loads(path.read_text(encoding="utf-8")) \
             if path.exists() else {}
-        text = _sorted_json(merge_preserving(existing, generated))
+        _assert_generated_keys_declared(generated)
+        merged, overruled = merge_preserving(existing, generated)
+
+        # An upstream card really can carry newer truth than the committed
+        # note. Keeping the curated text is the right default - a measured
+        # caveat cannot be re-derived, a description can be rewritten by hand
+        # in a minute - but keeping it *silently* would freeze the entry:
+        # because the merged text then equals the committed file, the
+        # `text == current` comparison below sees nothing, and a card
+        # rewritten to "deprecated, do not use" would leave `--check`
+        # reporting "in sync". 111 entries carry a committed `notes` and only
+        # 22 of those are measured caveats.
+        #
+        # So what the generator *wanted* is committed too. The registry keeps
+        # the human's text; `overruled.json` keeps the machine's, and an
+        # upstream rewrite changes that file and fails `--check` like any
+        # other drift. Unlike failing on the disagreement itself - which can
+        # never be cleared, since a curated note differs from the generated
+        # one by definition - this gate is cleared the normal way: review the
+        # diff, fold in anything real, commit.
+        overruled_path = INDEX_DIR / f"{kind}_overruled.json"
+        overruled_text = _sorted_json(overruled) if overruled else "{}\n"
+        overruled_current = overruled_path.read_text(encoding="utf-8") \
+            if overruled_path.exists() else ""
+        if overruled_current != overruled_text:
+            drift = True
+            if args.check:
+                print(f"OVERRULED-DRIFT {kind}.json: the generator now wants "
+                      f"a different value for a field a human owns; the "
+                      f"committed text is kept, review "
+                      f"{overruled_path.name} for what changed",
+                      file=sys.stderr)
+            else:
+                overruled_path.write_text(overruled_text, encoding="utf-8")
+                print(f"{kind}_overruled.json: wrote {len(overruled)} entries")
+        for model_id, fields in sorted(overruled.items()):
+            for key in sorted(fields):
+                print(f"OVERRULED {kind}.json {model_id}: kept the committed "
+                      f"{key!r} over the generator's", file=sys.stderr)
+
+        # The class `--check` was blind to: it compared the merged text with
+        # the committed file, so a clobbered `notes` read as ordinary drift.
+        losses = human_owned_losses(existing, merged)
+        if losses:
+            print(f"{kind}.json: this run would DESTROY curated data:",
+                  file=sys.stderr)
+            for model_id, key in losses:
+                print(f"  ! {model_id}: {key}", file=sys.stderr)
+            print("  refusing to write; fix merge_preserving / "
+                  "GENERATED_KEYS first", file=sys.stderr)
+            return 1
+
+        # DATA-007 inverted rather than closed: a key that is in neither list
+        # - a typo (`note` for `notes`), or a field whose generator was
+        # deleted - is now preserved forever and is invisible to every check
+        # above, because `_assert_generated_keys_declared` only ever sees the
+        # *generated* registry. Listing them is enough; failing on them would
+        # contradict the whole point, which is that an undeclared curated
+        # field survives without asking permission first.
+        undeclared = sorted({
+            (model_id, key) for model_id, entry in merged.items()
+            for key in entry
+            if key not in GENERATED_KEYS and key not in HUMAN_OWNED_KEYS})
+        for model_id, key in undeclared:
+            print(f"CURATED {kind}.json {model_id}: {key!r} is in neither "
+                  f"GENERATED_KEYS nor HUMAN_OWNED_KEYS; preserved as "
+                  f"hand-authored", file=sys.stderr)
+
+        text = _sorted_json(merged)
         current = path.read_text(encoding="utf-8") if path.exists() else ""
         if text == current:
             print(f"{kind}.json: up to date ({len(generated)} entries)")
