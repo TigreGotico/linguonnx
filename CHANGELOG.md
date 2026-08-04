@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.4a1](https://github.com/TigreGotico/linguonnx/tree/0.9.4a1) (2026-08-04)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.9.3a2...0.9.4a1)
+
+**Merged pull requests:**
+
+- fix: derive and validate ONNX external-data from graphs, not extra\_files [\#73](https://github.com/TigreGotico/linguonnx/pull/73) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.9.3a2](https://github.com/TigreGotico/linguonnx/tree/0.9.3a2) (2026-08-04)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.9.3a1...0.9.3a2)
