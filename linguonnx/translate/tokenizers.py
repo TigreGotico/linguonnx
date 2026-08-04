@@ -532,7 +532,24 @@ class OpenNmtBpeTokenizer:
         sacremoses = _require_opennmt("sacremoses")
         apply_bpe = _require_opennmt("subword_nmt.apply_bpe")
         with open(bpe_code_path, encoding="utf-8") as handle:
-            self.bpe = apply_bpe.BPE(handle)
+            # The merge table alone is not the segmentation the model was
+            # trained on. `subword-nmt` is a two-argument tool: the merges say
+            # *how* to join, the `--vocabulary` says *how far*. Given a
+            # vocabulary, `apply_bpe` re-splits any segment the vocabulary does
+            # not contain until every piece is one the model has an embedding
+            # for; given none, it applies every merge that fits and happily
+            # produces a segment the vocabulary never saw.
+            #
+            # OpenNMT-py's Nós pipeline builds the vocabulary *from* the
+            # vocabulary-constrained output, so the two only agree when the
+            # constraint is applied on the way in too. Without it, the encoder
+            # is fed `<unk>` for a word the model knows perfectly well:
+            # `duerme` merged to `duer@@ me`, and `duer@@` is not in
+            # `nos-mt-es-arg`'s source vocabulary, while `du@@ er@@ me` is.
+            # Nothing raises - the id is a valid `<unk>` - and the damage is
+            # amplified on the way out, where one unknown source word costs
+            # several unknown target words.
+            self.bpe = apply_bpe.BPE(handle, vocab=set(self.source_vocab))
         self.moses_tokenizer = sacremoses.MosesTokenizer(lang=src_lang)
         self.moses_detokenizer = sacremoses.MosesDetokenizer(lang=tgt_lang)
 

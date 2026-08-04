@@ -190,12 +190,23 @@ split the text into sentences and translate them one at a time.
 pip install 'linguonnx[opennmt]'
 ```
 
-In: Moses-tokenise with the source language's rules, apply the `*_35k.code`
-merges shipped in the model repo, look the pieces up in the source vocabulary,
-and add `source_offset`. OpenNMT-py keeps separate source and target
-vocabularies; the export concatenates them as `[target | source]`, so encoder
-input ids carry that offset and decoder output ids do not. No `</s>` is
-appended to the source, because OpenNMT-py does not append one.
+In: Moses-tokenise with the source language's rules, apply the `*_35k.code` /
+`source.bpe` merges shipped in the model repo **constrained by the export's own
+source vocabulary**, look the pieces up in that vocabulary, and add
+`source_offset`. OpenNMT-py keeps separate source and target vocabularies; the
+export concatenates them as `[target | source]`, so encoder input ids carry
+that offset and decoder output ids do not. No `</s>` is appended to the source,
+because OpenNMT-py does not append one.
+
+The vocabulary constraint is `subword-nmt`'s `--vocabulary`, and it is not
+optional. The merge table says *how* to join characters; the vocabulary says
+*how far*. Given the vocabulary, `apply_bpe` re-splits any segment the
+vocabulary does not contain until every piece has an embedding. Given none, it
+applies every merge that fits and hands back a segment the model has never
+seen — which becomes `<unk>` on the encoder input, for a word the model knows
+perfectly well. On `nos-mt-es-arg`, *duerme* merged to `duer@@ me` and `duer@@`
+is not in that export's source vocabulary, while `du@@ er@@ me` is; the model
+was handed `Lo <unk> <unk> me` and answered accordingly.
 
 Out: map through the target vocabulary, strip the `@@` merge markers, Moses-
 detokenise. The markers are removed with the upstream `sed 's/@\s*//g'` rule,
@@ -208,6 +219,16 @@ cross-attention weights. Those weights are not outputs of the exported graph,
 so the substitution cannot be reproduced, and inventing a replacement would be
 a guess presented as a translation. A visible `<unk>` says where the model
 failed; the original `onmt_translate` emits one in the same places.
+
+That is true of the **target** side only. A `<unk>` on the *source* side is
+always a linguonnx bug, and is asserted against per model — see
+`TestEveryOpenNmtExportSegmentsIntoItsOwnVocabulary` in
+`test/test_translate_preprocess.py`. The `nos-coda_iacobus-*` family has the
+smallest target vocabularies in the registry (~18k subwords) and emits target
+`<unk>` most often; a 5-sentence spot check counted 8 for `en-es`, 6 for
+`en-pt`, 2 for `es-gl` and `es-pt`, 1 for `en-gl` and 0 for `pt-gl`, against 0
+for every `nos-mt-*` model on the same sentences. Prefer `nos-mt-*` where the
+pair exists.
 
 ### Verified against the reference implementations
 
