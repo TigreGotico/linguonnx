@@ -336,3 +336,265 @@ class TestOpenNmtOnTheRealModel:
     def test_unk_is_not_a_special_token(self, model):
         """Dropping `<unk>` would hide where the model failed."""
         assert model.tokenizer.unk_id not in model.tokenizer._specials
+
+
+# --------------------------------------------------------------------------
+# BPE segmentation has to be constrained by the model's own vocabulary.
+# --------------------------------------------------------------------------
+
+def _write_opennmt_export(tmp_path, source_vocab, target_vocab, codes):
+    """A minimal on-disk OpenNMT-BPE export: the two side files and nothing else."""
+    import json
+
+    vocab_path = tmp_path / "onmt_vocab.json"
+    vocab_path.write_text(json.dumps({
+        "source_vocab": source_vocab,
+        "target_vocab": target_vocab,
+        "source_offset": len(target_vocab),
+        "target_vocab_size": len(target_vocab),
+    }), encoding="utf-8")
+    code_path = tmp_path / "codes.bpe"
+    code_path.write_text(codes, encoding="utf-8")
+    return vocab_path, code_path
+
+
+class TestBpeIsConstrainedByTheSourceVocabulary:
+    """`subword-nmt` is a two-argument tool and linguonnx used only one of them.
+
+    The merge table says *how* to join characters; the vocabulary says *how
+    far*. Given the vocabulary, ``apply_bpe`` re-splits any segment the
+    vocabulary does not contain. Given none, it applies every merge that fits
+    and hands back a segment the model has no embedding for - which becomes
+    ``<unk>`` on the encoder input, silently, for a word the model knows.
+
+    The fixture below is the real defect in miniature: the merge table can
+    build ``duer@@``, the vocabulary only has ``du@@ e@@ r@@``. That is
+    `nos-mt-es-arg` on the word *duerme*, and `nos-coda_iacobus-en-es` on
+    *loudly*.
+    """
+
+    #: Merges that can build `duer` out of `d u e r`, plus `me</w>`.
+    CODES = "#version: 0.2\nd u\ndu e\ndue r\nm e</w>\n"
+    #: What the export actually has an embedding for. `duer@@` is absent.
+    SOURCE_VOCAB = ["<unk>", "<blank>", "<s>", "</s>",
+                    "du@@", "e@@", "r@@", "me", "u@@", "d@@"]
+    TARGET_VOCAB = ["<unk>", "<blank>", "<s>", "</s>", "dorme"]
+
+    @pytest.fixture
+    def tokenizer(self, tmp_path):
+        from linguonnx.translate.tokenizers import OpenNmtBpeTokenizer
+
+        vocab_path, code_path = _write_opennmt_export(
+            tmp_path, self.SOURCE_VOCAB, self.TARGET_VOCAB, self.CODES)
+        return OpenNmtBpeTokenizer(vocab_path, code_path,
+                                   src_lang="es", tgt_lang="gl")
+
+    def test_the_unconstrained_merge_table_can_leave_the_vocabulary(self):
+        """Not a linguonnx behaviour - the premise the fix rests on.
+
+        If `subword-nmt` ever stopped producing an out-of-vocabulary segment
+        here, the test below would pass for the wrong reason.
+        """
+        import io
+
+        from subword_nmt.apply_bpe import BPE
+
+        segments = BPE(io.StringIO(self.CODES)).process_line("duerme").split()
+        assert segments == ["duer@@", "me"]
+        assert "duer@@" not in self.SOURCE_VOCAB
+
+    def test_no_encoder_token_is_unk(self, tokenizer):
+        """The regression. Pre-fix this is `[<unk>, me]`."""
+        ids = tokenizer.encode("duerme")
+        unk = tokenizer.unk_id + tokenizer.source_offset
+        assert unk not in ids, [
+            tokenizer.source_vocab[i - tokenizer.source_offset] for i in ids]
+
+    def test_every_encoder_token_is_a_real_vocabulary_entry(self, tokenizer):
+        ids = tokenizer.encode("duerme")
+        pieces = [tokenizer.source_vocab[i - tokenizer.source_offset]
+                  for i in ids]
+        assert pieces == ["du@@", "e@@", "r@@", "me"]
+
+    def test_a_word_the_merge_table_and_vocabulary_agree_on_is_untouched(
+            self, tokenizer):
+        """The constraint must not re-split what was already addressable."""
+        ids = tokenizer.encode("me")
+        assert [tokenizer.source_vocab[i - tokenizer.source_offset]
+                for i in ids] == ["me"]
+
+
+def _opennmt_model_ids():
+    """Every ``opennmt-bpe`` id in the registry, resolved at collection time.
+
+    Collection time, not call time, so each model is its own named test rather
+    than one loop that reports the first failure and hides the rest.
+    """
+    from linguonnx.model_manager import list_models
+
+    return sorted(model_id for model_id, entry
+                  in list_models(kind="translate").items()
+                  if entry["arch"] == "opennmt-bpe")
+
+
+_OPENNMT_MODEL_IDS = _opennmt_model_ids()
+
+
+@pytest.mark.network
+class TestEveryOpenNmtExportSegmentsIntoItsOwnVocabulary:
+    """The family-wide check, one test per registered model id.
+
+    The defect was found by a live sweep on six ids at once, which is what a
+    shared code path does when it is wrong: `nos-coda_iacobus-en-es/en-gl/
+    en-pt/es-gl/es-pt` and `nos-mt-es-arg` all reported ``<unk>`` in their
+    output on the same day. So the guard is parametrised over *every*
+    ``opennmt-bpe`` entry rather than over a representative one - a previous
+    fix in this family claimed ten models and left three broken.
+
+    Only the two side files are downloaded, never the ONNX graphs: the
+    property under test is a property of the vocabulary and the merge table.
+    """
+
+    #: One real sentence per source language in the family. Ordinary prose,
+    #: not curated to be easy - the point is that ordinary prose must not
+    #: fall out of the vocabulary.
+    SAMPLES = {
+        "en": "The cat sleeps on the sofa and the dog barks loudly in the garden.",
+        "es": "El gato duerme en el sofá y el perro ladra fuerte en el jardín.",
+        "pt": "O gato dorme no sofá e o cão ladra alto no jardim.",
+        "gl": "O gato dorme no sofá e o can ladra forte no xardín.",
+    }
+
+    @pytest.mark.parametrize("model_id", _OPENNMT_MODEL_IDS)
+    def test_no_source_token_falls_out_of_the_vocabulary(self, model_id):
+        from huggingface_hub import hf_hub_download
+
+        from linguonnx.model_manager import registry_entry
+        from linguonnx.translate.tokenizers import OpenNmtBpeTokenizer
+
+        entry = registry_entry(model_id, kind="translate")
+        side = entry["side_files"]
+        paths = {key: hf_hub_download(entry["hf_repo"], side[key])
+                 for key in ("vocab", "bpe_code")}
+        src, tgt = entry["pair"]
+        tokenizer = OpenNmtBpeTokenizer(paths["vocab"], paths["bpe_code"],
+                                        src_lang=src, tgt_lang=tgt)
+        text = self.SAMPLES[src]
+        ids = tokenizer.encode(text)
+        unk = tokenizer.unk_id + tokenizer.source_offset
+        unknown = [tokenizer.source_vocab[i - tokenizer.source_offset]
+                   if i != unk else "<unk>" for i in ids]
+        assert unk not in ids, (
+            f"{model_id}: {unknown.count('<unk>')} of {len(ids)} source tokens "
+            f"are <unk> for ordinary {src!r} prose: {unknown}")
+
+
+@pytest.mark.network
+class TestTheSweepFlaggedOpenNmtOutputs:
+    """The output-side assertions the sweep needed and this suite did not have.
+
+    ``<unk>``, ``⁇`` and ``�`` are three different failures that all read as
+    "broken output" and none of which any test asserted on before the sweep:
+
+    * ``⁇`` is `sentencepiece`'s rendering of a piece it could not map, and
+      no OpenNMT-BPE model has any business producing one;
+    * ``�`` is a decoding error in our own byte handling;
+    * ``<unk>`` is a *legitimate* OpenNMT output on the target side (see
+      :class:`~linguonnx.translate.tokenizers.OpenNmtBpeTokenizer`) but never
+      a legitimate consequence of our own source segmentation.
+
+    Only :meth:`test_aragonese_is_a_translation_again` is a regression guard -
+    it is the one that fails on the unfixed segmentation. The two
+    replacement-character checks passed before the fix as well; they are here
+    because nothing asserted on those two characters at all, not because they
+    prove this change.
+    """
+
+    FLAGGED = ["nos-coda_iacobus-en-es-int8", "nos-coda_iacobus-en-gl-int8",
+               "nos-coda_iacobus-en-pt-int8", "nos-coda_iacobus-es-gl-int8",
+               "nos-coda_iacobus-es-pt-int8", "nos-mt-es-arg-int8"]
+
+    SAMPLES = TestEveryOpenNmtExportSegmentsIntoItsOwnVocabulary.SAMPLES
+
+    @pytest.mark.parametrize("model_id", FLAGGED)
+    def test_no_replacement_characters(self, model_id):
+        from linguonnx.model_manager import registry_entry
+        from linguonnx.translate.models import TranslationModel
+
+        entry = registry_entry(model_id, kind="translate")
+        src, tgt = entry["pair"]
+        out = TranslationModel(model_id, entry).translate(
+            self.SAMPLES[src], src, tgt)
+        assert "⁇" not in out, out
+        assert "�" not in out, out
+
+    def test_aragonese_is_a_translation_again(self):
+        """The clearest single case, and the one the fix fully repairs.
+
+        Pre-fix `nos-mt-es-arg-int8` returned
+        ``'Lo <unk> <unk> me en o *sofá y lo can escanyuta fuerte en o chardín.'``
+        - *gato* and *duerme* were `<unk>` on the way *in*, because
+        ``duer@@`` and ``gato`` are not in this export's source vocabulary
+        even though ``du@@ er@@ me`` and ``g@@ ato`` are.
+        """
+        from linguonnx.translate.models import TranslationModel
+
+        out = TranslationModel("nos-mt-es-arg-int8").translate(
+            self.SAMPLES["es"], "es", "an")
+        assert "<unk>" not in out, out
+        assert "gato" in out and "duerme" in out, out
+
+
+class TestAnUnnameableDecoderIdIsVisible:
+    """A generated id with no entry in ``target_vocab`` must not vanish.
+
+    `nos-coda_iacobus-es-pt` is the one export in the family whose embedding
+    table is padded: ``target_vocab_size`` 32768 against a 27968-entry
+    ``target_vocab``, so 4800 rows carry logits and name no token. The decode
+    path used to filter those ids out, which deletes a word from the middle of
+    a sentence and leaves fluent, complete-looking text behind.
+
+    Emitting one of those rows is *rare* - 228 real Spanish sentences through
+    that model produced none - which is exactly why it needs a test rather
+    than a measurement. A failure mode that shows up once in a few thousand
+    sentences and is invisible when it does is the worst kind to leave silent.
+    """
+
+    SOURCE_VOCAB = ["<unk>", "<blank>", "<s>", "</s>", "gato", "dorme"]
+    TARGET_VOCAB = ["<unk>", "<blank>", "<s>", "</s>", "gato", "dorme"]
+    #: The export claims a bigger table than it can name, as `es-pt` does.
+    PADDED_SIZE = 16
+
+    @pytest.fixture
+    def tokenizer(self, tmp_path):
+        import json
+
+        from linguonnx.translate.tokenizers import OpenNmtBpeTokenizer
+
+        vocab_path = tmp_path / "onmt_vocab.json"
+        vocab_path.write_text(json.dumps({
+            "source_vocab": self.SOURCE_VOCAB,
+            "target_vocab": self.TARGET_VOCAB,
+            "source_offset": self.PADDED_SIZE,
+            "target_vocab_size": self.PADDED_SIZE,
+        }), encoding="utf-8")
+        code_path = tmp_path / "codes.bpe"
+        code_path.write_text("#version: 0.2\ng a\n", encoding="utf-8")
+        return OpenNmtBpeTokenizer(vocab_path, code_path,
+                                   src_lang="es", tgt_lang="pt")
+
+    def test_a_padded_row_decodes_to_unk_rather_than_to_nothing(self, tokenizer):
+        """Pre-fix this returns `'gato dorme'` - the middle word is gone."""
+        padded = len(self.TARGET_VOCAB) + 2
+        assert padded < self.PADDED_SIZE, "fixture must address a padding row"
+        assert tokenizer.decode([4, padded, 5]) == "gato <unk> dorme"
+
+    def test_an_id_past_the_whole_table_is_also_visible(self, tokenizer):
+        assert tokenizer.decode([4, 9999, 5]) == "gato <unk> dorme"
+
+    def test_ordinary_ids_are_unaffected(self, tokenizer):
+        assert tokenizer.decode([4, 5]) == "gato dorme"
+
+    def test_specials_are_still_dropped(self, tokenizer):
+        assert tokenizer.decode([tokenizer.bos_id, 4, 5,
+                                 tokenizer.eos_id]) == "gato dorme"

@@ -79,6 +79,24 @@ tx.translate("bom dia", src="pt", tgt="en", num_beams=1)   # greedy, ~4x faster
 `no_repeat_ngram_size` is off by default and available as a loop guard.
 `length_penalty` and `early_stopping` behave as they do in `transformers`.
 
+**It stays off by default**, for two reasons. `transformers` defaults it to 0
+and every parity and chrF number in this registry was measured against it at
+0, so turning it on globally would silently re-score every model against
+numbers taken under different settings. And where it helps most — the weakest
+fine-tunes, which loop a phrase until the token budget runs out — it does not
+make the output correct; it replaces a repetitive wrong answer with a
+non-repetitive wrong answer of the same chrF. A visible loop is a more honest
+signal than a fluent hallucination. Set it per call when you would rather
+have the latter:
+
+<!-- doc-check: skip needs a 1.2 GB m2m100 fine-tune download -->
+```python
+from linguonnx.translate import GenerationConfig
+
+tx.translate(text, src="mos", tgt="fr",
+             config=GenerationConfig(no_repeat_ngram_size=3))
+```
+
 Beam search reorders the KV cache by parent-beam index at every step, which is
 the one genuinely fiddly part of the loop, and is tested against an independent
 numpy beam search over a toy ONNX graph.
@@ -190,12 +208,31 @@ split the text into sentences and translate them one at a time.
 pip install 'linguonnx[opennmt]'
 ```
 
-In: Moses-tokenise with the source language's rules, apply the `*_35k.code`
-merges shipped in the model repo, look the pieces up in the source vocabulary,
-and add `source_offset`. OpenNMT-py keeps separate source and target
-vocabularies; the export concatenates them as `[target | source]`, so encoder
-input ids carry that offset and decoder output ids do not. No `</s>` is
-appended to the source, because OpenNMT-py does not append one.
+In: Moses-tokenise with the source language's rules, apply the `*_35k.code` /
+`source.bpe` merges shipped in the model repo **constrained by the export's own
+source vocabulary**, look the pieces up in that vocabulary, and add
+`source_offset`. OpenNMT-py keeps separate source and target vocabularies; the
+export concatenates them as `[target | source]`, so encoder input ids carry
+that offset and decoder output ids do not. No `</s>` is appended to the source,
+because OpenNMT-py does not append one.
+
+The vocabulary constraint is `subword-nmt`'s `--vocabulary`, and it is not
+optional. The merge table says *how* to join characters; the vocabulary says
+*how far*. Given the vocabulary, `apply_bpe` re-splits any segment the
+vocabulary does not contain until every piece has an embedding. Given none, it
+applies every merge that fits and hands back a segment the model has never
+seen — which becomes `<unk>` on the encoder input, for a word the model knows
+perfectly well. On `nos-mt-es-arg`, *duerme* merged to `duer@@ me` and `duer@@`
+is not in that export's source vocabulary, while `du@@ er@@ me` is; the model
+was handed `Lo <unk> <unk> me` and answered accordingly.
+
+The constraint only ever *adds* splits. Segmenting 409,408 words across the
+thirteen models — for each, every whole word named by any export with the same
+source language, so the pool is not biased towards words a given model already
+holds — it repaired 56,869 and changed **zero** words that were already
+segmenting into in-vocabulary pieces. Eleven of the thirteen repair something;
+`nos-mt-es-arg` repairs 6,852 and `nos-coda_iacobus-en-es` 13,519, while
+`nos-mt-gl-en` and `nos-mt-gl-es` need nothing.
 
 Out: map through the target vocabulary, strip the `@@` merge markers, Moses-
 detokenise. The markers are removed with the upstream `sed 's/@\s*//g'` rule,
@@ -208,6 +245,31 @@ cross-attention weights. Those weights are not outputs of the exported graph,
 so the substitution cannot be reproduced, and inventing a replacement would be
 a guess presented as a translation. A visible `<unk>` says where the model
 failed; the original `onmt_translate` emits one in the same places.
+
+That is true of the **target** side only. A `<unk>` on the *source* side is
+always a linguonnx bug, and is asserted against per model — see
+`TestEveryOpenNmtExportSegmentsIntoItsOwnVocabulary` in
+`test/test_translate_preprocess.py`.
+
+**It is not a vocabulary gap**, and enlarging a vocabulary would not fix it.
+The model ranks `<unk>` above a spelling it holds. Translating *ladra* on
+`nos-coda_iacobus-es-pt`, the decoder scores:
+
+```
+<unk>     7.93
+ladr@@    6.43     <- in the target vocabulary
+lad@@     5.71     <- also in the target vocabulary
+```
+
+and the *next* step emits `ra` — so the model had `ladr@@ a` available and
+chose `<unk>` for the first piece. OpenNMT-py replaces rare target words with
+`<unk>` during training, so the model learned to emit it; `-replace_unk` is
+what puts the word back at inference, and it cannot run here.
+
+The `nos-coda_iacobus-*` family does this more than any other in the registry:
+a 5-sentence spot check counted 8 for `en-es`, 6 for `en-pt`, 2 for `es-gl`
+and `es-pt`, 1 for `en-gl` and 0 for `pt-gl`, against 0 for every `nos-mt-*`
+model on the same sentences. Prefer `nos-mt-*` where the pair exists.
 
 ### Verified against the reference implementations
 

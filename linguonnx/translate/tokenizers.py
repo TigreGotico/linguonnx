@@ -532,7 +532,24 @@ class OpenNmtBpeTokenizer:
         sacremoses = _require_opennmt("sacremoses")
         apply_bpe = _require_opennmt("subword_nmt.apply_bpe")
         with open(bpe_code_path, encoding="utf-8") as handle:
-            self.bpe = apply_bpe.BPE(handle)
+            # The merge table alone is not the segmentation the model was
+            # trained on. `subword-nmt` is a two-argument tool: the merges say
+            # *how* to join, the `--vocabulary` says *how far*. Given a
+            # vocabulary, `apply_bpe` re-splits any segment the vocabulary does
+            # not contain until every piece is one the model has an embedding
+            # for; given none, it applies every merge that fits and happily
+            # produces a segment the vocabulary never saw.
+            #
+            # OpenNMT-py's Nós pipeline builds the vocabulary *from* the
+            # vocabulary-constrained output, so the two only agree when the
+            # constraint is applied on the way in too. Without it, the encoder
+            # is fed `<unk>` for a word the model knows perfectly well:
+            # `duerme` merged to `duer@@ me`, and `duer@@` is not in
+            # `nos-mt-es-arg`'s source vocabulary, while `du@@ er@@ me` is.
+            # Nothing raises - the id is a valid `<unk>` - and the damage is
+            # amplified on the way out, where one unknown source word costs
+            # several unknown target words.
+            self.bpe = apply_bpe.BPE(handle, vocab=set(self.source_vocab))
         self.moses_tokenizer = sacremoses.MosesTokenizer(lang=src_lang)
         self.moses_detokenizer = sacremoses.MosesDetokenizer(lang=tgt_lang)
 
@@ -555,9 +572,20 @@ class OpenNmtBpeTokenizer:
         and the two are *not* equivalent: a word-final ``@@`` before
         punctuation loses its marker under the naive form and glues two words
         together.
+
+        An id with no entry in ``target_vocab`` decodes to ``<unk>``, never to
+        nothing. Most exports size the embedding table to the target vocabulary
+        exactly, but ``nos-coda_iacobus-es-pt`` pads it to 32768 against a
+        27968-entry vocabulary, leaving 4800 rows that carry logits and name no
+        token. Dropping those - as this did - deletes a word from the middle of
+        a sentence and leaves fluent, complete-looking text behind, which is
+        the one failure mode a reader cannot see. ``<unk>`` is already this
+        class's word for "the model emitted something it cannot spell", and it
+        is visible.
         """
-        pieces = [self.target_vocab[i] for i in ids
-                  if i not in self._specials and 0 <= i < len(self.target_vocab)]
+        pieces = [self.target_vocab[i] if 0 <= i < len(self.target_vocab)
+                  else "<unk>"
+                  for i in ids if i not in self._specials]
         merged = re.sub(r"@\s*", "", " ".join(pieces))
         return self.moses_detokenizer.detokenize(merged.split())
 
