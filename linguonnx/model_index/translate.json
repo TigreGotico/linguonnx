@@ -2415,7 +2415,7 @@
     "native_codes": {
       "bbj": "sw"
     },
-    "notes": "M2M100-418M fine-tune, Ghomala -> French. MAFAND-MT test re-measurement (n=100, chrF, beam4) found this model hallucinating and repeating multi-word phrases - 6 of 100 in-domain sentences end in a phrase loop, and out-of-domain input loops far more often. The same loops appear in upstream `transformers` fp32 on the same inputs, so this is base-model quality, not quantisation and not the `__sw__` token this fine-tune reuses (in-domain text does translate into French through it). `GenerationConfig(no_repeat_ngram_size=3)` breaks every loop observed, but replaces repetitive nonsense with non-repetitive nonsense at the same chrF; it is not enabled by default. See docs/routing.md.",
+    "notes": "M2M100-418M fine-tune, Ghomala -> French. MAFAND-MT test re-measurement (n=100, chrF, beam4) found this model hallucinating and repeating multi-word phrases - 6 of 100 in-domain sentences end in a phrase loop, and out-of-domain input loops far more often. The same loops appear in upstream `transformers` fp32 on the same inputs at the same decode settings (beam4, max_new_tokens=128, length_penalty=1.0, early_stopping=False - recorded in `quality` so the number can be reproduced; note these models' own generation_config.json says 512, and linguonnx's default is 128), so this is base-model quality, not quantisation and not the `__sw__` token this fine-tune reuses (in-domain text does translate into French through it). `GenerationConfig(no_repeat_ngram_size=3)` breaks every loop observed, but replaces repetitive nonsense with non-repetitive nonsense at the same chrF; it is not enabled by default. See docs/routing.md.",
     "pair": [
       "bbj",
       "fr"
@@ -2423,11 +2423,13 @@
     "precision": "fp32",
     "provenance_org": "Masakhane",
     "quality": {
+      "chrf_vs_ref": 26.1,
       "corpus": "mafand-test",
+      "length_penalty": 1.0,
+      "max_new_tokens": 128,
       "metric": "chrf",
       "mode": "beam4",
-      "n": 100,
-      "chrf_vs_ref": 26.1
+      "n": 100
     },
     "release_date": "2022-04-09",
     "side_files": {
@@ -2455,7 +2457,7 @@
     "native_codes": {
       "bbj": "sw"
     },
-    "notes": "M2M100-418M fine-tune, Ghomala -> French. MAFAND-MT test re-measurement (n=100, chrF, beam4) found this model hallucinating and repeating multi-word phrases - 8 of 100 in-domain sentences end in a phrase loop, and out-of-domain input loops far more often. The same loops appear in upstream `transformers` fp32 on the same inputs, so this is base-model quality, not quantisation and not the `__sw__` token this fine-tune reuses (in-domain text does translate into French through it). `GenerationConfig(no_repeat_ngram_size=3)` breaks every loop observed, but replaces repetitive nonsense with non-repetitive nonsense at the same chrF; it is not enabled by default. See docs/routing.md.",
+    "notes": "M2M100-418M fine-tune, Ghomala -> French. MAFAND-MT test re-measurement (n=100, chrF, beam4) found this model hallucinating and repeating multi-word phrases - 8 of 100 in-domain sentences end in a phrase loop, and out-of-domain input loops far more often. The same loops appear in upstream `transformers` fp32 on the same inputs at the same decode settings (beam4, max_new_tokens=128, length_penalty=1.0, early_stopping=False - recorded in `quality` so the number can be reproduced; note these models' own generation_config.json says 512, and linguonnx's default is 128), so this is base-model quality, not quantisation and not the `__sw__` token this fine-tune reuses (in-domain text does translate into French through it). `GenerationConfig(no_repeat_ngram_size=3)` breaks every loop observed, but replaces repetitive nonsense with non-repetitive nonsense at the same chrF; it is not enabled by default. See docs/routing.md.",
     "pair": [
       "bbj",
       "fr"
@@ -2463,11 +2465,13 @@
     "precision": "int8",
     "provenance_org": "Masakhane",
     "quality": {
+      "chrf_vs_ref": 25.5,
       "corpus": "mafand-test",
+      "length_penalty": 1.0,
+      "max_new_tokens": 128,
       "metric": "chrf",
       "mode": "beam4",
-      "n": 100,
-      "chrf_vs_ref": 25.5
+      "n": 100
     },
     "release_date": "2022-04-09",
     "side_files": {
@@ -2966,7 +2970,7 @@
     "native_codes": {
       "mos": "sw"
     },
-    "notes": "M2M100-418M fine-tune, Mossi -> French. MAFAND-MT test re-measurement (n=100, chrF, beam4) found this model hallucinating and repeating multi-word phrases - 6 of 100 in-domain sentences end in a phrase loop, and out-of-domain input loops far more often. The same loops appear in upstream `transformers` fp32 on the same inputs, so this is base-model quality, not quantisation and not the `__sw__` token this fine-tune reuses (in-domain text does translate into French through it). `GenerationConfig(no_repeat_ngram_size=3)` breaks every loop observed, but replaces repetitive nonsense with non-repetitive nonsense at the same chrF; it is not enabled by default. See docs/routing.md.",
+    "notes": "M2M100-418M fine-tune, Mossi -> French. MAFAND-MT test re-measurement (n=100, chrF, beam4) found this model hallucinating and repeating multi-word phrases - 6 of 100 in-domain sentences end in a phrase loop, and out-of-domain input loops far more often. The same loops appear in upstream `transformers` fp32 on the same inputs at the same decode settings (beam4, max_new_tokens=128, length_penalty=1.0, early_stopping=False - recorded in `quality` so the number can be reproduced; note these models' own generation_config.json says 512, and linguonnx's default is 128), so this is base-model quality, not quantisation and not the `__sw__` token this fine-tune reuses (in-domain text does translate into French through it). `GenerationConfig(no_repeat_ngram_size=3)` breaks every loop observed, but replaces repetitive nonsense with non-repetitive nonsense at the same chrF; it is not enabled by default. See docs/routing.md.",
     "pair": [
       "mos",
       "fr"
@@ -2974,11 +2978,13 @@
     "precision": "fp32",
     "provenance_org": "Masakhane",
     "quality": {
+      "chrf_vs_ref": 23.7,
       "corpus": "mafand-test",
+      "length_penalty": 1.0,
+      "max_new_tokens": 128,
       "metric": "chrf",
       "mode": "beam4",
-      "n": 100,
-      "chrf_vs_ref": 23.7
+      "n": 100
     },
     "release_date": "2022-04-09",
     "side_files": {
@@ -3006,7 +3012,7 @@
     "native_codes": {
       "mos": "sw"
     },
-    "notes": "M2M100-418M fine-tune, Mossi -> French. MAFAND-MT test re-measurement (n=100, chrF, beam4) found this model hallucinating and repeating multi-word phrases - 3 of 100 in-domain sentences end in a phrase loop, and out-of-domain input loops far more often. The same loops appear in upstream `transformers` fp32 on the same inputs, so this is base-model quality, not quantisation and not the `__sw__` token this fine-tune reuses (in-domain text does translate into French through it). `GenerationConfig(no_repeat_ngram_size=3)` breaks every loop observed, but replaces repetitive nonsense with non-repetitive nonsense at the same chrF; it is not enabled by default. See docs/routing.md.",
+    "notes": "M2M100-418M fine-tune, Mossi -> French. MAFAND-MT test re-measurement (n=100, chrF, beam4) found this model hallucinating and repeating multi-word phrases - 3 of 100 in-domain sentences end in a phrase loop, and out-of-domain input loops far more often. The same loops appear in upstream `transformers` fp32 on the same inputs at the same decode settings (beam4, max_new_tokens=128, length_penalty=1.0, early_stopping=False - recorded in `quality` so the number can be reproduced; note these models' own generation_config.json says 512, and linguonnx's default is 128), so this is base-model quality, not quantisation and not the `__sw__` token this fine-tune reuses (in-domain text does translate into French through it). `GenerationConfig(no_repeat_ngram_size=3)` breaks every loop observed, but replaces repetitive nonsense with non-repetitive nonsense at the same chrF; it is not enabled by default. See docs/routing.md.",
     "pair": [
       "mos",
       "fr"
@@ -3014,11 +3020,13 @@
     "precision": "int8",
     "provenance_org": "Masakhane",
     "quality": {
+      "chrf_vs_ref": 23.9,
       "corpus": "mafand-test",
+      "length_penalty": 1.0,
+      "max_new_tokens": 128,
       "metric": "chrf",
       "mode": "beam4",
-      "n": 100,
-      "chrf_vs_ref": 23.9
+      "n": 100
     },
     "release_date": "2022-04-09",
     "side_files": {
@@ -4803,7 +4811,7 @@
     "license": "MIT",
     "license_tier": "permissive",
     "model_id": "nos-coda_iacobus-en-es",
-    "notes": "OpenNMT-py English -> Spanish. Caveat: this family's target vocabularies are frequency-filtered to ~18k-28k subwords, and the decoder emits `<unk>` for a word outside its own. A 5-sentence spot check (2026-08) counted 8 `<unk>` for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. That `<unk>` is the model's own output, not a preprocessing failure: upstream `onmt_translate` hides it with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights, and those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
+    "notes": "OpenNMT-py English -> Spanish. Caveat: this family emits `<unk>` in its own output more than any other in the registry. A 5-sentence spot check (2026-08) counted 8 for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. It is not a vocabulary gap and enlarging the vocabulary would not fix it: the model ranks `<unk>` above a spelling it holds. On es->pt translating `ladra`, `<unk>` scores 7.93 against `ladr@@` 6.43 at rank 2 and `lad@@` 5.71 at rank 3 - both present - and the next step emits `ra`, so the model had the whole word and chose `<unk>` for its first piece. OpenNMT-py replaces rare target words with `<unk>` in training, so the model learned to emit it, and `onmt_translate` puts the word back with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights. Those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced and guessing one would be a guess presented as a translation. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
     "pair": [
       "en",
       "es"
@@ -4830,7 +4838,7 @@
     "license": "MIT",
     "license_tier": "permissive",
     "model_id": "nos-coda_iacobus-en-es-int8",
-    "notes": "OpenNMT-py English -> Spanish. Caveat: this family's target vocabularies are frequency-filtered to ~18k-28k subwords, and the decoder emits `<unk>` for a word outside its own. A 5-sentence spot check (2026-08) counted 8 `<unk>` for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. That `<unk>` is the model's own output, not a preprocessing failure: upstream `onmt_translate` hides it with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights, and those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
+    "notes": "OpenNMT-py English -> Spanish. Caveat: this family emits `<unk>` in its own output more than any other in the registry. A 5-sentence spot check (2026-08) counted 8 for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. It is not a vocabulary gap and enlarging the vocabulary would not fix it: the model ranks `<unk>` above a spelling it holds. On es->pt translating `ladra`, `<unk>` scores 7.93 against `ladr@@` 6.43 at rank 2 and `lad@@` 5.71 at rank 3 - both present - and the next step emits `ra`, so the model had the whole word and chose `<unk>` for its first piece. OpenNMT-py replaces rare target words with `<unk>` in training, so the model learned to emit it, and `onmt_translate` puts the word back with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights. Those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced and guessing one would be a guess presented as a translation. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
     "pair": [
       "en",
       "es"
@@ -4857,7 +4865,7 @@
     "license": "MIT",
     "license_tier": "permissive",
     "model_id": "nos-coda_iacobus-en-gl",
-    "notes": "OpenNMT-py English -> Galician. Caveat: this family's target vocabularies are frequency-filtered to ~18k-28k subwords, and the decoder emits `<unk>` for a word outside its own. A 5-sentence spot check (2026-08) counted 8 `<unk>` for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. That `<unk>` is the model's own output, not a preprocessing failure: upstream `onmt_translate` hides it with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights, and those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
+    "notes": "OpenNMT-py English -> Galician. Caveat: this family emits `<unk>` in its own output more than any other in the registry. A 5-sentence spot check (2026-08) counted 8 for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. It is not a vocabulary gap and enlarging the vocabulary would not fix it: the model ranks `<unk>` above a spelling it holds. On es->pt translating `ladra`, `<unk>` scores 7.93 against `ladr@@` 6.43 at rank 2 and `lad@@` 5.71 at rank 3 - both present - and the next step emits `ra`, so the model had the whole word and chose `<unk>` for its first piece. OpenNMT-py replaces rare target words with `<unk>` in training, so the model learned to emit it, and `onmt_translate` puts the word back with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights. Those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced and guessing one would be a guess presented as a translation. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
     "pair": [
       "en",
       "gl"
@@ -4884,7 +4892,7 @@
     "license": "MIT",
     "license_tier": "permissive",
     "model_id": "nos-coda_iacobus-en-gl-int8",
-    "notes": "OpenNMT-py English -> Galician. Caveat: this family's target vocabularies are frequency-filtered to ~18k-28k subwords, and the decoder emits `<unk>` for a word outside its own. A 5-sentence spot check (2026-08) counted 8 `<unk>` for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. That `<unk>` is the model's own output, not a preprocessing failure: upstream `onmt_translate` hides it with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights, and those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
+    "notes": "OpenNMT-py English -> Galician. Caveat: this family emits `<unk>` in its own output more than any other in the registry. A 5-sentence spot check (2026-08) counted 8 for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. It is not a vocabulary gap and enlarging the vocabulary would not fix it: the model ranks `<unk>` above a spelling it holds. On es->pt translating `ladra`, `<unk>` scores 7.93 against `ladr@@` 6.43 at rank 2 and `lad@@` 5.71 at rank 3 - both present - and the next step emits `ra`, so the model had the whole word and chose `<unk>` for its first piece. OpenNMT-py replaces rare target words with `<unk>` in training, so the model learned to emit it, and `onmt_translate` puts the word back with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights. Those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced and guessing one would be a guess presented as a translation. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
     "pair": [
       "en",
       "gl"
@@ -4911,7 +4919,7 @@
     "license": "MIT",
     "license_tier": "permissive",
     "model_id": "nos-coda_iacobus-en-pt",
-    "notes": "OpenNMT-py English -> Portuguese. Caveat: this family's target vocabularies are frequency-filtered to ~18k-28k subwords, and the decoder emits `<unk>` for a word outside its own. A 5-sentence spot check (2026-08) counted 8 `<unk>` for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. That `<unk>` is the model's own output, not a preprocessing failure: upstream `onmt_translate` hides it with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights, and those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
+    "notes": "OpenNMT-py English -> Portuguese. Caveat: this family emits `<unk>` in its own output more than any other in the registry. A 5-sentence spot check (2026-08) counted 8 for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. It is not a vocabulary gap and enlarging the vocabulary would not fix it: the model ranks `<unk>` above a spelling it holds. On es->pt translating `ladra`, `<unk>` scores 7.93 against `ladr@@` 6.43 at rank 2 and `lad@@` 5.71 at rank 3 - both present - and the next step emits `ra`, so the model had the whole word and chose `<unk>` for its first piece. OpenNMT-py replaces rare target words with `<unk>` in training, so the model learned to emit it, and `onmt_translate` puts the word back with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights. Those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced and guessing one would be a guess presented as a translation. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
     "pair": [
       "en",
       "pt"
@@ -4938,7 +4946,7 @@
     "license": "MIT",
     "license_tier": "permissive",
     "model_id": "nos-coda_iacobus-en-pt-int8",
-    "notes": "OpenNMT-py English -> Portuguese. Caveat: this family's target vocabularies are frequency-filtered to ~18k-28k subwords, and the decoder emits `<unk>` for a word outside its own. A 5-sentence spot check (2026-08) counted 8 `<unk>` for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. That `<unk>` is the model's own output, not a preprocessing failure: upstream `onmt_translate` hides it with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights, and those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
+    "notes": "OpenNMT-py English -> Portuguese. Caveat: this family emits `<unk>` in its own output more than any other in the registry. A 5-sentence spot check (2026-08) counted 8 for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. It is not a vocabulary gap and enlarging the vocabulary would not fix it: the model ranks `<unk>` above a spelling it holds. On es->pt translating `ladra`, `<unk>` scores 7.93 against `ladr@@` 6.43 at rank 2 and `lad@@` 5.71 at rank 3 - both present - and the next step emits `ra`, so the model had the whole word and chose `<unk>` for its first piece. OpenNMT-py replaces rare target words with `<unk>` in training, so the model learned to emit it, and `onmt_translate` puts the word back with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights. Those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced and guessing one would be a guess presented as a translation. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
     "pair": [
       "en",
       "pt"
@@ -4965,7 +4973,7 @@
     "license": "MIT",
     "license_tier": "permissive",
     "model_id": "nos-coda_iacobus-es-gl",
-    "notes": "OpenNMT-py Spanish -> Galician. Caveat: this family's target vocabularies are frequency-filtered to ~18k-28k subwords, and the decoder emits `<unk>` for a word outside its own. A 5-sentence spot check (2026-08) counted 8 `<unk>` for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. That `<unk>` is the model's own output, not a preprocessing failure: upstream `onmt_translate` hides it with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights, and those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
+    "notes": "OpenNMT-py Spanish -> Galician. Caveat: this family emits `<unk>` in its own output more than any other in the registry. A 5-sentence spot check (2026-08) counted 8 for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. It is not a vocabulary gap and enlarging the vocabulary would not fix it: the model ranks `<unk>` above a spelling it holds. On es->pt translating `ladra`, `<unk>` scores 7.93 against `ladr@@` 6.43 at rank 2 and `lad@@` 5.71 at rank 3 - both present - and the next step emits `ra`, so the model had the whole word and chose `<unk>` for its first piece. OpenNMT-py replaces rare target words with `<unk>` in training, so the model learned to emit it, and `onmt_translate` puts the word back with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights. Those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced and guessing one would be a guess presented as a translation. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
     "pair": [
       "es",
       "gl"
@@ -4992,7 +5000,7 @@
     "license": "MIT",
     "license_tier": "permissive",
     "model_id": "nos-coda_iacobus-es-gl-int8",
-    "notes": "OpenNMT-py Spanish -> Galician. Caveat: this family's target vocabularies are frequency-filtered to ~18k-28k subwords, and the decoder emits `<unk>` for a word outside its own. A 5-sentence spot check (2026-08) counted 8 `<unk>` for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. That `<unk>` is the model's own output, not a preprocessing failure: upstream `onmt_translate` hides it with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights, and those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
+    "notes": "OpenNMT-py Spanish -> Galician. Caveat: this family emits `<unk>` in its own output more than any other in the registry. A 5-sentence spot check (2026-08) counted 8 for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. It is not a vocabulary gap and enlarging the vocabulary would not fix it: the model ranks `<unk>` above a spelling it holds. On es->pt translating `ladra`, `<unk>` scores 7.93 against `ladr@@` 6.43 at rank 2 and `lad@@` 5.71 at rank 3 - both present - and the next step emits `ra`, so the model had the whole word and chose `<unk>` for its first piece. OpenNMT-py replaces rare target words with `<unk>` in training, so the model learned to emit it, and `onmt_translate` puts the word back with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights. Those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced and guessing one would be a guess presented as a translation. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
     "pair": [
       "es",
       "gl"
@@ -5019,7 +5027,7 @@
     "license": "MIT",
     "license_tier": "permissive",
     "model_id": "nos-coda_iacobus-es-pt",
-    "notes": "OpenNMT-py Spanish -> Portuguese. Caveat: this family's target vocabularies are frequency-filtered to ~18k-28k subwords, and the decoder emits `<unk>` for a word outside its own. A 5-sentence spot check (2026-08) counted 8 `<unk>` for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. That `<unk>` is the model's own output, not a preprocessing failure: upstream `onmt_translate` hides it with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights, and those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
+    "notes": "OpenNMT-py Spanish -> Portuguese. Caveat: this family emits `<unk>` in its own output more than any other in the registry. A 5-sentence spot check (2026-08) counted 8 for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. It is not a vocabulary gap and enlarging the vocabulary would not fix it: the model ranks `<unk>` above a spelling it holds. On es->pt translating `ladra`, `<unk>` scores 7.93 against `ladr@@` 6.43 at rank 2 and `lad@@` 5.71 at rank 3 - both present - and the next step emits `ra`, so the model had the whole word and chose `<unk>` for its first piece. OpenNMT-py replaces rare target words with `<unk>` in training, so the model learned to emit it, and `onmt_translate` puts the word back with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights. Those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced and guessing one would be a guess presented as a translation. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
     "pair": [
       "es",
       "pt"
@@ -5046,7 +5054,7 @@
     "license": "MIT",
     "license_tier": "permissive",
     "model_id": "nos-coda_iacobus-es-pt-int8",
-    "notes": "OpenNMT-py Spanish -> Portuguese. Caveat: this family's target vocabularies are frequency-filtered to ~18k-28k subwords, and the decoder emits `<unk>` for a word outside its own. A 5-sentence spot check (2026-08) counted 8 `<unk>` for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. That `<unk>` is the model's own output, not a preprocessing failure: upstream `onmt_translate` hides it with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights, and those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
+    "notes": "OpenNMT-py Spanish -> Portuguese. Caveat: this family emits `<unk>` in its own output more than any other in the registry. A 5-sentence spot check (2026-08) counted 8 for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. It is not a vocabulary gap and enlarging the vocabulary would not fix it: the model ranks `<unk>` above a spelling it holds. On es->pt translating `ladra`, `<unk>` scores 7.93 against `ladr@@` 6.43 at rank 2 and `lad@@` 5.71 at rank 3 - both present - and the next step emits `ra`, so the model had the whole word and chose `<unk>` for its first piece. OpenNMT-py replaces rare target words with `<unk>` in training, so the model learned to emit it, and `onmt_translate` puts the word back with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights. Those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced and guessing one would be a guess presented as a translation. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
     "pair": [
       "es",
       "pt"
@@ -5073,7 +5081,7 @@
     "license": "MIT",
     "license_tier": "permissive",
     "model_id": "nos-coda_iacobus-pt-gl",
-    "notes": "OpenNMT-py Portuguese -> Galician. Caveat: this family's target vocabularies are frequency-filtered to ~18k-28k subwords, and the decoder emits `<unk>` for a word outside its own. A 5-sentence spot check (2026-08) counted 8 `<unk>` for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. That `<unk>` is the model's own output, not a preprocessing failure: upstream `onmt_translate` hides it with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights, and those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
+    "notes": "OpenNMT-py Portuguese -> Galician. Caveat: this family emits `<unk>` in its own output more than any other in the registry. A 5-sentence spot check (2026-08) counted 8 for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. It is not a vocabulary gap and enlarging the vocabulary would not fix it: the model ranks `<unk>` above a spelling it holds. On es->pt translating `ladra`, `<unk>` scores 7.93 against `ladr@@` 6.43 at rank 2 and `lad@@` 5.71 at rank 3 - both present - and the next step emits `ra`, so the model had the whole word and chose `<unk>` for its first piece. OpenNMT-py replaces rare target words with `<unk>` in training, so the model learned to emit it, and `onmt_translate` puts the word back with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights. Those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced and guessing one would be a guess presented as a translation. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
     "pair": [
       "pt",
       "gl"
@@ -5100,7 +5108,7 @@
     "license": "MIT",
     "license_tier": "permissive",
     "model_id": "nos-coda_iacobus-pt-gl-int8",
-    "notes": "OpenNMT-py Portuguese -> Galician. Caveat: this family's target vocabularies are frequency-filtered to ~18k-28k subwords, and the decoder emits `<unk>` for a word outside its own. A 5-sentence spot check (2026-08) counted 8 `<unk>` for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. That `<unk>` is the model's own output, not a preprocessing failure: upstream `onmt_translate` hides it with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights, and those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
+    "notes": "OpenNMT-py Portuguese -> Galician. Caveat: this family emits `<unk>` in its own output more than any other in the registry. A 5-sentence spot check (2026-08) counted 8 for en->es, 6 for en->pt, 2 for es->gl and es->pt, 1 for en->gl and 0 for pt->gl, against 0 for every `nos-mt-*` model on the same sentences. It is not a vocabulary gap and enlarging the vocabulary would not fix it: the model ranks `<unk>` above a spelling it holds. On es->pt translating `ladra`, `<unk>` scores 7.93 against `ladr@@` 6.43 at rank 2 and `lad@@` 5.71 at rank 3 - both present - and the next step emits `ra`, so the model had the whole word and chose `<unk>` for its first piece. OpenNMT-py replaces rare target words with `<unk>` in training, so the model learned to emit it, and `onmt_translate` puts the word back with `-replace_unk`, which copies the aligned source word from the decoder's cross-attention weights. Those weights are not outputs of the exported ONNX graph, so the substitution cannot be reproduced and guessing one would be a guess presented as a translation. Prefer `nos-mt-*` where the pair exists. See docs/translate.md.",
     "pair": [
       "pt",
       "gl"

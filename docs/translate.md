@@ -226,6 +226,14 @@ perfectly well. On `nos-mt-es-arg`, *duerme* merged to `duer@@ me` and `duer@@`
 is not in that export's source vocabulary, while `du@@ er@@ me` is; the model
 was handed `Lo <unk> <unk> me` and answered accordingly.
 
+The constraint only ever *adds* splits. Segmenting 409,408 words across the
+thirteen models — for each, every whole word named by any export with the same
+source language, so the pool is not biased towards words a given model already
+holds — it repaired 56,869 and changed **zero** words that were already
+segmenting into in-vocabulary pieces. Eleven of the thirteen repair something;
+`nos-mt-es-arg` repairs 6,852 and `nos-coda_iacobus-en-es` 13,519, while
+`nos-mt-gl-en` and `nos-mt-gl-es` need nothing.
+
 Out: map through the target vocabulary, strip the `@@` merge markers, Moses-
 detokenise. The markers are removed with the upstream `sed 's/@\s*//g'` rule,
 not `replace("@@ ", "")` — the two differ on a word-final `@@` before
@@ -241,12 +249,27 @@ failed; the original `onmt_translate` emits one in the same places.
 That is true of the **target** side only. A `<unk>` on the *source* side is
 always a linguonnx bug, and is asserted against per model — see
 `TestEveryOpenNmtExportSegmentsIntoItsOwnVocabulary` in
-`test/test_translate_preprocess.py`. The `nos-coda_iacobus-*` family has the
-smallest target vocabularies in the registry (~18k subwords) and emits target
-`<unk>` most often; a 5-sentence spot check counted 8 for `en-es`, 6 for
-`en-pt`, 2 for `es-gl` and `es-pt`, 1 for `en-gl` and 0 for `pt-gl`, against 0
-for every `nos-mt-*` model on the same sentences. Prefer `nos-mt-*` where the
-pair exists.
+`test/test_translate_preprocess.py`.
+
+**It is not a vocabulary gap**, and enlarging a vocabulary would not fix it.
+The model ranks `<unk>` above a spelling it holds. Translating *ladra* on
+`nos-coda_iacobus-es-pt`, the decoder scores:
+
+```
+<unk>     7.93
+ladr@@    6.43     <- in the target vocabulary
+lad@@     5.71     <- also in the target vocabulary
+```
+
+and the *next* step emits `ra` — so the model had `ladr@@ a` available and
+chose `<unk>` for the first piece. OpenNMT-py replaces rare target words with
+`<unk>` during training, so the model learned to emit it; `-replace_unk` is
+what puts the word back at inference, and it cannot run here.
+
+The `nos-coda_iacobus-*` family does this more than any other in the registry:
+a 5-sentence spot check counted 8 for `en-es`, 6 for `en-pt`, 2 for `es-gl`
+and `es-pt`, 1 for `en-gl` and 0 for `pt-gl`, against 0 for every `nos-mt-*`
+model on the same sentences. Prefer `nos-mt-*` where the pair exists.
 
 ### Verified against the reference implementations
 
