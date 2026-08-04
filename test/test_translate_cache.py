@@ -64,7 +64,11 @@ def counting_factory(monkeypatch):
     built = []
     lock = threading.Lock()
 
-    def factory(model_id, entry=None, delay=0.0):
+    def factory(model_id, entry=None, delay=0.0,
+                enforce_download_budget=True):
+        # `enforce_download_budget` is accepted because `Translator` passes
+        # it to every `TranslationModel` it builds; this double stands in
+        # for that constructor and has to have its shape.
         with lock:
             built.append(model_id)
         return FakeModel(model_id, entry or REGISTRY[model_id], delay=delay)
@@ -133,7 +137,11 @@ def test_two_threads_racing_one_cold_model_build_it_once(monkeypatch):
     lock = threading.Lock()
     start = threading.Barrier(2)
 
-    def slow_factory(model_id, entry=None):
+    def slow_factory(model_id, entry=None,
+                     enforce_download_budget=True):
+        # `Translator` passes `enforce_download_budget` to every
+        # `TranslationModel` it builds; this double stands in for that
+        # constructor and has to have its shape.
         with lock:
             built.append(model_id)
         time.sleep(0.2)  # the window a plain check-then-set leaves open
@@ -163,7 +171,11 @@ def test_loading_one_model_does_not_block_another(monkeypatch):
     releases = {"multi": threading.Event()}
     inside = threading.Event()
 
-    def blocking_factory(model_id, entry=None):
+    def blocking_factory(model_id, entry=None,
+                         enforce_download_budget=True):
+        # `Translator` passes `enforce_download_budget` to every
+        # `TranslationModel` it builds; this double stands in for that
+        # constructor and has to have its shape.
         if model_id in releases:
             inside.set()
             releases[model_id].wait(timeout=10)
@@ -217,7 +229,8 @@ def test_a_selected_noncommercial_model_still_loads(monkeypatch):
 
     monkeypatch.setattr(
         "linguonnx.translate.TranslationModel",
-        lambda model_id, entry=None: FakeModel(model_id, entry or entries[model_id]))
+        lambda model_id, entry=None, enforce_download_budget=True:
+        FakeModel(model_id, entry or entries[model_id]))
     tx = Translator(entries)
     assert tx.model("nllb-600M").model_id == "nllb-600M"
 

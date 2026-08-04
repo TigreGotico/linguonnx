@@ -117,6 +117,26 @@ MAX_NUM_BEAMS = _env_int("LINGUONNX_MAX_NUM_BEAMS", 32)
 #: grows. See ``docs/routing.md``.
 MAX_MODEL_MB = _env_optional_int("LINGUONNX_MAX_MODEL_MB")
 
+
+def operator_budget_is_set() -> bool:
+    """Whether a *human* set a size budget, as opposed to the library.
+
+    ``max_model_mb=UNSET`` is not "the default": it reads
+    ``LINGUONNX_MAX_MODEL_MB``, and then the cold-download budget
+    (``LINGUONNX_MAX_DOWNLOAD_MB``, itself defaulting to
+    ``DEFAULT_MAX_DOWNLOAD_MB``). Only the last of those three is the
+    library's own opinion, and only the library's own opinion may be waived
+    by a caller who names a model by hand - a budget set on a metered link or
+    a small-disk device belongs to the operator and outranks anything the API
+    infers.
+
+    Read from the environment on every call, not from :data:`MAX_MODEL_MB`,
+    which froze at import time.
+    """
+    return any(os.environ.get(name) is not None for name in
+               ("LINGUONNX_MAX_MODEL_MB", "LINGUONNX_MAX_DOWNLOAD_MB")) \
+        or MAX_MODEL_MB is not None
+
 #: Upper bound on ``length_penalty``. Beyond this the length term dominates
 #: the model score outright and beam ranking stops depending on the model.
 MAX_LENGTH_PENALTY = 10.0

@@ -22,6 +22,7 @@ import threading
 from collections import OrderedDict
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
+from linguonnx.limits import operator_budget_is_set
 from linguonnx.model_manager import list_models
 from linguonnx.translate.decode import GenerationConfig
 from linguonnx.translate.graph import (DEFAULT_PIVOT_PREFERENCE, UNSET,
@@ -95,8 +96,17 @@ class Translator:
                  count_cached_as_free: bool = True,
                  num_beams: int = 4, max_new_tokens: int = 128,
                  length_penalty: float = 1.0, no_repeat_ngram_size: int = 0,
-                 model_cache_size: int = DEFAULT_MODEL_CACHE_SIZE):
+                 model_cache_size: int = DEFAULT_MODEL_CACHE_SIZE,
+                 enforce_download_budget: bool = True):
         self._entries = entries
+        # Routing and downloading have to agree. `max_model_mb` keeps the
+        # router from proposing a model the download path would refuse; when
+        # the router's budget is waived for models the caller named by hand,
+        # the download budget has to be waived with it, or `route()` answers
+        # with a hop that `translate()` then rejects with
+        # `DownloadTooLargeError` - `can_translate` lying, which this library
+        # already fixed once for unrunnable architectures.
+        self._enforce_download_budget = enforce_download_budget
         self.graph = TranslationGraph(
             [capability_from_entry(e) for e in entries.values()],
             pivot_preference=pivot_preference, prefer=prefer,
@@ -282,7 +292,9 @@ class Translator:
                 return cached
             LOG.info("loading translation model %s (%s, %s MB)", model_id,
                      entry["arch"], entry["size_mb"])
-            model = TranslationModel(model_id, entry)
+            model = TranslationModel(
+                model_id, entry,
+                enforce_download_budget=self._enforce_download_budget)
             with self._cache_lock:
                 self._loaded[model_id] = model
                 self._loaded.move_to_end(model_id)
@@ -465,16 +477,26 @@ def load_translator(models: Optional[Sequence[str]] = None,
                               min_chrf=min_chrf)
     if not entries:
         raise ValueError("no translation models matched the given filters")
-    if models is not None and isinstance(max_model_mb, _Unset):
+    waive_budget = models is not None and isinstance(max_model_mb, _Unset) \
+        and not operator_budget_is_set()
+    if waive_budget:
         # `models=`/`model=` is a caller naming exactly what they want, and it
         # already overrides every entry filter. The size budget has to follow,
         # or a graph built from one named model routes nothing: every fp32
-        # model above the default budget (`aina-translator-ca-zh`, 9294 MB)
+        # model above the library default (`aina-translator-ca-zh`, 9294 MB)
         # raised `NoRouteError` for the pair it is the only model for, while
-        # its int8 twin (2345 MB) served the same pair. A budget the caller
-        # states explicitly still applies - only the default is waived.
+        # its int8 twin (2345 MB) served the same pair.
+        #
+        # Only the *library's* own defaults are waived. Naming a model
+        # overrides library policy; it does not override the operator's, and
+        # `UNSET` is not "the default" - it reads `LINGUONNX_MAX_MODEL_MB` and
+        # then the download budget. Collapsing it to `None` unconditionally
+        # discarded a budget set on a metered link or a small-disk device:
+        # under `LINGUONNX_MAX_MODEL_MB=500`, a `models=` list of the 21
+        # registry entries over 4 GB routed all 136 GB of them.
         max_model_mb = None
     return Translator(entries, prefer=prefer, max_hops=max_hops,
+                      enforce_download_budget=not waive_budget,
                       pivot_preference=pivot_preference, max_routes=max_routes,
                       pivot_ranking=pivot_ranking, max_model_mb=max_model_mb,
                       count_cached_as_free=count_cached_as_free,

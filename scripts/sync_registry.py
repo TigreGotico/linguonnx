@@ -1270,7 +1270,18 @@ def _marian_group_source(name: str) -> Optional[str]:
 _MARIAN_SOURCE_COVERAGE_FLOOR = 0.9
 
 
-def _marian_source_coverage(repo_id: str, files: Dict[str, int]) -> None:
+def _fetch_source_spm(repo_id: str) -> bytes:
+    """``source.spm`` as bytes. LFS/xet-backed, so `/resolve/main/`, not `/raw/`."""
+    import urllib.request
+
+    url = f"https://{HOST}/{repo_id}/resolve/main/source.spm"
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(request, timeout=60) as response:
+        return response.read()
+
+
+def _marian_source_coverage(repo_id: str, files: Dict[str, int],
+                            fetch=_fetch_source_spm) -> None:
     """Refuse a Marian export whose ``vocab.json`` cannot spell its source.
 
     Marian ids come from ``vocab.json``; the pieces come from ``source.spm``.
@@ -1281,17 +1292,28 @@ def _marian_source_coverage(repo_id: str, files: Dict[str, int]) -> None:
     same broken ids from the same files, so this is an upstream defect and not
     something an inference change can fix. The only honest response is to not
     claim the pair.
+
+    ``fetch`` is injectable so the decision - the coverage ratio and the floor
+    it is held to - can be tested against synthetic exports without a network.
     """
-    import urllib.request
     import sentencepiece as spm
 
     if "vocab.json" not in files or "source.spm" not in files:
         return
-    vocab = set(json.loads(raw_file(repo_id, "vocab.json")))
-    url = f"https://{HOST}/{repo_id}/resolve/main/source.spm"
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=60) as response:
-        blob = response.read()
+    try:
+        vocab = set(json.loads(raw_file(repo_id, "vocab.json")))
+        blob = fetch(repo_id)
+    except SkipRepo:
+        raise
+    except Exception as err:
+        # Every other failure mode in this script takes the SkipRepo path, and
+        # a flaky Hub must not abort a whole sync from inside a *check*. The
+        # repo is left out of the registry with the reason attached, which a
+        # re-run resolves; a half-checked entry silently admitted would not be.
+        raise SkipRepo(
+            f"could not read source.spm/vocab.json to check that the export "
+            f"can encode its own source language: {type(err).__name__}: {err}"
+        ) from err
     processor = spm.SentencePieceProcessor()
     processor.LoadFromSerializedProto(blob)
     pieces = {processor.IdToPiece(i) for i in range(processor.get_piece_size())}
