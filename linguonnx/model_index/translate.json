@@ -3039,6 +3039,138 @@
     },
     "size_mb": 1207
   },
+  "m2m100_418m-eng-nso": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418m-eng-nso-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418m-eng-nso",
+    "native_codes": {
+      "nso": "ns"
+    },
+    "notes": "DSFSI M2M100-418M fine-tune, English -> Northern Sotho/Sepedi (nso). Card declares 2 languages; tokenizer carries the base model's full 100-language inventory, 98 unclaimed. nso's own token is '__ns__'.",
+    "pair": [
+      "en",
+      "nso"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 4760
+  },
+  "m2m100_418m-eng-nso-int8": {
+    "arch": "m2m100",
+    "extra_files": [
+      "int8/decoder_model.onnx_data",
+      "int8/decoder_with_past_model.onnx_data",
+      "int8/encoder_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418m-eng-nso-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418m-eng-nso-int8",
+    "native_codes": {
+      "nso": "ns"
+    },
+    "notes": "DSFSI M2M100-418M fine-tune, English -> Northern Sotho/Sepedi (nso). Card declares 2 languages; tokenizer carries the base model's full 100-language inventory, 98 unclaimed. nso's own token is '__ns__'.",
+    "pair": [
+      "en",
+      "nso"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 3175
+  },
+  "m2m100_418m-nso-eng": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418m-nso-eng-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418m-nso-eng",
+    "native_codes": {
+      "nso": "ns"
+    },
+    "notes": "DSFSI M2M100-418M fine-tune, Northern Sotho/Sepedi (nso) -> English. Card declares 2 languages; tokenizer carries the base model's full 100-language inventory, 98 unclaimed. nso's own token is '__ns__'.",
+    "pair": [
+      "nso",
+      "en"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 4760
+  },
+  "m2m100_418m-nso-eng-int8": {
+    "arch": "m2m100",
+    "extra_files": [
+      "int8/decoder_model.onnx_data",
+      "int8/decoder_with_past_model.onnx_data",
+      "int8/encoder_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418m-nso-eng-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418m-nso-eng-int8",
+    "native_codes": {
+      "nso": "ns"
+    },
+    "notes": "DSFSI M2M100-418M fine-tune, Northern Sotho/Sepedi (nso) -> English. Card declares 2 languages; tokenizer carries the base model's full 100-language inventory, 98 unclaimed. nso's own token is '__ns__'.",
+    "pair": [
+      "nso",
+      "en"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 3175
+  },
   "madlad400-3b-mt": {
     "arch": "madlad",
     "extra_files": [
