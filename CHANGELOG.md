@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.1a1](https://github.com/TigreGotico/linguonnx/tree/0.9.1a1) (2026-08-04)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.9.0a1...0.9.1a1)
+
+**Merged pull requests:**
+
+- fix: three target-language and routing defects from the live quality sweep [\#64](https://github.com/TigreGotico/linguonnx/pull/64) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.9.0a1](https://github.com/TigreGotico/linguonnx/tree/0.9.0a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.3a1...0.9.0a1)
