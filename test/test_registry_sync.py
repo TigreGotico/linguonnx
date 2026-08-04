@@ -864,3 +864,175 @@ class TestTheEnKoCheckIsWiredIn:
         source = SYNC_SCRIPT.read_text(encoding="utf-8")
         body = source[source.index("def translate_entries("):]
         assert "_marian_source_coverage(repo_id, files)" in body
+
+
+class TestASyncCannotDestroyCuratedRegistryData:
+    """A full sync must not silently undo hand-verified work.
+
+    A crawl of the Hub can re-derive a file listing, a licence, a size, and
+    the `>>xxx<<` tokens in a `vocab.json`. It cannot re-derive a chrF number
+    measured against FLORES, or a caveat somebody found by reading 100
+    translations. The registry holds both, in the same JSON, and a re-sync
+    used to overwrite the second kind: `merge_preserving` only carried a
+    human key across when the generator emitted *nothing* for it, and for 22
+    entries it always emits a default `notes`. The measured caveats went back
+    to "M2M100-418M fine-tune, Ghomala -> French." with nothing on stderr.
+
+    These run the real `main()` offline against a temporary registry
+    directory, with `build()` standing in for the crawl.
+    """
+
+    #: What the committed registry holds for one entry after two days of
+    #: verification: a measurement, a caveat, a code mapping, group coverage,
+    #: and a field nobody has taught the generator about yet.
+    CURATED = {
+        "model_id": "demo-mt",
+        "hf_repo": "TigreGotico/demo-mt-onnx",
+        "arch": "marian",
+        "license": "Apache-2.0",
+        "license_tier": "permissive",
+        "precision": "fp32",
+        "size_mb": 300,
+        "graphs": {"encoder": "encoder_model.onnx"},
+        "side_files": {"vocab": "vocab.json"},
+        "extra_files": [],
+        "src_languages": ["en"],
+        "tgt_languages": ["da", "sv", "nb", "nn", "fo", "is"],
+        "native_codes": {"nso": "ns"},
+        "notes": ("Demo group model. FLORES-200 re-measurement (n=100, chrF) "
+                  "found it looping on 6 of 100 in-domain sentences."),
+        "quality": {"chrf": 41.2, "corpus": "flores200", "metric": "chrf",
+                    "mode": "beam4", "n": 100, "max_new_tokens": 256},
+        "verified_by": "hand check, 2026-08",
+    }
+
+    #: The same entry as a fresh crawl sees it: a bigger download, and the
+    #: generator's own default one-liner where the caveat lives.
+    GENERATED = {
+        "model_id": "demo-mt",
+        "hf_repo": "TigreGotico/demo-mt-onnx",
+        "arch": "marian",
+        "license": "Apache-2.0",
+        "license_tier": "permissive",
+        "precision": "fp32",
+        "size_mb": 311,
+        "graphs": {"encoder": "encoder_model.onnx"},
+        "side_files": {"vocab": "vocab.json"},
+        "extra_files": [],
+        "src_languages": ["en"],
+        "tgt_languages": ["da", "sv", "nb", "nn", "fo", "is"],
+        "native_codes": {"nso": "ns"},
+        "notes": "Demo group model.",
+    }
+
+    LID = {"lid-demo": {"model_id": "lid-demo", "hf_repo": "TigreGotico/x",
+                        "onnx_file": "model.onnx", "engine": "fasttext-onnx",
+                        "loss": "softmax", "num_labels": 3, "size_mb": 1,
+                        "precision": "fp32", "license": "MIT",
+                        "side_files": {"vocab": "vocab.txt"}}}
+
+    @pytest.fixture
+    def sync(self, tmp_path, monkeypatch):
+        """A sync module pointed at a throwaway registry, with the crawl
+        replaced by :attr:`GENERATED` so nothing touches the network."""
+        module = _load_sync_registry()
+        index = tmp_path / "model_index"
+        index.mkdir()
+        (index / "translate.json").write_text(
+            json.dumps({"demo-mt": self.CURATED}, indent=2) + "\n",
+            encoding="utf-8")
+        (index / "lid.json").write_text(json.dumps(self.LID, indent=2) + "\n",
+                                        encoding="utf-8")
+        monkeypatch.setattr(module, "INDEX_DIR", index)
+        monkeypatch.setattr(module, "CARD_LANGUAGES_PATH",
+                            tmp_path / "hub_card_languages.json")
+        monkeypatch.setattr(module, "build",
+                            lambda: ({"demo-mt": dict(self.GENERATED)},
+                                     dict(self.LID), [], {}))
+        module._index = index
+        return module
+
+    def _resynced(self, sync):
+        assert sync.main([]) == 0
+        return json.loads((sync._index / "translate.json")
+                          .read_text(encoding="utf-8"))["demo-mt"]
+
+    def test_a_measured_quality_block_survives_a_resync(self, sync):
+        assert self._resynced(sync)["quality"] == self.CURATED["quality"]
+
+    def test_a_curated_note_survives_a_competing_generated_note(self, sync):
+        """The 22-entry regression, in one assertion.
+
+        The generator has a `notes` for this entry, so the old merge's
+        "keep it only if the generator says nothing" rule never fired.
+        """
+        assert self._resynced(sync)["notes"] == self.CURATED["notes"]
+
+    def test_a_field_the_generator_has_never_heard_of_survives(self, sync):
+        """The reason this is an allow-list of *generated* keys.
+
+        `verified_by` stands in for the next field somebody curates. Under a
+        blocklist of human-owned keys it is deleted on the next crawl,
+        because nobody thought to add it to the blocklist - which is a
+        failure mode that repeats for every field ever added.
+        """
+        assert self._resynced(sync)["verified_by"] == "hand check, 2026-08"
+
+    def test_derived_fields_still_update(self, sync):
+        """The other half: a crawl that learns something has to be able to
+        say it, or the registry freezes. `size_mb` is the generator's."""
+        assert self._resynced(sync)["size_mb"] == 311
+
+    def test_native_codes_and_group_coverage_come_back_byte_identical(self, sync):
+        after = self._resynced(sync)
+        assert after["native_codes"] == self.CURATED["native_codes"]
+        assert after["tgt_languages"] == self.CURATED["tgt_languages"]
+        assert after["src_languages"] == self.CURATED["src_languages"]
+
+    def test_the_whole_entry_is_byte_identical_but_for_the_derived_field(
+            self, sync):
+        expected = dict(self.CURATED, size_mb=311)
+        assert self._resynced(sync) == expected
+
+    def test_check_refuses_a_merge_that_would_destroy_curated_content(
+            self, sync, capsys):
+        """`--check` used to compare the *merged* text with the committed
+        file, so a clobbered note read as ordinary "content differs" drift.
+        Restoring the old merge has to fail loudly, naming entry and field.
+        """
+        def _old_merge(existing, generated):
+            merged = {}
+            for model_id, entry in generated.items():
+                previous = existing.get(model_id, {})
+                kept = {k: v for k, v in previous.items()
+                        if k in sync.HUMAN_OWNED_KEYS and k not in entry}
+                combined = dict(entry)
+                combined.update(kept)
+                merged[model_id] = combined
+            return merged, []
+
+        sync.merge_preserving = _old_merge
+        assert sync.main(["--check"]) == 1
+        err = capsys.readouterr().err
+        assert "DESTROY" in err
+        assert "demo-mt: notes" in err
+        assert "demo-mt: verified_by" in err
+
+    def test_an_overruled_generated_value_is_reported_not_hidden(
+            self, sync, capsys):
+        """A model card really can change upstream. Keeping the curated text
+        is the safe default; staying quiet about the disagreement is not."""
+        self._resynced(sync)
+        assert "kept the committed 'notes' for demo-mt" in capsys.readouterr().err
+
+    def test_an_undeclared_generated_key_stops_the_sync(self, sync):
+        """The allow-list only holds if adding a derived field is deliberate:
+        an undeclared one would be indistinguishable from curated data and
+        would silently stop updating."""
+        sync.build = lambda: (
+            {"demo-mt": dict(self.GENERATED, runnable=True)},
+            dict(self.LID), [], {})
+        with pytest.raises(RuntimeError) as err:
+            sync.main([])
+        assert "runnable" in str(err.value)
+        assert "GENERATED_KEYS" in str(err.value)

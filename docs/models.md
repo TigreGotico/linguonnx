@@ -190,14 +190,30 @@ python scripts/sync_registry.py --check    # exit 1 if the committed JSON drifte
 `--check` writes nothing and is the CI guard. It prints which entries are new
 and which are stale, so "someone published a model and forgot the registry"
 shows up as a failing check instead of a silent gap. Re-running the generator
-on an unchanged Hub produces a byte-identical file, and hand-authored keys the
-script does not generate — a curated `notes`, and a `quality` field measured by
-an offline FLORES-200/chrF benchmarking campaign the script has no way to
-re-derive from a repo's file listing — survive regeneration. Nothing else
-does: a key the generator stops emitting has to be able to disappear, and
-because `--check` compares the *merged* text, a preserved stale key would never
-report as drift. See [routing.md#measured-quality](routing.md#measured-quality)
-for what `quality` means and how it is used.
+on an unchanged Hub produces a byte-identical file.
+
+A sync never destroys hand-verified work. The script owns the fields it
+derives from the Hub — `GENERATED_KEYS` in `scripts/sync_registry.py`: the file
+listing, the licence, the size, the `>>xxx<<` coverage read out of each
+export's own `vocab.json` — and may overwrite or remove those. Every other
+field in an entry is carried across untouched, whether or not anyone declared
+it. `notes` and `quality` go further and win outright: the script writes a
+default one-line `notes`, but the committed text may carry a caveat somebody
+found by reading 100 translations, and `quality` holds chrF numbers measured
+against a FLORES-200/MAFAND reference that no crawl can re-derive.
+
+Where the generator disagrees with a curated field, the curated value is kept
+and the disagreement is printed, so an upstream card that genuinely changed
+still reaches a reviewer. A run that *would* overwrite curated content refuses
+to write and names each entry and field.
+
+The allow-list is of generated keys, not of human ones, on purpose: a list of
+human-owned keys fails silently the first time somebody curates a field nobody
+remembered to add to it. Adding a derived field means adding it to
+`GENERATED_KEYS`; the script refuses to run until you do.
+
+See [routing.md#measured-quality](routing.md#measured-quality) for what
+`quality` means and how it is used.
 
 Every repo the script refuses is written to `linguonnx/model_index/skipped.json`
 alongside the registries, with the reason. A skip used to reach stderr and
