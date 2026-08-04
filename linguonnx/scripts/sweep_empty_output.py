@@ -41,7 +41,8 @@ def _alarm(_signum, _frame):
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from linguonnx.limits import has_visible_content
-from linguonnx.model_manager import MODELS_DIR, list_models
+from linguonnx.model_manager import list_models
+from linguonnx.model_manager import is_cached as _model_manager_is_cached
 from linguonnx.translate.decode import GenerationConfig
 from linguonnx.translate.models import TranslationModel
 
@@ -96,11 +97,14 @@ SAMPLES = {
 
 
 def _is_cached(model_id: str, entry: dict) -> bool:
-    directory = MODELS_DIR / model_id
-    graphs = entry.get("graphs", {})
-    if not graphs:
-        return False
-    return all((directory / name).exists() for name in graphs.values())
+    """Delegates to `model_manager.is_cached` rather than checking graph
+    existence by hand: a local re-check here used to only look at whether
+    the graph files exist, which said "cached" for an entry whose
+    `extra_files` under-listed a blob its graph actually needs - the exact
+    bug `MissingExternalDataError` exists to catch. `is_cached` now derives
+    those blobs from the graphs themselves and agrees with what
+    `ensure_model_files` will actually fetch."""
+    return _model_manager_is_cached(model_id, kind="translate")
 
 
 def _sample_for(src: str) -> str | None:

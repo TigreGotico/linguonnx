@@ -5,6 +5,15 @@ import pytest
 
 from linguonnx import model_manager
 
+#: A minimal, syntactically-valid (but empty) protobuf message: field 99
+#: (arbitrary, unused by ONNX), wire type 2 (length-delimited), zero-length
+#: payload. `model_manager._external_data_locations` parses this cleanly and
+#: finds no `location` - unlike a single stray byte like `b"x"`, which is a
+#: truncated varint and (correctly, since R3) raises rather than being
+#: silently treated as "no external data". Fixtures below stand in for a real
+#: `.onnx` graph, so they need to parse, even if trivially.
+FAKE_ONNX_BYTES = b"\x9a\x06\x00"
+
 
 EXPECTED = {
     # model_id: (hf_repo, license, loss, num_labels, precision)
@@ -109,7 +118,7 @@ def test_ensure_model_files_downloads_onnx_and_side_files(tmp_path, monkeypatch)
     monkeypatch.setattr(model_manager, "MODELS_DIR", tmp_path)
 
     fake_blob = tmp_path / "source_blob"
-    fake_blob.write_text("x")
+    fake_blob.write_bytes(FAKE_ONNX_BYTES)
 
     with patch("linguonnx.model_manager.hf_hub_download", return_value=str(fake_blob)) as mock_dl:
         paths = model_manager.ensure_model_files("glotlid-int8")
@@ -140,14 +149,14 @@ class TestIsCached:
     def test_a_model_with_every_file_present_is_cached(self, tmp_path, monkeypatch):
         self._registry(monkeypatch, tmp_path)
         (tmp_path / "m").mkdir()
-        for name in ("model.onnx", "config.json"):
-            (tmp_path / "m" / name).write_bytes(b"x")
+        (tmp_path / "m" / "model.onnx").write_bytes(FAKE_ONNX_BYTES)
+        (tmp_path / "m" / "config.json").write_bytes(b"x")
         assert model_manager.is_cached("m", kind="translate") is True
 
     def test_a_model_missing_one_file_is_not_cached(self, tmp_path, monkeypatch):
         self._registry(monkeypatch, tmp_path)
         (tmp_path / "m").mkdir()
-        (tmp_path / "m" / "model.onnx").write_bytes(b"x")
+        (tmp_path / "m" / "model.onnx").write_bytes(FAKE_ONNX_BYTES)
         assert model_manager.is_cached("m", kind="translate") is False
 
     def test_a_zero_byte_file_is_not_cached(self, tmp_path, monkeypatch):

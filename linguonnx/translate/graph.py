@@ -929,7 +929,11 @@ class TranslationGraph:
         route through it makes ``can_translate`` answer True for a pair that
         ``translate`` then refuses with ``DownloadTooLargeError``. The cached
         exemption lines up too - ``count_cached_as_free`` mirrors the download
-        check running only when something is missing.
+        check running only when something is missing, and ``is_cached``
+        itself accounts for a graph's derived ``external_data`` blobs, not
+        only the registry-listed files, so this agreement holds even for an
+        entry whose ``extra_files`` under-lists one (see
+        ``model_manager._derived_blob_names``).
 
         An explicit ``None`` is "no cap" and overrules both, which is what a
         caller who passes it means.
