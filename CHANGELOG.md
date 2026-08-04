@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.2a1](https://github.com/TigreGotico/linguonnx/tree/0.9.2a1) (2026-08-04)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.9.1a1...0.9.2a1)
+
+**Merged pull requests:**
+
+- fix: sweep\_empty\_output.py must not substitute a fallback English sample [\#67](https://github.com/TigreGotico/linguonnx/pull/67) ([JarbasAl](https://github.com/JarbasAl))
+- fix: OpenNMT-BPE segmentation, and an honest caveat for two looping fine-tunes [\#65](https://github.com/TigreGotico/linguonnx/pull/65) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.9.1a1](https://github.com/TigreGotico/linguonnx/tree/0.9.1a1) (2026-08-04)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.9.0a1...0.9.1a1)
