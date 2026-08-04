@@ -237,7 +237,11 @@ def test_group_models_carry_a_target_token_template():
         assert "{code}" in template, (
             f"{model_id} is a multi-target Marian model with no "
             f"target_token_template")
-        for tag in entry["languages"]:
+        # A directional group model (`opus-mt-tc-big-en-zle`: English -> the
+        # six East-Slavic codes its vocabulary carries a token for) states its
+        # targets in `tgt_languages`; an any-to-any one states them in
+        # `languages`. Either way, every target has to build a token.
+        for tag in targets:
             native = (entry.get("native_codes") or {}).get(tag, tag)
             assert template.format(code=native)
 
@@ -707,3 +711,41 @@ def test_registry_json_is_stable_and_sorted():
         for model_id, entry in raw.items():
             assert list(entry) == sorted(entry), \
                 f"{kind}.json: keys of {model_id} are not sorted"
+
+
+# --------------------------------------------------------------------------
+# A Marian export whose vocab.json cannot spell its own source language
+# --------------------------------------------------------------------------
+
+class TestTheEnKoClaimIsWithdrawn:
+    """`Helsinki-NLP/opus-mt-tc-big-en-ko` cannot read English.
+
+    Its `vocab.json` is the *target* (Korean) vocabulary: only 21% of the
+    pieces `source.spm` produces have an id, so `doctor`, `patient`,
+    `recover` and `weeks` all arrive at the encoder as `<unk>` and the
+    decoder answers fluent Korean nonsense
+    (`'process 잘 모기 댓글 upon9-2.'`). `transformers` builds the identical
+    input ids from the identical files, so this is an upstream export defect
+    that no inference change here can repair - the claim goes instead.
+    """
+
+    def test_the_registry_no_longer_claims_the_pair(self):
+        registry = json.loads((REPO_ROOT / "linguonnx" / "model_index"
+                               / "translate.json").read_text(encoding="utf-8"))
+        assert not [m for m in registry if m.startswith("opus-mt-en-ko")]
+
+    def test_the_reason_is_recorded_rather_than_forgotten(self):
+        skipped = json.loads((REPO_ROOT / "linguonnx" / "model_index"
+                              / "skipped.json").read_text(encoding="utf-8"))
+        reason = skipped.get("TigreGotico/opus-mt-en-ko-onnx")
+        assert reason and "source.spm" in reason
+
+    def test_english_to_korean_still_routes(self):
+        """Withdrawing a broken claim must not withdraw the language."""
+        translator = load_translator()
+        assert translator.route("en", "ko").hops
+
+    def test_the_generator_refuses_such_an_export(self):
+        """The rule, not the one model: the floor is checked, not hardcoded."""
+        sync = _load_sync_registry()
+        assert sync._MARIAN_SOURCE_COVERAGE_FLOOR == 0.9

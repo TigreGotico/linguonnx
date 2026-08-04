@@ -7272,14 +7272,6 @@
       "decoder_with_past": "decoder_with_past_model.onnx"
     },
     "hf_repo": "TigreGotico/opus-mt-en-gmq-onnx",
-    "languages": [
-      "da",
-      "fo",
-      "is",
-      "nb",
-      "nn",
-      "sv"
-    ],
     "license": "Apache-2.0",
     "license_tier": "permissive",
     "model_id": "opus-mt-en-gmq",
@@ -7291,7 +7283,7 @@
       "nb": "nob",
       "sv": "swe"
     },
-    "notes": "opus-mt group model ('opus-mt-en-gmq-onnx' names a collection code 'gmq' on the target side: a language family, not a language). Any-to-any across the 6 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically.",
+    "notes": "opus-mt group model ('opus-mt-en-gmq-onnx' names a collection code 'gmq' on the target side: a language family, not a language). English -> the 6 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically. The token set is the *target* side only: the encoder reads English alone.",
     "precision": "fp32",
     "side_files": {
       "source_spm": "source.spm",
@@ -7302,7 +7294,18 @@
       "special_tokens_map": "special_tokens_map.json"
     },
     "size_mb": 856,
-    "target_token_template": ">>{code}<<"
+    "src_languages": [
+      "en"
+    ],
+    "target_token_template": ">>{code}<<",
+    "tgt_languages": [
+      "da",
+      "fo",
+      "is",
+      "nb",
+      "nn",
+      "sv"
+    ]
   },
   "opus-mt-en-gmq-int8": {
     "arch": "marian",
@@ -7314,14 +7317,6 @@
       "decoder_with_past": "int8/decoder_with_past_model.onnx"
     },
     "hf_repo": "TigreGotico/opus-mt-en-gmq-onnx",
-    "languages": [
-      "da",
-      "fo",
-      "is",
-      "nb",
-      "nn",
-      "sv"
-    ],
     "license": "Apache-2.0",
     "license_tier": "permissive",
     "model_id": "opus-mt-en-gmq-int8",
@@ -7333,7 +7328,7 @@
       "nb": "nob",
       "sv": "swe"
     },
-    "notes": "opus-mt group model ('opus-mt-en-gmq-onnx' names a collection code 'gmq' on the target side: a language family, not a language). Any-to-any across the 6 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically.",
+    "notes": "opus-mt group model ('opus-mt-en-gmq-onnx' names a collection code 'gmq' on the target side: a language family, not a language). English -> the 6 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically. The token set is the *target* side only: the encoder reads English alone.",
     "precision": "int8",
     "side_files": {
       "source_spm": "int8/source.spm",
@@ -7344,7 +7339,18 @@
       "special_tokens_map": "int8/special_tokens_map.json"
     },
     "size_mb": 218,
-    "target_token_template": ">>{code}<<"
+    "src_languages": [
+      "en"
+    ],
+    "target_token_template": ">>{code}<<",
+    "tgt_languages": [
+      "da",
+      "fo",
+      "is",
+      "nb",
+      "nn",
+      "sv"
+    ]
   },
   "opus-mt-en-he": {
     "arch": "marian",
@@ -7793,62 +7799,6 @@
       "special_tokens_map": "int8/special_tokens_map.json"
     },
     "size_mb": 190
-  },
-  "opus-mt-en-ko": {
-    "arch": "marian",
-    "base_model": "Helsinki-NLP/opus-mt-tc-big-en-ko",
-    "extra_files": [],
-    "graphs": {
-      "encoder": "encoder_model.onnx",
-      "decoder": "decoder_model.onnx",
-      "decoder_with_past": "decoder_with_past_model.onnx"
-    },
-    "hf_repo": "TigreGotico/opus-mt-en-ko-onnx",
-    "license": "CC-BY-4.0",
-    "license_tier": "permissive",
-    "model_id": "opus-mt-en-ko",
-    "pair": [
-      "en",
-      "ko"
-    ],
-    "precision": "fp32",
-    "side_files": {
-      "source_spm": "source.spm",
-      "target_spm": "target.spm",
-      "vocab": "vocab.json",
-      "config": "config.json",
-      "generation_config": "generation_config.json",
-      "special_tokens_map": "special_tokens_map.json"
-    },
-    "size_mb": 1467
-  },
-  "opus-mt-en-ko-int8": {
-    "arch": "marian",
-    "base_model": "Helsinki-NLP/opus-mt-tc-big-en-ko",
-    "extra_files": [],
-    "graphs": {
-      "encoder": "int8/encoder_model.onnx",
-      "decoder": "int8/decoder_model.onnx",
-      "decoder_with_past": "int8/decoder_with_past_model.onnx"
-    },
-    "hf_repo": "TigreGotico/opus-mt-en-ko-onnx",
-    "license": "CC-BY-4.0",
-    "license_tier": "permissive",
-    "model_id": "opus-mt-en-ko-int8",
-    "pair": [
-      "en",
-      "ko"
-    ],
-    "precision": "int8",
-    "side_files": {
-      "source_spm": "int8/source.spm",
-      "target_spm": "int8/target.spm",
-      "vocab": "int8/vocab.json",
-      "config": "int8/config.json",
-      "generation_config": "int8/generation_config.json",
-      "special_tokens_map": "int8/special_tokens_map.json"
-    },
-    "size_mb": 371
   },
   "opus-mt-en-ml": {
     "arch": "marian",
@@ -11525,11 +11475,6 @@
       "decoder_with_past": "decoder_with_past_model.onnx"
     },
     "hf_repo": "TigreGotico/opus-mt-tc-big-en-cat_oci_spa-onnx",
-    "languages": [
-      "ca",
-      "es",
-      "oc"
-    ],
     "license": "CC-BY-4.0",
     "license_tier": "permissive",
     "model_id": "opus-mt-tc-big-en-cat_oci_spa",
@@ -11538,6 +11483,7 @@
       "oc": "oci",
       "es": "spa"
     },
+    "notes": "English -> the 3 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically. The token set is the *target* side only: the encoder reads English alone.",
     "precision": "fp32",
     "side_files": {
       "source_spm": "source.spm",
@@ -11548,7 +11494,15 @@
       "special_tokens_map": "special_tokens_map.json"
     },
     "size_mb": 2194,
-    "target_token_template": ">>{code}<<"
+    "src_languages": [
+      "en"
+    ],
+    "target_token_template": ">>{code}<<",
+    "tgt_languages": [
+      "ca",
+      "es",
+      "oc"
+    ]
   },
   "opus-mt-tc-big-en-cat_oci_spa-int8": {
     "arch": "marian",
@@ -11559,11 +11513,6 @@
       "decoder_with_past": "int8/decoder_with_past_model.onnx"
     },
     "hf_repo": "TigreGotico/opus-mt-tc-big-en-cat_oci_spa-onnx",
-    "languages": [
-      "ca",
-      "es",
-      "oc"
-    ],
     "license": "CC-BY-4.0",
     "license_tier": "permissive",
     "model_id": "opus-mt-tc-big-en-cat_oci_spa-int8",
@@ -11572,6 +11521,7 @@
       "oc": "oci",
       "es": "spa"
     },
+    "notes": "English -> the 3 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically. The token set is the *target* side only: the encoder reads English alone.",
     "precision": "int8",
     "side_files": {
       "source_spm": "int8/source.spm",
@@ -11582,7 +11532,15 @@
       "special_tokens_map": "int8/special_tokens_map.json"
     },
     "size_mb": 553,
-    "target_token_template": ">>{code}<<"
+    "src_languages": [
+      "en"
+    ],
+    "target_token_template": ">>{code}<<",
+    "tgt_languages": [
+      "ca",
+      "es",
+      "oc"
+    ]
   },
   "opus-mt-tc-big-en-el": {
     "arch": "marian",
@@ -11706,14 +11664,6 @@
       "decoder_with_past": "decoder_with_past_model.onnx"
     },
     "hf_repo": "TigreGotico/opus-mt-tc-big-en-zle-onnx",
-    "languages": [
-      "be",
-      "orv",
-      "orv-Cyrl",
-      "ru",
-      "rue",
-      "uk"
-    ],
     "license": "CC-BY-4.0",
     "license_tier": "permissive",
     "model_id": "opus-mt-tc-big-en-zle",
@@ -11723,7 +11673,7 @@
       "ru": "rus",
       "uk": "ukr"
     },
-    "notes": "opus-mt group model ('opus-mt-tc-big-en-zle-onnx' names a collection code 'zle' on the target side: a language family, not a language). Any-to-any across the 6 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically.",
+    "notes": "opus-mt group model ('opus-mt-tc-big-en-zle-onnx' names a collection code 'zle' on the target side: a language family, not a language). English -> the 6 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically. The token set is the *target* side only: the encoder reads English alone.",
     "precision": "fp32",
     "side_files": {
       "source_spm": "source.spm",
@@ -11734,7 +11684,18 @@
       "special_tokens_map": "special_tokens_map.json"
     },
     "size_mb": 2337,
-    "target_token_template": ">>{code}<<"
+    "src_languages": [
+      "en"
+    ],
+    "target_token_template": ">>{code}<<",
+    "tgt_languages": [
+      "be",
+      "orv",
+      "orv-Cyrl",
+      "ru",
+      "rue",
+      "uk"
+    ]
   },
   "opus-mt-tc-big-en-zle-int8": {
     "arch": "marian",
@@ -11746,14 +11707,6 @@
       "decoder_with_past": "int8/decoder_with_past_model.onnx"
     },
     "hf_repo": "TigreGotico/opus-mt-tc-big-en-zle-onnx",
-    "languages": [
-      "be",
-      "orv",
-      "orv-Cyrl",
-      "ru",
-      "rue",
-      "uk"
-    ],
     "license": "CC-BY-4.0",
     "license_tier": "permissive",
     "model_id": "opus-mt-tc-big-en-zle-int8",
@@ -11763,7 +11716,7 @@
       "ru": "rus",
       "uk": "ukr"
     },
-    "notes": "opus-mt group model ('opus-mt-tc-big-en-zle-onnx' names a collection code 'zle' on the target side: a language family, not a language). Any-to-any across the 6 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically.",
+    "notes": "opus-mt group model ('opus-mt-tc-big-en-zle-onnx' names a collection code 'zle' on the target side: a language family, not a language). English -> the 6 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically. The token set is the *target* side only: the encoder reads English alone.",
     "precision": "int8",
     "side_files": {
       "source_spm": "int8/source.spm",
@@ -11774,7 +11727,18 @@
       "special_tokens_map": "int8/special_tokens_map.json"
     },
     "size_mb": 590,
-    "target_token_template": ">>{code}<<"
+    "src_languages": [
+      "en"
+    ],
+    "target_token_template": ">>{code}<<",
+    "tgt_languages": [
+      "be",
+      "orv",
+      "orv-Cyrl",
+      "ru",
+      "rue",
+      "uk"
+    ]
   },
   "opus-mt-tc-big-gmw-gmw": {
     "arch": "marian",
