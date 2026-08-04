@@ -443,6 +443,44 @@ def test_external_blobs_belong_to_a_declared_graph():
     assert not offenders, "\n  ".join(offenders)
 
 
+def test_no_registered_graph_needs_a_location_this_reader_cannot_see():
+    """No entry ships a graph shape ``model_manager._external_data_locations``
+    cannot fully see.
+
+    That reader only walks ``GraphProto.initializer`` at the graph's top
+    level - not ``NodeProto.attribute`` (a ``Constant`` node's tensor, or an
+    ``If``/``Loop`` node's subgraph), not ``GraphProto.sparse_initializer``.
+    A differential audit against every registered graph found this blind spot
+    live in a handful of them, harmlessly, because in every case the missed
+    blob happened to share its graph's own filename-derived name and so was
+    still picked up by the ``<graph>_data`` sibling convention. That is luck,
+    not a guarantee - a ``*_merged.onnx`` export (ONNX Runtime's own optimizer
+    output, which folds an ``If`` for KV-cache branching into one graph) is
+    exactly the shape that would defeat it, and no test would catch it
+    reaching ``ensure_model_files`` silently.
+
+    This is the fence: it does not need real graph bytes, because
+    ``*_merged.onnx`` never appears in a registered filename today. The day
+    one is registered, this fails and says why, instead of the entry passing
+    every other invariant and failing three steps later inside
+    ``onnxruntime`` with an opaque ``tensorprotoutils.cc`` error.
+    """
+    offenders = [
+        f"{model_id}: {filename}"
+        for model_id, entry in _entries()
+        for filename in (entry.get("graphs") or {}).values()
+        if "merged" in filename.lower()
+    ]
+    assert not offenders, (
+        "these entries ship a merged graph, a shape "
+        "model_manager._external_data_locations cannot fully read (it does "
+        "not descend NodeProto.attribute subgraphs or "
+        "GraphProto.sparse_initializer) - either extend that reader to cover "
+        "it, or confirm by hand that this particular export's external data "
+        "(if any) is still reachable at the top level before registering "
+        "it:\n  " + "\n  ".join(offenders))
+
+
 # --------------------------------------------------------------------------
 # Masakhane's reused-token fine-tunes: a real content check, not a
 # key-exists-in-metadata check.

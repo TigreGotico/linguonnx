@@ -207,6 +207,21 @@ def _external_data_locations(path: Path) -> List[str]:
     Reads only the graph file, never the blob - cheap even against a
     multi-gigabyte blob (a DSFSI NLLB encoder graph is 293 KB against its own
     1.2 GB ``.onnx_data``).
+
+    **Known limit**: this only walks ``GraphProto.initializer`` at the graph's
+    top level. It does not descend ``NodeProto.attribute`` (so a `Constant`
+    node's tensor attribute, or an `If`/`Loop` node's subgraph attribute, is
+    invisible) or ``GraphProto.sparse_initializer``. A differential audit
+    against 153 real registered graphs found this blind spot live in 5 of
+    them - but in every case the reader's empty result was harmless, because
+    those graphs' blobs happen to share their graph's own filename-derived
+    name and so are still picked up by the `<graph>_data` sibling convention
+    elsewhere. No registered entry today needs a location this function
+    cannot see and has no other way to reach - `test_registry_invariants.py`'s
+    `test_no_registered_graph_needs_a_location_this_reader_cannot_see` fails
+    loudly the day one does (e.g. a `*_merged.onnx` export with an `If` node),
+    rather than silently falling through to onnxruntime's opaque
+    ``tensorprotoutils.cc`` error.
     """
     with open(path, "rb") as fh:
         model_bytes = fh.read()
@@ -366,6 +381,41 @@ def _entry_files(entry: Dict[str, Any]) -> Iterator[Tuple[Optional[str], str]]:
         yield None, filename
 
 
+def _graph_filenames(entry: Dict[str, Any]) -> List[str]:
+    """Every graph filename the entry declares - the files worth reading for
+    their own ``external_data`` locations, as opposed to side files/labels."""
+    names = list(entry.get("graphs", {}).values())
+    if "onnx_file" in entry:
+        names.append(entry["onnx_file"])
+    return names
+
+
+def _derived_blob_names(dest_dir: Path, graph_filenames: List[str]) -> List[str]:
+    """Relative blob names every already-downloaded graph's initializers name.
+
+    Reads only graphs already present on disk and performs no network I/O -
+    a graph not yet fetched contributes nothing here, but it is one of
+    `_entry_files`'s own files, so its absence is already caught wherever
+    that is checked alongside this. This is what lets `is_cached` and the
+    download-budget gate agree with what `ensure_model_files` will actually
+    fetch: before this, both only knew about `extra_files`, so an
+    under-listed entry reported `is_cached() == True` on a cache that was
+    still missing a blob, and the budget check never ran for it.
+    """
+    names: List[str] = []
+    for filename in graph_filenames:
+        graph_dest = _safe_dest(dest_dir, filename)
+        if _is_missing_or_empty(graph_dest):
+            continue
+        for location in _external_data_locations(graph_dest):
+            names.append((Path(filename).parent / location).as_posix())
+    return names
+
+
+def _any_missing(dest_dir: Path, filenames) -> bool:
+    return any(_is_missing_or_empty(_safe_dest(dest_dir, name)) for name in filenames)
+
+
 def _check_download_budget(model_id: str, entry: Dict[str, Any]) -> None:
     """Refuse an obviously oversized cold fetch before it starts.
 
@@ -396,9 +446,25 @@ def ensure_model_files(model_id: str, kind: str = "lid",
     dest_dir = MODELS_DIR / model_id
 
     wanted = list(_entry_files(entry))
-    if enforce_budget and any(_is_missing_or_empty(_safe_dest(dest_dir, name))
-                              for _, name in wanted):
-        _check_download_budget(model_id, entry)
+    graph_filenames = _graph_filenames(entry)
+    if enforce_budget:
+        any_missing = _any_missing(dest_dir, (name for _, name in wanted))
+        if not any_missing:
+            # Every registry-listed file is present, but that no longer means
+            # nothing will be fetched: a graph on disk can still name a blob
+            # `extra_files` under-listed. This only reads local files (the
+            # graphs are already here or the check above would have tripped),
+            # so it costs nothing to ask before deciding the budget is moot.
+            try:
+                any_missing = _any_missing(
+                    dest_dir, _derived_blob_names(dest_dir, graph_filenames))
+            except (IndexError, ValueError):
+                # Can't tell what a graph needs without being able to read it
+                # - budget-gate conservatively rather than let an unreadable
+                # graph wave an unbounded fetch through.
+                any_missing = True
+        if any_missing:
+            _check_download_budget(model_id, entry)
 
     paths: Dict[str, Path] = {}
     for key, filename in wanted:
@@ -414,22 +480,31 @@ def ensure_model_files(model_id: str, kind: str = "lid",
     # is asked rather than trusted registry metadata. `location` is relative
     # to the *graph's* own directory, not the model root, so an `int8/`
     # variant's blob is resolved against `int8/`, not against `dest_dir`.
-    graph_filenames = list(entry.get("graphs", {}).values())
-    if "onnx_file" in entry:
-        graph_filenames.append(entry["onnx_file"])
     for filename in graph_filenames:
         graph_dest = _safe_dest(dest_dir, filename)
         try:
             locations = _external_data_locations(graph_dest)
         except (IndexError, ValueError) as exc:
-            # Malformed/truncated protobuf: not this function's problem to
-            # diagnose - onnxruntime will refuse the graph on its own terms
-            # when a session is built from it. Log and move on rather than
-            # block every caller (including tests that stub graph content)
-            # on a parser that only exists to catch a narrower failure.
-            LOG.debug("%s: could not read external_data locations from %s: %s",
-                     model_id, filename, exc)
-            locations = []
+            if _is_missing_or_empty(graph_dest):
+                # Nothing was actually written (a zero-byte fetch is already
+                # a broken graph on its own terms; onnxruntime will refuse
+                # it when a session is built, with nothing for this function
+                # to add).
+                LOG.debug("%s: %s fetched empty, nothing to derive from",
+                         model_id, filename)
+                locations = []
+            else:
+                # Non-empty but unparseable: a truncated or corrupted
+                # download that must not pass silently, because a silently
+                # skipped graph is exactly how an under-listed blob went
+                # unnoticed in the first place. `_fetch_one` will not
+                # re-fetch this file on its own (it only refetches
+                # missing-or-empty), so the caller has to hear about this.
+                LOG.warning(
+                    "%s: could not read external_data locations from %s (%s) - "
+                    "likely a truncated or corrupted download; delete "
+                    "%s and retry", model_id, filename, exc, graph_dest)
+                raise
         for location in locations:
             blob_name = (Path(filename).parent / location).as_posix()
             blob_dest = _fetch_one(repo_id, blob_name, dest_dir, revision=revision,
@@ -454,6 +529,14 @@ def is_cached(model_id: str, kind: str = "lid") -> bool:
 
     A model that is not in the registry is not cached, because nothing here can
     say which files it would need.
+
+    Registry-listed files are not the whole story: a graph on disk can name
+    an ``external_data`` blob ``extra_files`` under-listed, and that blob is
+    exactly as required as anything named in the registry - `ensure_model_files`
+    will fetch it, so a warm-looking cache that is missing it is not actually
+    warm. This has to agree with that function, or routing (`graph.py`'s
+    `within_size_cap`/`download_size_mb`) sees a model as free that is about
+    to cost an unbudgeted fetch.
     """
     try:
         entry = registry_entry(model_id, kind)
@@ -461,10 +544,16 @@ def is_cached(model_id: str, kind: str = "lid") -> bool:
         return False
     dest_dir = MODELS_DIR / model_id
     try:
-        return all(not _is_missing_or_empty(_safe_dest(dest_dir, name))
-                   for _, name in _entry_files(entry))
+        if _any_missing(dest_dir, (name for _, name in _entry_files(entry))):
+            return False
+        return not _any_missing(
+            dest_dir, _derived_blob_names(dest_dir, _graph_filenames(entry)))
     except UnsafeRegistryPathError:
         # An entry that cannot be fetched safely can never be cached by us.
+        return False
+    except (IndexError, ValueError):
+        # A graph on disk that cannot even be parsed is not usably cached -
+        # whatever it needs cannot be confirmed present.
         return False
 
 

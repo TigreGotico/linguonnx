@@ -16,6 +16,15 @@ from linguonnx import model_manager
 from linguonnx.model_manager import (DownloadTooLargeError,
                                      UnsafeRegistryPathError)
 
+#: A minimal, syntactically-valid (but empty) protobuf message - see the
+#: identical constant and comment in test_model_manager.py. Stands in for a
+#: real `.onnx` graph wherever a fixture's fake blob content is fetched
+#: through `ensure_model_files`/`prefetch` (which now parses every graph for
+#: its `external_data`, and - since R3 - raises rather than silently
+#: swallowing non-empty content it cannot parse). A single byte like `b"x"`
+#: is a truncated varint and would trip that raise.
+FAKE_ONNX_BYTES = b"\x9a\x06\x00"
+
 
 # -- R1: concurrent writers must not publish a corrupt file -------------------
 
@@ -152,7 +161,7 @@ def test_ensure_model_files_rejects_a_poisoned_registry(tmp_path, monkeypatch):
 def test_revision_is_passed_through_when_the_entry_pins_one(tmp_path, monkeypatch):
     monkeypatch.setattr(model_manager, "MODELS_DIR", tmp_path)
     blob = tmp_path / "blob"
-    blob.write_text("x")
+    blob.write_bytes(FAKE_ONNX_BYTES)
     entry = {"model_id": "m", "hf_repo": "x/m", "size_mb": 1,
              "revision": "0123456789abcdef0123456789abcdef01234567",
              "onnx_file": "m.onnx", "graphs": {}, "side_files": {}}
@@ -169,7 +178,7 @@ def test_no_revision_still_works_and_asks_for_none(tmp_path, monkeypatch):
     """Registry entries do not carry `revision` yet; absence must be fine."""
     monkeypatch.setattr(model_manager, "MODELS_DIR", tmp_path)
     blob = tmp_path / "blob"
-    blob.write_text("x")
+    blob.write_bytes(FAKE_ONNX_BYTES)
     with patch("linguonnx.model_manager.hf_hub_download",
                return_value=str(blob)) as mock_dl:
         model_manager.ensure_model_files("glotlid-int8")
@@ -223,7 +232,7 @@ def test_oversized_cold_fetch_fails_fast(tmp_path, monkeypatch):
 def test_budget_does_not_apply_to_a_warm_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(model_manager, "MODELS_DIR", tmp_path)
     blob = tmp_path / "blob"
-    blob.write_text("x")
+    blob.write_bytes(FAKE_ONNX_BYTES)
     with patch("linguonnx.model_manager.hf_hub_download", return_value=str(blob)):
         model_manager.ensure_model_files("glotlid-int8")
     # Now everything is cached; a tiny budget must not break the warm path.
@@ -237,7 +246,7 @@ def test_budget_of_zero_disables_the_check(tmp_path, monkeypatch):
     monkeypatch.setattr(model_manager, "MODELS_DIR", tmp_path)
     monkeypatch.setenv("LINGUONNX_MAX_DOWNLOAD_MB", "0")
     blob = tmp_path / "blob"
-    blob.write_text("x")
+    blob.write_bytes(FAKE_ONNX_BYTES)
     with patch("linguonnx.model_manager.hf_hub_download", return_value=str(blob)):
         model_manager.ensure_model_files("glotlid")
 
@@ -252,7 +261,7 @@ def test_prefetch_ignores_the_request_path_budget(tmp_path, monkeypatch):
     monkeypatch.setattr(model_manager, "MODELS_DIR", tmp_path)
     monkeypatch.setenv("LINGUONNX_MAX_DOWNLOAD_MB", "1")
     blob = tmp_path / "blob"
-    blob.write_text("x")
+    blob.write_bytes(FAKE_ONNX_BYTES)
     with patch("linguonnx.model_manager.hf_hub_download", return_value=str(blob)):
         fetched = model_manager.prefetch("glotlid", "glotlid-int8")
     assert set(fetched) == {"glotlid", "glotlid-int8"}
