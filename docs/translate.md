@@ -79,6 +79,24 @@ tx.translate("bom dia", src="pt", tgt="en", num_beams=1)   # greedy, ~4x faster
 `no_repeat_ngram_size` is off by default and available as a loop guard.
 `length_penalty` and `early_stopping` behave as they do in `transformers`.
 
+**It stays off by default**, for two reasons. `transformers` defaults it to 0
+and every parity and chrF number in this registry was measured against it at
+0, so turning it on globally would silently re-score every model against
+numbers taken under different settings. And where it helps most — the weakest
+fine-tunes, which loop a phrase until the token budget runs out — it does not
+make the output correct; it replaces a repetitive wrong answer with a
+non-repetitive wrong answer of the same chrF. A visible loop is a more honest
+signal than a fluent hallucination. Set it per call when you would rather
+have the latter:
+
+<!-- doc-check: skip needs a 1.2 GB m2m100 fine-tune download -->
+```python
+from linguonnx.translate import GenerationConfig
+
+tx.translate(text, src="mos", tgt="fr",
+             config=GenerationConfig(no_repeat_ngram_size=3))
+```
+
 Beam search reorders the KV cache by parent-beam index at every step, which is
 the one genuinely fiddly part of the loop, and is tested against an independent
 numpy beam search over a toy ONNX graph.

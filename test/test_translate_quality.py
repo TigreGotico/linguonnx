@@ -122,6 +122,17 @@ def test_quality_flag_reasons_for_missing_model_is_empty():
     "opus-mt-az-en",
     "m2m100_418M_en_hau_rel_news_ft",
     "m2m100_418M_en_hau_rel_news_ft-int8",
+    # A live sweep flagged these two for looping multi-word phrases. Measured
+    # on 100 MAFAND-MT test sentences (the corpus they were fine-tuned for -
+    # neither language is in FLORES-200): chrF 26.1/25.5 for Ghomala->French
+    # and 23.7/23.9 for Mossi->French, fp32/int8, with 3-8 of the 100 outputs
+    # ending in a phrase loop. Upstream `transformers` fp32 loops on the same
+    # inputs, so this is base-model quality and belongs here rather than in a
+    # decode-parameter change.
+    "m2m100_418M_bbj_fr_rel_news_ft",
+    "m2m100_418M_bbj_fr_rel_news_ft-int8",
+    "m2m100_418M_mos_fr_rel_news_ft",
+    "m2m100_418M_mos_fr_rel_news_ft-int8",
 ])
 def test_known_weak_models_are_flagged(model_id):
     assert is_quality_flagged(model_id, REGISTRY), (
@@ -152,6 +163,8 @@ def test_agreement_only_registry_entries_are_not_quantitatively_flagged(model_id
     "opus-mt-tr-az", "opus-mt-tr-az-int8",
     "opus-mt-en-az", "opus-mt-en-az-int8",
     "m2m100_418M_en_hau_rel_news_ft", "m2m100_418M_en_hau_rel_news_ft-int8",
+    "m2m100_418M_bbj_fr_rel_news_ft", "m2m100_418M_bbj_fr_rel_news_ft-int8",
+    "m2m100_418M_mos_fr_rel_news_ft", "m2m100_418M_mos_fr_rel_news_ft-int8",
 ])
 def test_hallucinating_models_carry_a_notes_caveat(model_id):
     notes = REGISTRY[model_id].get("notes") or ""
@@ -258,3 +271,34 @@ def test_translator_quality_flag_reasons_matches_the_module_function():
     assert translator.quality_flag_reasons("opus-mt-az-en") == \
         quality_flag_reasons_for("opus-mt-az-en")
     assert translator.quality_flag_reasons("opus-mt-en-es") == ()
+
+
+@pytest.mark.parametrize("model_id", [
+    "m2m100_418M_bbj_fr_rel_news_ft", "m2m100_418M_bbj_fr_rel_news_ft-int8",
+    "m2m100_418M_mos_fr_rel_news_ft", "m2m100_418M_mos_fr_rel_news_ft-int8",
+])
+def test_the_looping_masakhane_models_say_the_loop_is_upstream(model_id):
+    """The caveat has to name *what kind* of problem it is, not just that
+    there is one.
+
+    A caller reading "repeats phrases" reasonably reaches for
+    `no_repeat_ngram_size`. The note has to say that the knob exists, that it
+    does break the loops, and that it does not make the output correct -
+    otherwise the honest annotation reads as an unfixed bug.
+    """
+    notes = REGISTRY[model_id].get("notes") or ""
+    assert "no_repeat_ngram_size" in notes
+    assert "transformers" in notes
+
+
+def test_the_repetition_guard_is_still_off_by_default():
+    """The two looping models must not have moved the default for everyone.
+
+    `transformers` defaults `no_repeat_ngram_size` to 0 and every parity and
+    chrF number in this registry was measured against it at 0. Turning it on
+    globally to hide two weak fine-tunes would silently re-score ~200 models
+    against numbers measured under different settings.
+    """
+    from linguonnx.translate.decode import GenerationConfig
+
+    assert GenerationConfig().no_repeat_ngram_size == 0

@@ -2415,13 +2415,20 @@
     "native_codes": {
       "bbj": "sw"
     },
-    "notes": "M2M100-418M fine-tune, Ghomala -> French.",
+    "notes": "M2M100-418M fine-tune, Ghomala -> French. MAFAND-MT test re-measurement (n=100, chrF, beam4) found this model hallucinating and repeating multi-word phrases - 6 of 100 in-domain sentences end in a phrase loop, and out-of-domain input loops far more often. The same loops appear in upstream `transformers` fp32 on the same inputs, so this is base-model quality, not quantisation and not the `__sw__` token this fine-tune reuses (in-domain text does translate into French through it). `GenerationConfig(no_repeat_ngram_size=3)` breaks every loop observed, but replaces repetitive nonsense with non-repetitive nonsense at the same chrF; it is not enabled by default. See docs/routing.md.",
     "pair": [
       "bbj",
       "fr"
     ],
     "precision": "fp32",
     "provenance_org": "Masakhane",
+    "quality": {
+      "corpus": "mafand-test",
+      "metric": "chrf",
+      "mode": "beam4",
+      "n": 100,
+      "chrf_vs_ref": 26.1
+    },
     "release_date": "2022-04-09",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
@@ -2448,13 +2455,20 @@
     "native_codes": {
       "bbj": "sw"
     },
-    "notes": "M2M100-418M fine-tune, Ghomala -> French.",
+    "notes": "M2M100-418M fine-tune, Ghomala -> French. MAFAND-MT test re-measurement (n=100, chrF, beam4) found this model hallucinating and repeating multi-word phrases - 8 of 100 in-domain sentences end in a phrase loop, and out-of-domain input loops far more often. The same loops appear in upstream `transformers` fp32 on the same inputs, so this is base-model quality, not quantisation and not the `__sw__` token this fine-tune reuses (in-domain text does translate into French through it). `GenerationConfig(no_repeat_ngram_size=3)` breaks every loop observed, but replaces repetitive nonsense with non-repetitive nonsense at the same chrF; it is not enabled by default. See docs/routing.md.",
     "pair": [
       "bbj",
       "fr"
     ],
     "precision": "int8",
     "provenance_org": "Masakhane",
+    "quality": {
+      "corpus": "mafand-test",
+      "metric": "chrf",
+      "mode": "beam4",
+      "n": 100,
+      "chrf_vs_ref": 25.5
+    },
     "release_date": "2022-04-09",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",
@@ -2952,13 +2966,20 @@
     "native_codes": {
       "mos": "sw"
     },
-    "notes": "M2M100-418M fine-tune, Mossi -> French.",
+    "notes": "M2M100-418M fine-tune, Mossi -> French. MAFAND-MT test re-measurement (n=100, chrF, beam4) found this model hallucinating and repeating multi-word phrases - 6 of 100 in-domain sentences end in a phrase loop, and out-of-domain input loops far more often. The same loops appear in upstream `transformers` fp32 on the same inputs, so this is base-model quality, not quantisation and not the `__sw__` token this fine-tune reuses (in-domain text does translate into French through it). `GenerationConfig(no_repeat_ngram_size=3)` breaks every loop observed, but replaces repetitive nonsense with non-repetitive nonsense at the same chrF; it is not enabled by default. See docs/routing.md.",
     "pair": [
       "mos",
       "fr"
     ],
     "precision": "fp32",
     "provenance_org": "Masakhane",
+    "quality": {
+      "corpus": "mafand-test",
+      "metric": "chrf",
+      "mode": "beam4",
+      "n": 100,
+      "chrf_vs_ref": 23.7
+    },
     "release_date": "2022-04-09",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
@@ -2985,13 +3006,20 @@
     "native_codes": {
       "mos": "sw"
     },
-    "notes": "M2M100-418M fine-tune, Mossi -> French.",
+    "notes": "M2M100-418M fine-tune, Mossi -> French. MAFAND-MT test re-measurement (n=100, chrF, beam4) found this model hallucinating and repeating multi-word phrases - 3 of 100 in-domain sentences end in a phrase loop, and out-of-domain input loops far more often. The same loops appear in upstream `transformers` fp32 on the same inputs, so this is base-model quality, not quantisation and not the `__sw__` token this fine-tune reuses (in-domain text does translate into French through it). `GenerationConfig(no_repeat_ngram_size=3)` breaks every loop observed, but replaces repetitive nonsense with non-repetitive nonsense at the same chrF; it is not enabled by default. See docs/routing.md.",
     "pair": [
       "mos",
       "fr"
     ],
     "precision": "int8",
     "provenance_org": "Masakhane",
+    "quality": {
+      "corpus": "mafand-test",
+      "metric": "chrf",
+      "mode": "beam4",
+      "n": 100,
+      "chrf_vs_ref": 23.9
+    },
     "release_date": "2022-04-09",
     "side_files": {
       "spm": "int8/sentencepiece.bpe.model",

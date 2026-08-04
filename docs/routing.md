@@ -454,7 +454,10 @@ A model's `quality` field, when present, replaces that with something a
 number actually means something for:
 
 - **Corpus**: FLORES-200 devtest, the same 100 sentences for every model that
-  shares a source language, so scores are comparable across models.
+  shares a source language, so scores are comparable across models. Where a
+  language is not in FLORES-200 at all — Ghomala' and Mossi are not — the
+  corpus field says which one was used instead (`mafand-test`), so two scores
+  are never silently compared across different references.
 - **Metric**: [chrF](https://github.com/mjpost/sacrebleu), scored against the
   **human FLORES reference**, not against the other precision's output. A
   precision-vs-precision "agreement" score alone is a trap: the Azerbaijani
@@ -496,6 +499,18 @@ Two independent checks, either one enough on its own — see
   precisions, which is a base-model/domain-mismatch problem independent of
   quantisation. Their `notes` say so explicitly; look there for the
   qualitative detail this field does not carry.
+
+  `m2m100_418M_bbj_fr_rel_news_ft` and `m2m100_418M_mos_fr_rel_news_ft` are
+  flagged for the same reason, measured on MAFAND-MT test rather than
+  FLORES-200: chrF 26.1/25.5 and 23.7/23.9 (fp32/int8), with 3 to 8 of the
+  100 in-domain outputs ending in a repeated multi-word phrase, and far more
+  than that on out-of-domain input. Two things were ruled out before the
+  finding was recorded as upstream. It is not the `__sw__` token these
+  fine-tunes reuse for their real language: in-domain text translates into
+  correct French through it, and `load_detector()` reads the output as `fr`.
+  It is not our decode loop either: upstream `transformers` fp32 loops on the
+  same inputs at the same settings. `no_repeat_ngram_size=3` breaks every
+  loop observed, and is left off by default on purpose — see below.
 - **int8 gap**: int8 trailing fp32 by more than 2 chrF (against the
   reference) flags the int8 entry. Every pair actually measured — weak and
   strong alike — showed int8 within about 0.6 chrF of fp32, so 2.0 leaves
