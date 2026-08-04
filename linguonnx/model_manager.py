@@ -43,7 +43,7 @@ import shutil
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from huggingface_hub import hf_hub_download
 
@@ -115,6 +115,120 @@ class DownloadTooLargeError(RuntimeError):
 
 class UnsafeRegistryPathError(ValueError):
     """A registry filename would write outside the model's cache directory."""
+
+
+class MissingExternalDataError(RuntimeError):
+    """A graph's own ``external_data`` location is missing after a fetch.
+
+    Raised before any :class:`onnxruntime.InferenceSession` is built. Without
+    this, a graph whose weights live in a sibling ``*.onnx_data`` blob that
+    the registry's hand-maintained ``extra_files`` list omitted would fetch
+    "successfully" - every file it *knows* to ask for lands - and then fail
+    deep inside onnxruntime's session-creation path with::
+
+        [ONNXRuntimeError] : 1 : FAIL : External data path validation failed
+        for initializer: embed_tokens.weight   (tensorprotoutils.cc:453)
+
+    That message names neither the model nor the missing file, and looks
+    identical to a genuinely broken export. Four DSFSI NLLB models cost hours
+    of investigation to that exact error before the real cause - one entry
+    omitting ``int8/encoder_model.onnx_data`` (~1.2 GB) - was found. This
+    error is the fix: fired here, by name, before the opaque one ever has a
+    chance to.
+    """
+
+
+# --- ONNX external-data discovery, without an ``onnx`` runtime dependency --
+#
+# `extra_files` in the registry is authored (by `scripts/sync_registry.py`'s
+# own filename-convention guess, or by hand), so it can simply be wrong: it
+# is a *claim* about what a graph needs, not a fact read off the graph. The
+# graph's own initializers already carry that fact - every one stored outside
+# the file has an `external_data` entry naming the sibling blob's `location` -
+# so it is read directly here and used to fetch (and then verify) exactly
+# what each graph actually references, regardless of what `extra_files` says.
+#
+# This deliberately does not import the `onnx` package: pyproject.toml keeps
+# it a *test*-only dependency on purpose (`onnxruntime` + `numpy` +
+# `sentencepiece` is the whole runtime footprint - see
+# `linguonnx/translate/decode.py`), so a hand-rolled reader for the one
+# protobuf shape needed here - ModelProto -> GraphProto.initializer ->
+# TensorProto.external_data -> {key, value} - stands in for it. The field
+# numbers are ONNX's own (confirmed against the `onnx` package's generated
+# descriptors: ModelProto.graph=7, GraphProto.initializer=5,
+# TensorProto.external_data=13, StringStringEntryProto.key=1/value=2) and are
+# read generically enough (skip-unknown-field, by wire type) that unrelated
+# fields never need to be understood, only skipped.
+def _read_varint(data: bytes, i: int) -> Tuple[int, int]:
+    result = 0
+    shift = 0
+    while True:
+        byte = data[i]
+        i += 1
+        result |= (byte & 0x7F) << shift
+        if not (byte & 0x80):
+            return result, i
+        shift += 7
+
+
+def _iter_pb_fields(data: bytes):
+    """Yield ``(field_number, wire_type, raw_value)`` for one protobuf message.
+
+    Generic on purpose: a caller that only wants field 7 (say) can ignore
+    every other yielded tuple, and this still consumes them correctly because
+    the wire type alone says how many bytes to skip - the classic protobuf
+    "skip unknown fields" trick, which is also what makes this safe against
+    ONNX opset fields this function has never heard of.
+    """
+    i, n = 0, len(data)
+    while i < n:
+        tag, i = _read_varint(data, i)
+        field_no, wire_type = tag >> 3, tag & 7
+        if wire_type == 0:  # varint
+            value, i = _read_varint(data, i)
+        elif wire_type == 1:  # 64-bit (fixed64/double)
+            value, i = data[i:i + 8], i + 8
+        elif wire_type == 2:  # length-delimited (bytes/string/embedded message)
+            length, i = _read_varint(data, i)
+            value, i = data[i:i + length], i + length
+        elif wire_type == 5:  # 32-bit (fixed32/float)
+            value, i = data[i:i + 4], i + 4
+        else:
+            raise ValueError(
+                f"unsupported protobuf wire type {wire_type} in field {field_no}; "
+                "this graph's .onnx is not a shape linguonnx's minimal reader "
+                "understands")
+        yield field_no, wire_type, value
+
+
+def _external_data_locations(path: Path) -> List[str]:
+    """Every ``location`` this ONNX graph's initializers name via ``external_data``.
+
+    Reads only the graph file, never the blob - cheap even against a
+    multi-gigabyte blob (a DSFSI NLLB encoder graph is 293 KB against its own
+    1.2 GB ``.onnx_data``).
+    """
+    with open(path, "rb") as fh:
+        model_bytes = fh.read()
+    locations: List[str] = []
+    for field_no, wire_type, value in _iter_pb_fields(model_bytes):  # ModelProto
+        if field_no != 7 or wire_type != 2:
+            continue  # 7 = graph
+        for f2, w2, v2 in _iter_pb_fields(value):  # GraphProto
+            if f2 != 5 or w2 != 2:
+                continue  # 5 = initializer (TensorProto), repeated
+            for f3, w3, v3 in _iter_pb_fields(v2):  # TensorProto
+                if f3 != 13 or w3 != 2:
+                    continue  # 13 = external_data (StringStringEntryProto), repeated
+                key = value_str = None
+                for f4, w4, v4 in _iter_pb_fields(v3):  # StringStringEntryProto
+                    if f4 == 1 and w4 == 2:
+                        key = v4
+                    elif f4 == 2 and w4 == 2:
+                        value_str = v4
+                if key == b"location" and value_str is not None:
+                    locations.append(value_str.decode("utf-8"))
+    return locations
 
 
 def _max_download_mb() -> int:
@@ -292,6 +406,41 @@ def ensure_model_files(model_id: str, kind: str = "lid",
                           sha256=checksums.get(filename))
         if key is not None:
             paths[key] = path
+
+    # Derive-and-validate: read each graph's own external-data locations and
+    # fetch exactly those, regardless of what `extra_files` claims. This is
+    # what closes the failure mode `MissingExternalDataError` documents - an
+    # entry that under-lists a blob still gets it, because the graph itself
+    # is asked rather than trusted registry metadata. `location` is relative
+    # to the *graph's* own directory, not the model root, so an `int8/`
+    # variant's blob is resolved against `int8/`, not against `dest_dir`.
+    graph_filenames = list(entry.get("graphs", {}).values())
+    if "onnx_file" in entry:
+        graph_filenames.append(entry["onnx_file"])
+    for filename in graph_filenames:
+        graph_dest = _safe_dest(dest_dir, filename)
+        try:
+            locations = _external_data_locations(graph_dest)
+        except (IndexError, ValueError) as exc:
+            # Malformed/truncated protobuf: not this function's problem to
+            # diagnose - onnxruntime will refuse the graph on its own terms
+            # when a session is built from it. Log and move on rather than
+            # block every caller (including tests that stub graph content)
+            # on a parser that only exists to catch a narrower failure.
+            LOG.debug("%s: could not read external_data locations from %s: %s",
+                     model_id, filename, exc)
+            locations = []
+        for location in locations:
+            blob_name = (Path(filename).parent / location).as_posix()
+            blob_dest = _fetch_one(repo_id, blob_name, dest_dir, revision=revision,
+                                   sha256=checksums.get(blob_name))
+            if _is_missing_or_empty(blob_dest):
+                raise MissingExternalDataError(
+                    f"{model_id}: graph {filename!r} needs external data "
+                    f"{blob_name!r} (an initializer's external_data.location), "
+                    f"but it is missing from {repo_id} after fetch - the graph "
+                    "would fail inside onnxruntime with an opaque "
+                    "tensorprotoutils.cc error instead")
     return paths
 
 
