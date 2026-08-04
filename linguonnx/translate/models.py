@@ -94,8 +94,17 @@ def capability_from_entry(entry: Dict) -> Capability:
 class TranslationModel:
     """A single loaded translation model. Graphs load lazily, on first use."""
 
-    def __init__(self, model_id: str, entry: Optional[Dict] = None):
+    def __init__(self, model_id: str, entry: Optional[Dict] = None,
+                 enforce_download_budget: bool = True):
+        """``enforce_download_budget=False`` is for a model the caller named
+        by hand under no operator budget: :func:`load_translator` waives the
+        *router's* size cap there, and the download check has to be waived
+        with it or the route it plans cannot be executed. It never overrides
+        ``LINGUONNX_MAX_DOWNLOAD_MB`` - see
+        :func:`linguonnx.limits.operator_budget_is_set`.
+        """
         self.model_id = model_id
+        self._enforce_download_budget = enforce_download_budget
         self.entry = entry or registry_entry(model_id, kind="translate")
         self.arch = self.entry["arch"]
         self.capability = capability_from_entry(self.entry)
@@ -127,7 +136,9 @@ class TranslationModel:
     @property
     def files(self) -> Dict[str, Path]:
         if self._files is None:
-            self._files = ensure_model_files(self.model_id, kind="translate")
+            self._files = ensure_model_files(
+                self.model_id, kind="translate",
+                enforce_budget=self._enforce_download_budget)
         return self._files
 
     @property
@@ -203,7 +214,20 @@ class TranslationModel:
             # (a bilingual `pair`) passes an empty sequence on purpose:
             # `load_tokenizer` then reads the codes out of the export itself,
             # which is the only source NLLB's positional block has.
-            codes = self.native_codes if self.entry.get("languages") else ()
+            #
+            # A *directional* entry states its languages in
+            # `src_languages`/`tgt_languages` and carries no flat `languages`
+            # list. Reading only `languages` would hand such an entry the
+            # empty sequence and fall back to the export's own order - which
+            # for M2M100/NLLB is the positional block that misrouted 64 of
+            # M2M100's 100 languages. Harmless for the Marian group models
+            # this shape currently describes (their tokenizer ignores the
+            # argument), and that is exactly why it must not be left to be
+            # discovered by the first non-Marian entry reshaped this way.
+            declared = (self.entry.get("languages")
+                        or self.entry.get("src_languages")
+                        or self.entry.get("tgt_languages"))
+            codes = self.native_codes if declared else ()
             self._tokenizer = load_tokenizer(
                 self.arch, self.files, codes, pair=self.entry.get("pair"))
         return self._tokenizer

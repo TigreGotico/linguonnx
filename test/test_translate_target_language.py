@@ -238,3 +238,164 @@ class TestMadladTranslatesToTheRequestedLanguage:
         for tgt, text in madlad_outputs.items():
             words = text.split()
             assert len(set(words)) > len(words) / 2, (tgt, text)
+
+
+# --------------------------------------------------------------------------
+# One language -> a family: the `>>xxx<<` tokens are the target side only
+# --------------------------------------------------------------------------
+#
+# `opus-mt-tc-big-en-zle` (English -> East Slavic) shipped with its six
+# `>>xxx<<` target codes as a flat `languages` list, which the graph reads as
+# "any-to-any across these six". English, the one language the encoder can
+# actually read, was not in the list. So `en->ru` did not route at all, while
+# `ru->uk` did - on an English-only encoder, which tokenises Cyrillic into
+# `<unk>` and answers `',       .'` for every target. That is the
+# same-output-for-different-targets signature, arriving through the registry
+# shape rather than through a missing token.
+#
+# The rule is structural, not a list of three model ids: for an
+# `opus-mt[-tc-big]-<source>-<family>` export the token set describes the
+# target side, and the source side of the *name* is the only source there is.
+
+#: model id -> the single source language its name declares.
+DIRECTIONAL_GROUP_MODELS = {
+    "opus-mt-tc-big-en-zle": "en",
+    "opus-mt-tc-big-en-zle-int8": "en",
+    "opus-mt-en-gmq": "en",
+    "opus-mt-en-gmq-int8": "en",
+    "opus-mt-tc-big-en-cat_oci_spa": "en",
+    "opus-mt-tc-big-en-cat_oci_spa-int8": "en",
+}
+
+
+def _registry():
+    import json
+    from pathlib import Path
+
+    import linguonnx
+    path = Path(linguonnx.__file__).parent / "model_index" / "translate.json"
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+@pytest.mark.parametrize("model_id,source", sorted(DIRECTIONAL_GROUP_MODELS.items()))
+class TestAOneSourceGroupModelIsDirectional:
+
+    def test_the_entry_declares_the_source_its_encoder_reads(self, model_id, source):
+        entry = _registry()[model_id]
+        assert entry.get("src_languages") == [source], (
+            f"{model_id} translates *from* {source!r} only; a flat "
+            f"`languages` list makes the router offer target->target hops "
+            f"its encoder cannot read")
+        assert entry.get("languages") is None, (
+            f"{model_id} carries both a flat `languages` list and a "
+            f"direction; `languages` means any-to-any and would win")
+        assert entry.get("tgt_languages"), f"{model_id} declares no targets"
+
+    def test_it_routes_from_that_source_into_every_target(self, model_id, source):
+        from linguonnx.translate.models import capability_from_entry
+
+        entry = _registry()[model_id]
+        capability = capability_from_entry(entry)
+        for tgt in entry["tgt_languages"]:
+            assert capability.covers(source, tgt), (
+                f"{model_id} cannot route {source}->{tgt}, the direction it "
+                f"was trained for")
+
+    def test_it_never_offers_a_hop_between_two_of_its_targets(self, model_id, source):
+        """The defect, stated as a route the registry must refuse."""
+        from linguonnx.translate.models import capability_from_entry
+
+        entry = _registry()[model_id]
+        capability = capability_from_entry(entry)
+        targets = entry["tgt_languages"]
+        for src in targets:
+            for tgt in targets:
+                if src == tgt:
+                    continue
+                assert not capability.covers(src, tgt), (
+                    f"{model_id} offers {src}->{tgt}, but its encoder only "
+                    f"reads {source}: every non-{source} input tokenises to "
+                    f"<unk> and every target gets the same answer")
+
+
+def test_no_group_model_publishes_its_target_tokens_as_a_flat_language_set():
+    """The blast-radius guard, over the whole registry.
+
+    Any `opus-mt[-tc-big]-<lang>-<family>` entry that carries a `>>xxx<<`
+    template and a flat `languages` list is the same defect in a new export.
+    The source side of the name is read with the generator's own helper, so a
+    newly synced export is held to the rule the generator applies.
+    """
+    import importlib.util
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    spec = importlib.util.spec_from_file_location(
+        "sync_registry_flat_check", root / "scripts" / "sync_registry.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    offenders = []
+    for model_id, entry in sorted(_registry().items()):
+        if entry.get("target_token_template") != ">>{code}<<":
+            continue
+        if entry.get("languages") is None:
+            continue
+        source = module._marian_group_source(model_id)
+        if source is not None and source not in entry["languages"]:
+            offenders.append((model_id, source, entry["languages"]))
+    assert not offenders, (
+        "these entries publish their >>xxx<< target tokens as an any-to-any "
+        "`languages` set, but their name says they read one source language "
+        "only: " + repr(offenders))
+
+
+def test_the_generator_reads_direction_off_the_export_name():
+    """`scripts/sync_registry.py` must not regenerate the broken shape."""
+    import importlib.util
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    spec = importlib.util.spec_from_file_location(
+        "sync_registry_direction", root / "scripts" / "sync_registry.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module._marian_group_source("opus-mt-tc-big-en-zle-onnx") == "en"
+    assert module._marian_group_source("opus-mt-en-gmq-onnx") == "en"
+    assert module._marian_group_source("opus-mt-tc-big-en-cat_oci_spa-onnx") == "en"
+    # A family on both sides stays any-to-any.
+    assert module._marian_group_source("opus-mt-tc-big-itc-itc-onnx") is None
+    assert module._marian_group_source("opus-mt-tc-big-gmw-gmw-onnx") is None
+    assert module._marian_group_source("opus-mt-itc-itc-onnx") is None
+
+
+def test_a_token_that_does_not_produce_its_language_is_not_claimed():
+    """Vocabulary presence is necessary evidence, never sufficient.
+
+    `opus-mt-tc-big-en-zle` carries `>>orv<<` and `>>orv_Cyrl<<` (Old East
+    Slavic). Both produce modern Russian: over five English sources the two
+    tokens returned byte-identical output to each other 5/5, output
+    byte-identical to `>>rus<<` 2/5, and modern Russian with no Old East
+    Slavic morphology on the other three. Same shape as `>>kea<<` on
+    `opus-mt-tc-big-itc-itc`, which is already excluded.
+    """
+    for model_id in ("opus-mt-tc-big-en-zle", "opus-mt-tc-big-en-zle-int8"):
+        entry = _registry()[model_id]
+        assert entry["tgt_languages"] == ["be", "ru", "rue", "uk"]
+        assert "orv" not in entry["native_codes"]
+        assert "orv-Cyrl" not in entry["native_codes"]
+
+
+def test_the_generator_excludes_the_same_tokens():
+    """The registry and the script that regenerates it have to agree."""
+    import importlib.util
+    from pathlib import Path as _Path
+
+    root = _Path(__file__).resolve().parent.parent
+    spec = importlib.util.spec_from_file_location(
+        "sync_registry_exclusions", root / "scripts" / "sync_registry.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module._MARIAN_GROUP_EXCLUSIONS["opus-mt-tc-big-en-zle"] == \
+        ("orv", "orv_Cyrl")

@@ -1136,8 +1136,18 @@ def _marian_multilingual_languages(repo_id: str, files: Dict[str, int],
 #: registry alone, so `kea` is excluded rather than assumed to work along
 #: with the other ~85 untested languages this entry still carries on the
 #: same unverified-by-exhaustive-testing basis as the rest of the registry.
+#: ``opus-mt-tc-big-en-zle``: `>>orv<<` and `>>orv_Cyrl<<` (Old East Slavic)
+#: are real vocabulary tokens that produce **modern Russian**. Over five
+#: English sources the two tokens returned byte-identical output to each
+#: other 5/5, output byte-identical to `>>rus<<` 2/5, and modern Russian
+#: with no Old East Slavic morphology on the other three ("Он написал
+#: письмо своему брату", not "Онъ написа грамоту"); GlotLID reads every one
+#: as `ru`. `>>bel<<`, `>>ukr<<` and `>>rue<<` on the same checkpoint were
+#: distinct from `>>rus<<` 5/5. Same shape as `kea` below: the token exists,
+#: the language does not come out.
 _MARIAN_GROUP_EXCLUSIONS: Dict[str, Tuple[str, ...]] = {
     "opus-mt-tc-big-itc-itc": ("kea",),
+    "opus-mt-tc-big-en-zle": ("orv", "orv_Cyrl"),
 }
 
 
@@ -1220,6 +1230,114 @@ def _marian_group_languages(repo_id: str, files: Dict[str, int],
     return sorted(candidates), native
 
 
+#: Name infixes that sit between `opus-mt-` and the `<source>-<target>` sides.
+_OPUS_INFIXES = ("tc-big-", "tc-base-", "tc-")
+
+
+def _marian_group_source(name: str) -> Optional[str]:
+    """The single source language of a `>>xxx<<` group model, or ``None``.
+
+    A group export is named ``opus-mt[-tc-big]-<source>-<target>``. When the
+    source side is one real language (``opus-mt-tc-big-en-zle``,
+    ``opus-mt-en-gmq``, ``opus-mt-tc-big-en-cat_oci_spa``) the model is
+    *directional*: it reads that language and writes whichever of its
+    ``>>xxx<<`` targets it is asked for. When the source side is a collection
+    code (``itc`` in ``opus-mt-tc-big-itc-itc``, ``gmw`` in
+    ``opus-mt-tc-big-gmw-gmw``) or an underscore-joined macro-language name,
+    the model reads the whole family and is any-to-any; this returns ``None``.
+
+    The distinction cannot be read off ``vocab.json``: the ``>>xxx<<`` tokens
+    describe the *target* side only, and an English-only encoder carries the
+    same token set an any-to-any family model does.
+    """
+    from linguonnx.detect.labels import tag_scope, to_bcp47
+
+    stem = name[:-len("-onnx")] if name.endswith("-onnx") else name
+    if stem.startswith("opus-mt-"):
+        stem = stem[len("opus-mt-"):]
+    for infix in _OPUS_INFIXES:
+        if stem.startswith(infix):
+            stem = stem[len(infix):]
+            break
+    source, _, target = stem.partition("-")
+    if not source or not target or "_" in source:
+        return None
+    if tag_scope(source) is not None:
+        return None  # a family/collection code: any-to-any
+    try:
+        return to_bcp47(source)
+    except Exception:
+        return None
+
+
+#: Below this share of the source tokeniser's pieces present in ``vocab.json``,
+#: a Marian export cannot encode its own source language: every missing piece
+#: becomes `<unk>`, and the decoder answers fluent nonsense rather than
+#: raising. Verified against all 129 Helsinki-NLP base models this registry
+#: names - 128 score above 0.99 and `opus-mt-tc-big-en-ko` scores 0.21, so a
+#: 0.9 floor separates the broken export from every working one with a wide
+#: margin.
+_MARIAN_SOURCE_COVERAGE_FLOOR = 0.9
+
+
+def _fetch_source_spm(repo_id: str) -> bytes:
+    """``source.spm`` as bytes. LFS/xet-backed, so `/resolve/main/`, not `/raw/`."""
+    import urllib.request
+
+    url = f"https://{HOST}/{repo_id}/resolve/main/source.spm"
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(request, timeout=60) as response:
+        return response.read()
+
+
+def _marian_source_coverage(repo_id: str, files: Dict[str, int],
+                            fetch=_fetch_source_spm) -> None:
+    """Refuse a Marian export whose ``vocab.json`` cannot spell its source.
+
+    Marian ids come from ``vocab.json``; the pieces come from ``source.spm``.
+    Nothing upstream checks that the two agree, and
+    ``Helsinki-NLP/opus-mt-tc-big-en-ko`` proves they sometimes do not - its
+    ``vocab.json`` is the *target* (Korean) vocabulary, so 79% of the English
+    source pieces have no id and become ``<unk>``. `transformers` produces the
+    same broken ids from the same files, so this is an upstream defect and not
+    something an inference change can fix. The only honest response is to not
+    claim the pair.
+
+    ``fetch`` is injectable so the decision - the coverage ratio and the floor
+    it is held to - can be tested against synthetic exports without a network.
+    """
+    import sentencepiece as spm
+
+    if "vocab.json" not in files or "source.spm" not in files:
+        return
+    try:
+        vocab = set(json.loads(raw_file(repo_id, "vocab.json")))
+        blob = fetch(repo_id)
+    except SkipRepo:
+        raise
+    except Exception as err:
+        # Every other failure mode in this script takes the SkipRepo path, and
+        # a flaky Hub must not abort a whole sync from inside a *check*. The
+        # repo is left out of the registry with the reason attached, which a
+        # re-run resolves; a half-checked entry silently admitted would not be.
+        raise SkipRepo(
+            f"could not read source.spm/vocab.json to check that the export "
+            f"can encode its own source language: {type(err).__name__}: {err}"
+        ) from err
+    processor = spm.SentencePieceProcessor()
+    processor.LoadFromSerializedProto(blob)
+    pieces = {processor.IdToPiece(i) for i in range(processor.get_piece_size())}
+    if not pieces:
+        return
+    covered = len(pieces & vocab) / len(pieces)
+    if covered < _MARIAN_SOURCE_COVERAGE_FLOOR:
+        raise SkipRepo(
+            f"vocab.json spells only {covered:.0%} of source.spm's pieces, so "
+            f"the encoder reads most of its own source language as <unk> and "
+            f"answers fluent nonsense (upstream export defect, reproduced "
+            f"byte-for-byte with transformers)")
+
+
 def _marian_group_entry(repo_id: str, name: str, files: Dict[str, int],
                         declared_langs: object, model_id: str) -> Dict[str, object]:
     """The registry ``shared`` fields for any Marian *group* export - a
@@ -1246,10 +1364,25 @@ def _marian_group_entry(repo_id: str, name: str, files: Dict[str, int],
     """
     codes, native = _marian_group_languages(repo_id, files, model_id)
     if codes:
-        entry: Dict[str, object] = {
-            "languages": codes,
-            "target_token_template": ">>{code}<<",
-        }
+        entry: Dict[str, object] = {"target_token_template": ">>{code}<<"}
+        source = _marian_group_source(name)
+        if source is None:
+            # Family -> the same family (`opus-mt-itc-itc`,
+            # `opus-mt-tc-big-gmw-gmw`): the source side of the name is a
+            # collection code, so every language the tokens select is also a
+            # language the encoder reads. Any-to-any.
+            entry["languages"] = codes
+        else:
+            # One language -> a family (`opus-mt-tc-big-en-zle`,
+            # `opus-mt-en-gmq`, `opus-mt-tc-big-en-cat_oci_spa`). The
+            # `>>xxx<<` tokens are the *target* set only; the encoder was
+            # trained on `source` alone. Publishing the token set as a flat
+            # `languages` list made the router offer `ru -> uk` on an
+            # English-only encoder, which tokenises Cyrillic into `<unk>` and
+            # answers the same punctuation for every target - the
+            # same-output-for-different-targets signature.
+            entry["src_languages"] = [source]
+            entry["tgt_languages"] = codes
         if native:
             entry["native_codes"] = native
         return entry
@@ -1277,6 +1410,10 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
     license_id = _license_of(detail, readme)
 
     shared: Dict[str, object] = {"arch": arch}
+    if arch == "marian":
+        # Before any coverage is read off this repo: check the export can
+        # encode its own source language at all.
+        _marian_source_coverage(repo_id, files)
     declared_langs = (detail.get("cardData") or {}).get("language") or []
     opus_named = re.fullmatch(r"opus-mt-[a-z]{2,3}-[a-z]{2,3}-onnx", name) is not None
 

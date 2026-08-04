@@ -237,7 +237,11 @@ def test_group_models_carry_a_target_token_template():
         assert "{code}" in template, (
             f"{model_id} is a multi-target Marian model with no "
             f"target_token_template")
-        for tag in entry["languages"]:
+        # A directional group model (`opus-mt-tc-big-en-zle`: English -> the
+        # six East-Slavic codes its vocabulary carries a token for) states its
+        # targets in `tgt_languages`; an any-to-any one states them in
+        # `languages`. Either way, every target has to build a token.
+        for tag in targets:
             native = (entry.get("native_codes") or {}).get(tag, tag)
             assert template.format(code=native)
 
@@ -707,3 +711,156 @@ def test_registry_json_is_stable_and_sorted():
         for model_id, entry in raw.items():
             assert list(entry) == sorted(entry), \
                 f"{kind}.json: keys of {model_id} are not sorted"
+
+
+# --------------------------------------------------------------------------
+# A Marian export whose vocab.json cannot spell its own source language
+# --------------------------------------------------------------------------
+
+class TestTheEnKoClaimIsWithdrawn:
+    """`Helsinki-NLP/opus-mt-tc-big-en-ko` cannot read English.
+
+    Its `vocab.json` is the *target* (Korean) vocabulary: only 21% of the
+    pieces `source.spm` produces have an id, so `doctor`, `patient`,
+    `recover` and `weeks` all arrive at the encoder as `<unk>` and the
+    decoder answers fluent Korean nonsense
+    (`'process 잘 모기 댓글 upon9-2.'`). `transformers` builds the identical
+    input ids from the identical files, so this is an upstream export defect
+    that no inference change here can repair - the claim goes instead.
+    """
+
+    def test_the_registry_no_longer_claims_the_pair(self):
+        registry = json.loads((REPO_ROOT / "linguonnx" / "model_index"
+                               / "translate.json").read_text(encoding="utf-8"))
+        assert not [m for m in registry if m.startswith("opus-mt-en-ko")]
+
+    def test_the_reason_is_recorded_rather_than_forgotten(self):
+        skipped = json.loads((REPO_ROOT / "linguonnx" / "model_index"
+                              / "skipped.json").read_text(encoding="utf-8"))
+        reason = skipped.get("TigreGotico/opus-mt-en-ko-onnx")
+        assert reason and "source.spm" in reason
+
+    def test_english_to_korean_still_routes(self):
+        """Withdrawing a broken claim must not withdraw the language.
+
+        The replacement was measured, not assumed: `m2m100-418M-int8` scores
+        **chrF 30.4** on `en->ko`, FLORES-200 devtest, n=100, beam4 - the same
+        corpus, metric and decoding mode every `quality` number in the
+        registry uses. It is in the band of the measured entries there
+        (`opus-mt-az-en` 25.9, `m2m100_418M_en_hau_rel_news_ft` 37.9). The
+        number is not written into `m2m100-418M-int8`'s `quality` field
+        because that field is a whole-model claim and this is one pair out of
+        that model's ~9900.
+        """
+        translator = load_translator()
+        assert translator.route("en", "ko").hops
+
+
+def _tiny_spm_blob(tmp_path, words, name):
+    """A real SentencePiece model over ``words``, as serialized bytes."""
+    spm = pytest.importorskip("sentencepiece")
+    corpus = tmp_path / f"{name}.txt"
+    corpus.write_text("\n".join(" ".join(words) for _ in range(80)),
+                      encoding="utf-8")
+    spm.SentencePieceTrainer.Train(
+        input=str(corpus), model_prefix=str(tmp_path / name),
+        vocab_size=32, hard_vocab_limit=False,
+        character_coverage=1.0, pad_id=1, eos_id=2, unk_id=0, bos_id=-1)
+    return (tmp_path / f"{name}.model").read_bytes()
+
+
+def _pieces_of(blob):
+    spm = pytest.importorskip("sentencepiece")
+    processor = spm.SentencePieceProcessor()
+    processor.LoadFromSerializedProto(blob)
+    return [processor.IdToPiece(i) for i in range(processor.get_piece_size())]
+
+
+class TestTheSourceCoverageFloorIsEnforced:
+    """The check itself, on synthetic exports, with no network.
+
+    Asserting the constant is 0.9 asserts nothing: replacing the call site
+    with `pass` left the whole suite green. These feed the function a matched
+    export and a mismatched one and assert what it *does*.
+    """
+
+    FILES = {"vocab.json": 1, "source.spm": 1}
+
+    @pytest.fixture
+    def sync(self):
+        """One module instance per test: `SkipRepo` from two separate
+        `exec_module` calls are two different classes, and `pytest.raises`
+        would never match."""
+        return _load_sync_registry()
+
+    def _run(self, sync, monkeypatch, vocab_pieces, blob):
+        monkeypatch.setattr(sync, "raw_file",
+                            lambda repo_id, path: json.dumps(
+                                {piece: i for i, piece in enumerate(vocab_pieces)}))
+        sync._marian_source_coverage("Some/repo", self.FILES,
+                                     fetch=lambda repo_id: blob)
+
+    def test_a_matched_export_is_accepted(self, sync, monkeypatch, tmp_path):
+        blob = _tiny_spm_blob(tmp_path, ["hello", "world", "doctor", "patient"],
+                              "matched")
+        self._run(sync, monkeypatch, _pieces_of(blob), blob)
+
+    def test_an_export_whose_vocab_cannot_spell_its_source_is_refused(
+            self, sync, monkeypatch, tmp_path):
+        """`opus-mt-tc-big-en-ko` in miniature: the vocab is the other side."""
+        blob = _tiny_spm_blob(tmp_path, ["hello", "world", "doctor", "patient"],
+                              "source")
+        other = _tiny_spm_blob(tmp_path, ["안녕", "세계", "의사", "환자"], "target")
+        pieces = _pieces_of(blob)
+        vocab = _pieces_of(other)
+        coverage = len(set(pieces) & set(vocab)) / len(set(pieces))
+        assert coverage < 0.5, f"the synthetic mismatch is not one: {coverage}"
+        with pytest.raises(sync.SkipRepo) as err:
+            self._run(sync, monkeypatch, vocab, blob)
+        assert "source.spm" in str(err.value)
+
+    def test_the_floor_is_the_line_that_is_actually_applied(
+            self, sync, monkeypatch, tmp_path):
+        """Just under the floor is refused; just over it is accepted.
+
+        The floor is read from the module, so moving it moves both sides of
+        this test together and neither assertion can rot into a tautology.
+        """
+        blob = _tiny_spm_blob(tmp_path, ["hello", "world", "doctor", "patient"],
+                              "floor")
+        pieces = sorted(set(_pieces_of(blob)))
+        floor = sync._MARIAN_SOURCE_COVERAGE_FLOOR
+        over = pieces[:len(pieces) - int(len(pieces) * (1 - floor) / 2)]
+        assert len(over) / len(pieces) > floor
+        self._run(sync, monkeypatch, over, blob)
+        under = pieces[:int(len(pieces) * (floor - 0.05))]
+        assert len(under) / len(pieces) < floor
+        with pytest.raises(sync.SkipRepo):
+            self._run(sync, monkeypatch, under, blob)
+
+    def test_a_network_failure_is_a_skip_not_a_crashed_sync(
+            self, sync, monkeypatch):
+        """Every other failure mode here takes the SkipRepo path; so does this."""
+        monkeypatch.setattr(sync, "raw_file",
+                            lambda repo_id, path: json.dumps({"a": 0}))
+
+        def _boom(repo_id):
+            raise OSError("connection reset by peer")
+
+        with pytest.raises(sync.SkipRepo) as err:
+            sync._marian_source_coverage("Some/repo", self.FILES, fetch=_boom)
+        assert "connection reset by peer" in str(err.value)
+
+    def test_an_export_missing_a_side_file_is_left_to_the_other_checks(self, sync):
+        """No `source.spm` in the listing is not this check's business."""
+        sync._marian_source_coverage("Some/repo", {"vocab.json": 1},
+                                     fetch=lambda repo_id: b"")
+
+
+class TestTheEnKoCheckIsWiredIn:
+
+    def test_the_generator_runs_the_check_for_every_marian_repo(self):
+        """The mutation that stayed green: the call site itself."""
+        source = SYNC_SCRIPT.read_text(encoding="utf-8")
+        body = source[source.index("def translate_entries("):]
+        assert "_marian_source_coverage(repo_id, files)" in body

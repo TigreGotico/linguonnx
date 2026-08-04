@@ -35,7 +35,7 @@ The opus-mt pairs published as int8:
 ```
 ar-en  ca-en  ca-es  ca-fr  ca-it  de-en  en-ar  en-bg  en-ca  en-cs
 en-da  en-de  en-el  en-es  en-eu  en-fi  en-fr  en-gl  en-he  en-hi
-en-hu  en-id  en-it  en-ko  en-nl  en-pl  en-pt  en-ro  en-ru  en-sv
+en-hu  en-id  en-it  en-nl  en-pl  en-pt  en-ro  en-ru  en-sv
 en-tr  en-uk  en-vi  en-zh  es-ca  es-en  es-eu  es-gl  eu-en  eu-es
 fr-ca  fr-en  gl-en  gl-es  gl-pt  it-en  itc-itc  nl-en  pl-en  pt-ca
 pt-en  pt-gl  ru-en  tr-en  uk-en  zh-en
@@ -51,6 +51,24 @@ non-commercial and out of the default graph. See [licences.md](licences.md).
 Sizes are the sum of the blobs an entry actually references, not the repo
 total: these repos also carry a `decoder_model_merged.onnx` that `linguonnx`
 never downloads.
+
+`opus-mt-en-ko` is **not** in the registry. Its upstream export
+(`Helsinki-NLP/opus-mt-tc-big-en-ko`) ships a `vocab.json` that spells only
+21% of the pieces its own `source.spm` produces, so most English words reach
+the encoder as `<unk>` and the model answers fluent Korean nonsense.
+`transformers` builds the same broken input ids from the same files, so this
+is an upstream defect, not an ONNX one. English → Korean routes through
+M2M100 instead, which scores chrF 30.4 on that pair (FLORES-200 devtest,
+n=100, beam4).
+
+Three opus-mt group models translate **from English only**, into the
+languages their vocabulary carries a `>>xxx<<` token for:
+`opus-mt-tc-big-en-zle` (be, ru, rue, uk), `opus-mt-en-gmq`
+(da, fo, is, nb, nn, sv) and `opus-mt-tc-big-en-cat_oci_spa` (ca, es, oc).
+The token set names the target side; the encoder reads English and nothing
+else. `opus-mt-tc-big-en-zle` also carries `>>orv<<`/`>>orv_Cyrl<<` (Old East
+Slavic) in its vocabulary, but both produce modern Russian, so neither is
+claimed.
 
 ## What is in the LID registry
 
