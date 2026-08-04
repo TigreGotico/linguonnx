@@ -543,3 +543,58 @@ class TestTheSweepFlaggedOpenNmtOutputs:
             self.SAMPLES["es"], "es", "an")
         assert "<unk>" not in out, out
         assert "gato" in out and "duerme" in out, out
+
+
+class TestAnUnnameableDecoderIdIsVisible:
+    """A generated id with no entry in ``target_vocab`` must not vanish.
+
+    `nos-coda_iacobus-es-pt` is the one export in the family whose embedding
+    table is padded: ``target_vocab_size`` 32768 against a 27968-entry
+    ``target_vocab``, so 4800 rows carry logits and name no token. The decode
+    path used to filter those ids out, which deletes a word from the middle of
+    a sentence and leaves fluent, complete-looking text behind.
+
+    Emitting one of those rows is *rare* - 228 real Spanish sentences through
+    that model produced none - which is exactly why it needs a test rather
+    than a measurement. A failure mode that shows up once in a few thousand
+    sentences and is invisible when it does is the worst kind to leave silent.
+    """
+
+    SOURCE_VOCAB = ["<unk>", "<blank>", "<s>", "</s>", "gato", "dorme"]
+    TARGET_VOCAB = ["<unk>", "<blank>", "<s>", "</s>", "gato", "dorme"]
+    #: The export claims a bigger table than it can name, as `es-pt` does.
+    PADDED_SIZE = 16
+
+    @pytest.fixture
+    def tokenizer(self, tmp_path):
+        import json
+
+        from linguonnx.translate.tokenizers import OpenNmtBpeTokenizer
+
+        vocab_path = tmp_path / "onmt_vocab.json"
+        vocab_path.write_text(json.dumps({
+            "source_vocab": self.SOURCE_VOCAB,
+            "target_vocab": self.TARGET_VOCAB,
+            "source_offset": self.PADDED_SIZE,
+            "target_vocab_size": self.PADDED_SIZE,
+        }), encoding="utf-8")
+        code_path = tmp_path / "codes.bpe"
+        code_path.write_text("#version: 0.2\ng a\n", encoding="utf-8")
+        return OpenNmtBpeTokenizer(vocab_path, code_path,
+                                   src_lang="es", tgt_lang="pt")
+
+    def test_a_padded_row_decodes_to_unk_rather_than_to_nothing(self, tokenizer):
+        """Pre-fix this returns `'gato dorme'` - the middle word is gone."""
+        padded = len(self.TARGET_VOCAB) + 2
+        assert padded < self.PADDED_SIZE, "fixture must address a padding row"
+        assert tokenizer.decode([4, padded, 5]) == "gato <unk> dorme"
+
+    def test_an_id_past_the_whole_table_is_also_visible(self, tokenizer):
+        assert tokenizer.decode([4, 9999, 5]) == "gato <unk> dorme"
+
+    def test_ordinary_ids_are_unaffected(self, tokenizer):
+        assert tokenizer.decode([4, 5]) == "gato dorme"
+
+    def test_specials_are_still_dropped(self, tokenizer):
+        assert tokenizer.decode([tokenizer.bos_id, 4, 5,
+                                 tokenizer.eos_id]) == "gato dorme"

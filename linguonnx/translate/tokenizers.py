@@ -572,9 +572,20 @@ class OpenNmtBpeTokenizer:
         and the two are *not* equivalent: a word-final ``@@`` before
         punctuation loses its marker under the naive form and glues two words
         together.
+
+        An id with no entry in ``target_vocab`` decodes to ``<unk>``, never to
+        nothing. Most exports size the embedding table to the target vocabulary
+        exactly, but ``nos-coda_iacobus-es-pt`` pads it to 32768 against a
+        27968-entry vocabulary, leaving 4800 rows that carry logits and name no
+        token. Dropping those - as this did - deletes a word from the middle of
+        a sentence and leaves fluent, complete-looking text behind, which is
+        the one failure mode a reader cannot see. ``<unk>`` is already this
+        class's word for "the model emitted something it cannot spell", and it
+        is visible.
         """
-        pieces = [self.target_vocab[i] for i in ids
-                  if i not in self._specials and 0 <= i < len(self.target_vocab)]
+        pieces = [self.target_vocab[i] if 0 <= i < len(self.target_vocab)
+                  else "<unk>"
+                  for i in ids if i not in self._specials]
         merged = re.sub(r"@\s*", "", " ".join(pieces))
         return self.moses_detokenizer.detokenize(merged.split())
 
