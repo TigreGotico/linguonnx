@@ -465,6 +465,15 @@ def load_translator(models: Optional[Sequence[str]] = None,
                               min_chrf=min_chrf)
     if not entries:
         raise ValueError("no translation models matched the given filters")
+    if models is not None and isinstance(max_model_mb, _Unset):
+        # `models=`/`model=` is a caller naming exactly what they want, and it
+        # already overrides every entry filter. The size budget has to follow,
+        # or a graph built from one named model routes nothing: every fp32
+        # model above the default budget (`aina-translator-ca-zh`, 9294 MB)
+        # raised `NoRouteError` for the pair it is the only model for, while
+        # its int8 twin (2345 MB) served the same pair. A budget the caller
+        # states explicitly still applies - only the default is waived.
+        max_model_mb = None
     return Translator(entries, prefer=prefer, max_hops=max_hops,
                       pivot_preference=pivot_preference, max_routes=max_routes,
                       pivot_ranking=pivot_ranking, max_model_mb=max_model_mb,
