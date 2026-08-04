@@ -14,6 +14,7 @@ against what each architecture can actually serve.
 
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -1009,7 +1010,7 @@ class TestASyncCannotDestroyCuratedRegistryData:
                 combined = dict(entry)
                 combined.update(kept)
                 merged[model_id] = combined
-            return merged, []
+            return merged, {}
 
         sync.merge_preserving = _old_merge
         assert sync.main(["--check"]) == 1
@@ -1023,16 +1024,247 @@ class TestASyncCannotDestroyCuratedRegistryData:
         """A model card really can change upstream. Keeping the curated text
         is the safe default; staying quiet about the disagreement is not."""
         self._resynced(sync)
-        assert "kept the committed 'notes' for demo-mt" in capsys.readouterr().err
+        err = capsys.readouterr().err
+        assert "OVERRULED translate.json demo-mt: kept the committed 'notes'" \
+            in err
+
+    def test_a_preserved_undeclared_field_is_listed(self, sync, capsys):
+        """DATA-007 inverted, not closed: a typo'd `note` or a field whose
+        generator was deleted is now immortal instead of eaten. Listing is
+        the fix; failing would contradict the rule itself."""
+        self._resynced(sync)
+        assert "CURATED translate.json demo-mt: 'verified_by'" \
+            in capsys.readouterr().err
+
 
     def test_an_undeclared_generated_key_stops_the_sync(self, sync):
         """The allow-list only holds if adding a derived field is deliberate:
         an undeclared one would be indistinguishable from curated data and
-        would silently stop updating."""
+        would silently stop updating.
+
+        The fixture key is fictional on purpose. Using a *real* key the
+        generator can emit would pin the crash in place as expected
+        behaviour instead of catching it - see
+        :meth:`test_repopulating_unrunnable_archs_does_not_abort_the_sync`.
+        """
         sync.build = lambda: (
-            {"demo-mt": dict(self.GENERATED, runnable=True)},
+            {"demo-mt": dict(self.GENERATED, sprocket_count=3)},
             dict(self.LID), [], {})
         with pytest.raises(RuntimeError) as err:
             sync.main([])
-        assert "runnable" in str(err.value)
+        assert "sprocket_count" in str(err.value)
         assert "GENERATED_KEYS" in str(err.value)
+
+    def test_every_key_the_generator_can_emit_is_declared(self):
+        """`GENERATED_KEYS` has to cover the code, not just today's JSON.
+
+        `runnable` and `unrunnable_reason` are written whenever
+        `UNRUNNABLE_ARCHS` is non-empty. It is empty today, so no committed
+        entry carries them and no crawl-based check can notice - but
+        repopulating it is a one-line maintenance act, and an undeclared key
+        aborts the sync after a 280-repo crawl has already rewritten
+        `skipped.json`. This reads the assignments straight out of the
+        source, so a new `entry[...] = ` in the generator cannot be added
+        without either declaring the key or failing here.
+        """
+        source = SYNC_SCRIPT.read_text(encoding="utf-8")
+        assigned = set(re.findall(r"""entry\[["'](\w+)["']\]\s*=""", source))
+        assigned |= set(re.findall(r"""shared\[["'](\w+)["']\]\s*=""", source))
+        undeclared = assigned - sync_registry.GENERATED_KEYS
+        assert not undeclared, (
+            f"the generator assigns {sorted(undeclared)} but GENERATED_KEYS "
+            f"does not list them; the next sync would abort mid-run")
+
+    def test_repopulating_unrunnable_archs_does_not_abort_the_sync(self, sync):
+        """The documented maintenance act, end to end."""
+        generated = dict(self.GENERATED, runnable=False,
+                         unrunnable_reason="no pipeline yet")
+        sync.build = lambda: ({"demo-mt": generated}, dict(self.LID), [], {})
+        after = self._resynced(sync)
+        assert after["runnable"] is False
+        assert after["unrunnable_reason"] == "no pipeline yet"
+
+    def test_a_landed_pipeline_drops_runnable_again(self, sync, tmp_path):
+        """The removal half: emptying `UNRUNNABLE_ARCHS` has to clear both
+        keys from every committed entry, or a shipped architecture stays
+        marked unrunnable forever."""
+        index = sync.INDEX_DIR
+        entry = dict(self.CURATED, runnable=False,
+                     unrunnable_reason="no pipeline yet")
+        (index / "translate.json").write_text(
+            json.dumps({"demo-mt": entry}, indent=2) + "\n", encoding="utf-8")
+        after = self._resynced(sync)
+        assert "runnable" not in after
+        assert "unrunnable_reason" not in after
+        assert after["quality"] == self.CURATED["quality"]
+
+
+class TestAGroupModelNoteNamesTheRealDirection:
+    """`notes` is where a caller learns which way a group model runs.
+
+    `opus-mt-en-gmq` and `opus-mt-tc-big-en-zle` are English-source exports
+    whose `>>xxx<<` tokens select the *target*. The generator described them
+    as "many sources, one fixed target ('da')" while writing
+    `src_languages: ["en"]` into the same entry - the note said the model was
+    the reverse of what it is. Both entries had been corrected by hand, and
+    both corrections were reverted by every sync.
+    """
+
+    ANY_TO_ANY = {"languages": ["it", "es", "fr"],
+                  "target_token_template": ">>{code}<<"}
+    ONE_TO_FAMILY = {"src_languages": ["en"],
+                     "tgt_languages": ["da", "sv", "nb", "nn", "fo", "is"],
+                     "target_token_template": ">>{code}<<"}
+    MANY_TO_ONE = {"src_languages": ["be", "ru", "uk"], "tgt_languages": ["en"]}
+
+    def test_an_english_source_group_model_names_english_as_the_source(self):
+        note = sync_registry._marian_group_note("gmq", self.ONE_TO_FAMILY)
+        assert "en -> the 6 languages" in note
+        assert "Many sources" not in note
+
+    def test_it_does_not_advertise_a_target_as_the_fixed_one(self):
+        """The exact defect: `tgt_languages[0]` read out as "the fixed
+        target" when it is one of six selectable targets."""
+        note = sync_registry._marian_group_note("gmq", self.ONE_TO_FAMILY)
+        assert "one fixed target" not in note
+        assert "'da'" not in note
+
+    def test_it_says_the_token_set_is_the_target_side(self):
+        """Publishing the token set as a flat source list is what made the
+        router offer `ru -> uk` on an English-only encoder."""
+        note = sync_registry._marian_group_note("gmq", self.ONE_TO_FAMILY)
+        assert "target* side only" in note
+
+    def test_a_family_to_family_model_is_still_any_to_any(self):
+        note = sync_registry._marian_group_note("itc", self.ANY_TO_ANY)
+        assert "Any-to-any across the 3 languages" in note
+
+    def test_a_tokenless_group_model_is_still_many_sources_one_target(self):
+        """The third shape has to keep working: no `>>xxx<<` token at all
+        means nothing needs disambiguating."""
+        note = sync_registry._marian_group_note("zle", self.MANY_TO_ONE)
+        assert "Many sources, one fixed target ('en')" in note
+
+    def test_the_three_shapes_produce_three_different_notes(self):
+        notes = {sync_registry._marian_group_note("x", shape)
+                 for shape in (self.ANY_TO_ANY, self.ONE_TO_FAMILY,
+                               self.MANY_TO_ONE)}
+        assert len(notes) == 3
+
+    def test_the_generator_actually_calls_it(self):
+        """The mutation that stayed green until this class existed: deleting
+        the whole branch left the suite byte-identical at 3341 passed."""
+        source = SYNC_SCRIPT.read_text(encoding="utf-8")
+        body = source[source.index("def translate_entries("):]
+        assert "_marian_group_note(str(err), shared)" in body
+
+    def test_the_committed_english_source_group_entries_agree_with_it(self):
+        """The two entries this defect corrupted, as committed.
+
+        Their notes were curated by hand and now outrank the generator, so
+        nothing re-derives them - which is precisely why they need a test of
+        their own rather than trusting the next sync to fix them.
+        """
+        for model_id in ("opus-mt-en-gmq", "opus-mt-tc-big-en-zle"):
+            entry = TRANSLATE[model_id]
+            assert entry["src_languages"] == ["en"]
+            assert "one fixed target" not in entry["notes"], (
+                f"{model_id} is an English-source group model described as "
+                f"a many-source one")
+            assert str(len(entry["tgt_languages"])) in entry["notes"]
+
+
+class TestAnUpstreamCardRewriteStillReachesAReviewer:
+    """The coverage a human-wins merge takes away, given back.
+
+    Because a curated `notes` outranks the generator, the merged registry
+    text stops changing when an upstream card is rewritten - so the
+    `text == current` drift comparison sees nothing and `--check` returns 0.
+    111 entries carry a committed `notes`; only 22 are measured caveats. The
+    other 89 would be frozen, and a card rewritten to "deprecated, do not
+    use" would never surface.
+
+    So the value the generator *wanted* is committed alongside, in
+    `<kind>_overruled.json`. The registry keeps the human's text; that file
+    keeps the machine's, and a rewrite drifts it like anything else.
+    """
+
+    CURATED = TestASyncCannotDestroyCuratedRegistryData.CURATED
+    GENERATED = TestASyncCannotDestroyCuratedRegistryData.GENERATED
+    LID = TestASyncCannotDestroyCuratedRegistryData.LID
+
+    @pytest.fixture
+    def sync(self, tmp_path, monkeypatch):
+        module = _load_sync_registry()
+        index = tmp_path / "model_index"
+        index.mkdir()
+        (index / "translate.json").write_text(
+            json.dumps({"demo-mt": self.CURATED}, indent=2) + "\n",
+            encoding="utf-8")
+        (index / "lid.json").write_text(json.dumps(self.LID, indent=2) + "\n",
+                                        encoding="utf-8")
+        monkeypatch.setattr(module, "INDEX_DIR", index)
+        monkeypatch.setattr(module, "CARD_LANGUAGES_PATH",
+                            tmp_path / "hub_card_languages.json")
+        monkeypatch.setattr(module, "build",
+                            lambda: ({"demo-mt": dict(self.GENERATED)},
+                                     dict(self.LID), [], {}))
+        module._index = index
+        return module
+
+    def _settle(self, sync):
+        """One full run, so every side file matches the crawl it just saw."""
+        assert sync.main([]) == 0
+        assert sync.main(["--check"]) == 0, "a settled tree is not in sync"
+
+    def test_a_settled_tree_checks_clean(self, sync):
+        self._settle(sync)
+
+    def test_the_generators_losing_value_is_committed(self, sync):
+        sync.main([])
+        overruled = json.loads(
+            (sync._index / "translate_overruled.json").read_text())
+        assert overruled == {"demo-mt": {"notes": self.GENERATED["notes"]}}
+
+    def test_a_rewritten_upstream_card_fails_check(self, sync, capsys):
+        """The exact hole: the curated note wins, the registry text does not
+        move, and before this the run reported "in sync"."""
+        self._settle(sync)
+        rewritten = dict(self.GENERATED,
+                         notes="UPSTREAM CARD REWRITTEN: deprecated, do not use.")
+        sync.build = lambda: ({"demo-mt": rewritten}, dict(self.LID), [], {})
+
+        assert sync.main(["--check"]) == 1
+        assert "OVERRULED-DRIFT translate.json" in capsys.readouterr().err
+
+    def test_the_curated_note_still_wins_while_the_rewrite_is_recorded(
+            self, sync):
+        self._settle(sync)
+        rewritten = dict(self.GENERATED,
+                         notes="UPSTREAM CARD REWRITTEN: deprecated, do not use.")
+        sync.build = lambda: ({"demo-mt": rewritten}, dict(self.LID), [], {})
+        sync.main([])
+
+        registry = json.loads(
+            (sync._index / "translate.json").read_text())["demo-mt"]
+        overruled = json.loads(
+            (sync._index / "translate_overruled.json").read_text())
+        assert registry["notes"] == self.CURATED["notes"]
+        assert overruled["demo-mt"]["notes"] == rewritten["notes"]
+
+    def test_the_gate_is_clearable(self, sync):
+        """Failing on the disagreement itself could never be cleared - a
+        curated note differs from the generated one by definition. This one
+        is cleared the normal way: run the sync, review, commit."""
+        self._settle(sync)
+        rewritten = dict(self.GENERATED, notes="UPSTREAM CARD REWRITTEN.")
+        sync.build = lambda: ({"demo-mt": rewritten}, dict(self.LID), [], {})
+        assert sync.main(["--check"]) == 1
+        sync.main([])
+        assert sync.main(["--check"]) == 0
+
+    def test_an_unchanged_hub_does_not_churn_the_file(self, sync):
+        self._settle(sync)
+        before = (sync._index / "translate_overruled.json").read_text()
+        sync.main([])
+        assert (sync._index / "translate_overruled.json").read_text() == before

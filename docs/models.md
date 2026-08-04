@@ -187,10 +187,15 @@ python scripts/sync_registry.py            # rewrite both registries
 python scripts/sync_registry.py --check    # exit 1 if the committed JSON drifted
 ```
 
-`--check` writes nothing and is the CI guard. It prints which entries are new
+`--check` writes nothing and exits 1 on drift. It prints which entries are new
 and which are stale, so "someone published a model and forgot the registry"
 shows up as a failing check instead of a silent gap. Re-running the generator
 on an unchanged Hub produces a byte-identical file.
+
+It needs a network and a full 280-repo crawl, so no workflow runs it — it is a
+command a maintainer runs, not a gate CI applies. Everything that *can* be
+checked offline against the committed registry is a test in
+`test/test_registry_sync.py`, and those do run in CI.
 
 A sync never destroys hand-verified work. The script owns the fields it
 derives from the Hub — `GENERATED_KEYS` in `scripts/sync_registry.py`: the file
@@ -203,9 +208,24 @@ found by reading 100 translations, and `quality` holds chrF numbers measured
 against a FLORES-200/MAFAND reference that no crawl can re-derive.
 
 Where the generator disagrees with a curated field, the curated value is kept
-and the disagreement is printed, so an upstream card that genuinely changed
-still reaches a reviewer. A run that *would* overwrite curated content refuses
-to write and names each entry and field.
+— and the value the generator wanted is committed too, to
+`model_index/<kind>_overruled.json`. That file is what stops a curated field
+from freezing the entry: the registry text no longer moves when an upstream
+card is rewritten, so nothing else would report it, but `_overruled.json`
+changes and `--check` fails on it like any other drift (`OVERRULED-DRIFT` on
+stderr). Clearing it is the normal loop — run the sync, read the diff, fold in
+anything real, commit. Failing on the disagreement itself would never clear: a
+curated note differs from the generated one by definition.
+
+Fields in neither list — a typo'd `note`, or one whose generator was deleted —
+are preserved and printed with a `CURATED` prefix. They are immortal by
+design; the print is so they are not also invisible.
+
+`human_owned_losses` refuses to write if a run would fail to reproduce a
+curated value, naming each entry and field. It is a tripwire on the merge
+function, not a runtime guard: while `merge_preserving` is correct it cannot
+fire, because the merge copies exactly the set of keys it inspects. It exists
+because that function is the thing that broke.
 
 The allow-list is of generated keys, not of human ones, on purpose: a list of
 human-owned keys fails silently the first time somebody curates a field nobody
