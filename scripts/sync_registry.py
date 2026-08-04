@@ -1136,8 +1136,18 @@ def _marian_multilingual_languages(repo_id: str, files: Dict[str, int],
 #: registry alone, so `kea` is excluded rather than assumed to work along
 #: with the other ~85 untested languages this entry still carries on the
 #: same unverified-by-exhaustive-testing basis as the rest of the registry.
+#: ``opus-mt-tc-big-en-zle``: `>>orv<<` and `>>orv_Cyrl<<` (Old East Slavic)
+#: are real vocabulary tokens that produce **modern Russian**. Over five
+#: English sources the two tokens returned byte-identical output to each
+#: other 5/5, output byte-identical to `>>rus<<` 2/5, and modern Russian
+#: with no Old East Slavic morphology on the other three ("Он написал
+#: письмо своему брату", not "Онъ написа грамоту"); GlotLID reads every one
+#: as `ru`. `>>bel<<`, `>>ukr<<` and `>>rue<<` on the same checkpoint were
+#: distinct from `>>rus<<` 5/5. Same shape as `kea` below: the token exists,
+#: the language does not come out.
 _MARIAN_GROUP_EXCLUSIONS: Dict[str, Tuple[str, ...]] = {
     "opus-mt-tc-big-itc-itc": ("kea",),
+    "opus-mt-tc-big-en-zle": ("orv", "orv_Cyrl"),
 }
 
 

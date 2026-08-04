@@ -368,3 +368,34 @@ def test_the_generator_reads_direction_off_the_export_name():
     assert module._marian_group_source("opus-mt-tc-big-itc-itc-onnx") is None
     assert module._marian_group_source("opus-mt-tc-big-gmw-gmw-onnx") is None
     assert module._marian_group_source("opus-mt-itc-itc-onnx") is None
+
+
+def test_a_token_that_does_not_produce_its_language_is_not_claimed():
+    """Vocabulary presence is necessary evidence, never sufficient.
+
+    `opus-mt-tc-big-en-zle` carries `>>orv<<` and `>>orv_Cyrl<<` (Old East
+    Slavic). Both produce modern Russian: over five English sources the two
+    tokens returned byte-identical output to each other 5/5, output
+    byte-identical to `>>rus<<` 2/5, and modern Russian with no Old East
+    Slavic morphology on the other three. Same shape as `>>kea<<` on
+    `opus-mt-tc-big-itc-itc`, which is already excluded.
+    """
+    for model_id in ("opus-mt-tc-big-en-zle", "opus-mt-tc-big-en-zle-int8"):
+        entry = _registry()[model_id]
+        assert entry["tgt_languages"] == ["be", "ru", "rue", "uk"]
+        assert "orv" not in entry["native_codes"]
+        assert "orv-Cyrl" not in entry["native_codes"]
+
+
+def test_the_generator_excludes_the_same_tokens():
+    """The registry and the script that regenerates it have to agree."""
+    import importlib.util
+    from pathlib import Path as _Path
+
+    root = _Path(__file__).resolve().parent.parent
+    spec = importlib.util.spec_from_file_location(
+        "sync_registry_exclusions", root / "scripts" / "sync_registry.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module._MARIAN_GROUP_EXCLUSIONS["opus-mt-tc-big-en-zle"] == \
+        ("orv", "orv_Cyrl")

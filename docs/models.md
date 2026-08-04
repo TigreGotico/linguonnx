@@ -58,14 +58,17 @@ never downloads.
 the encoder as `<unk>` and the model answers fluent Korean nonsense.
 `transformers` builds the same broken input ids from the same files, so this
 is an upstream defect, not an ONNX one. English → Korean routes through
-M2M100 instead.
+M2M100 instead, which scores chrF 30.4 on that pair (FLORES-200 devtest,
+n=100, beam4).
 
 Three opus-mt group models translate **from English only**, into the
 languages their vocabulary carries a `>>xxx<<` token for:
-`opus-mt-tc-big-en-zle` (be, orv, ru, rue, uk), `opus-mt-en-gmq`
+`opus-mt-tc-big-en-zle` (be, ru, rue, uk), `opus-mt-en-gmq`
 (da, fo, is, nb, nn, sv) and `opus-mt-tc-big-en-cat_oci_spa` (ca, es, oc).
 The token set names the target side; the encoder reads English and nothing
-else.
+else. `opus-mt-tc-big-en-zle` also carries `>>orv<<`/`>>orv_Cyrl<<` (Old East
+Slavic) in its vocabulary, but both produce modern Russian, so neither is
+claimed.
 
 ## What is in the LID registry
 

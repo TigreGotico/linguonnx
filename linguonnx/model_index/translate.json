@@ -11669,11 +11669,10 @@
     "model_id": "opus-mt-tc-big-en-zle",
     "native_codes": {
       "be": "bel",
-      "orv-Cyrl": "orv_Cyrl",
       "ru": "rus",
       "uk": "ukr"
     },
-    "notes": "opus-mt group model ('opus-mt-tc-big-en-zle-onnx' names a collection code 'zle' on the target side: a language family, not a language). English -> the 6 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically. The token set is the *target* side only: the encoder reads English alone.",
+    "notes": "opus-mt group model ('opus-mt-tc-big-en-zle-onnx' names a collection code 'zle' on the target side: a language family, not a language). English -> the 4 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically. The token set is the *target* side only: the encoder reads English alone. `>>orv<<`/`>>orv_Cyrl<<` (Old East Slavic) are in the vocabulary but produce modern Russian, so they are not claimed.",
     "precision": "fp32",
     "side_files": {
       "source_spm": "source.spm",
@@ -11690,8 +11689,6 @@
     "target_token_template": ">>{code}<<",
     "tgt_languages": [
       "be",
-      "orv",
-      "orv-Cyrl",
       "ru",
       "rue",
       "uk"
@@ -11712,11 +11709,10 @@
     "model_id": "opus-mt-tc-big-en-zle-int8",
     "native_codes": {
       "be": "bel",
-      "orv-Cyrl": "orv_Cyrl",
       "ru": "rus",
       "uk": "ukr"
     },
-    "notes": "opus-mt group model ('opus-mt-tc-big-en-zle-onnx' names a collection code 'zle' on the target side: a language family, not a language). English -> the 6 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically. The token set is the *target* side only: the encoder reads English alone.",
+    "notes": "opus-mt group model ('opus-mt-tc-big-en-zle-onnx' names a collection code 'zle' on the target side: a language family, not a language). English -> the 4 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically. The token set is the *target* side only: the encoder reads English alone. `>>orv<<`/`>>orv_Cyrl<<` (Old East Slavic) are in the vocabulary but produce modern Russian, so they are not claimed.",
     "precision": "int8",
     "side_files": {
       "source_spm": "int8/source.spm",
@@ -11733,8 +11729,6 @@
     "target_token_template": ">>{code}<<",
     "tgt_languages": [
       "be",
-      "orv",
-      "orv-Cyrl",
       "ru",
       "rue",
       "uk"
