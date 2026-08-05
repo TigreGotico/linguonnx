@@ -324,28 +324,29 @@ model already on disk costs quality and saves nothing.
 
 ### What a budget costs in coverage
 
-Over the default selection — permissive, int8, 73 models — with an empty cache:
+Over the default selection — permissive, int8, 180 models — with an empty
+cache:
 
 | `max_model_mb` | models kept | languages routable |
 |---|---|---|
-| none | 73 | 459 |
-| 2000 | 71 | 121 |
-| 1000 | 69 | 57 |
-| 500 | 62 | 54 |
-| 300 | 56 | 29 |
+| none | 180 | 586 |
+| 2000 | 173 | 295 |
+| 1000 | 149 | 252 |
+| 500 | 124 | 249 |
+| 300 | 114 | 72 |
 
 The model column and the language column tell different stories, and the second
-one is the one to plan against. A 500 MB budget drops 11 of 73 models, but
-those 11 include `madlad400-3b-mt-int8` (4945 MB), `m2m100-1.2B-int8` (2344 MB)
+one is the one to plan against. A 500 MB budget drops 56 of 180 models, but
+those 56 include `madlad400-3b-mt-int8` (4945 MB), `m2m100-1.2B-int8` (2344 MB)
 and `m2m100-418M-int8` (1207 MB), and the big multilingual models are where the
 long tail of languages lives. MADLAD is the only model in the registry with
 Chuvash at all; no chain of small models replaces it, because there is no small
 model on either side of it.
 
-What survives is what has bilingual models: the ~50 languages opus-mt, mt-hitz
-and the Iberian pairs cover between them. `pt -> ru`, `nl -> fi`, `pt -> eu`
-all still route under 500 MB, as chains. `de -> ja` does not, because nothing
-under 500 MB has Japanese.
+What survives is what has bilingual models: the 249 languages opus-mt,
+mt-hitz, NLLB-200-distilled and the Iberian pairs cover between them.
+`pt -> ru`, `nl -> fi`, `pt -> eu` all still route under 500 MB, as chains.
+`en -> cv` does not, because MADLAD is the only model with Chuvash.
 
 So a budget is not a way to shrink the registry evenly. It keeps the
 well-served pairs and drops the tail, and `available_languages` says which is
@@ -353,14 +354,79 @@ which:
 
 ```python
 tx = load_translator(max_model_mb=500, count_cached_as_free=False)
-print(len(tx.available_languages))       # 54
+print(len(tx.available_languages))       # 249
 print(tx.can_translate("pt", "ru"))      # True — via a chain
-print(tx.can_translate("de", "ja"))      # False — no small model has Japanese
+print(tx.can_translate("en", "cv"))      # False — only MADLAD has Chuvash
 ```
 
 `available_languages` is filtered by the budget for the same reason it is
 filtered by runnability: a caller reads it as "these are the languages I can
 ask for", and it has to answer for the models `route()` will actually use.
+
+### Keeping the tail anyway: `oversize_fallback`
+
+The table above is the reason a budget set for *latency* is a bad instrument.
+On a warm server nothing is being downloaded; the cost the budget is really
+bounding is ONNX session-load time, which a 1.8 GB model pays on every request
+that a 4-slot model cache cannot keep warm. But the budget that fixes that
+deletes 400 languages, because the tail exists only inside the models it
+excludes.
+
+`oversize_fallback=True` makes the budget a **preference** instead of a
+filter:
+
+<!-- doc-check: norun the answers depend on the registry and the local cache -->
+```python
+tx = load_translator(max_model_mb=500, oversize_fallback=True)
+
+print(tx.route("en", "ca").model_ids)      # ('opus-mt-en-ca-int8',)   165 MB
+print(tx.route("en", "cv").model_ids)      # ('madlad400-3b-mt-int8',) 4945 MB
+print(tx.route("en", "cv").waived_size_cap)  # 500
+print(len(tx.available_languages))         # 586, not 249
+```
+
+`en -> ca` stays on the small model, because one exists. Chuvash routes at
+all, because nothing under the cap has it and the alternative is not a
+different route but no route. Four rules make that safe:
+
+- **Per request.** The wider search runs only for the pair that came back
+  empty. A pair with a route under the cap never enumerates an oversized
+  model, so an oversized model can never *win* a pair a small one serves.
+- **Smallest sufficient.** The cap is raised one model size at a time, not
+  lifted. A pair in both NLLB (1866 MB) and MADLAD (4945 MB) gets NLLB.
+- **Per model, not per route.** A two-hop chain of 237 MB models is 474 MB in
+  total and is found by the capped search. The cap bounds one session load,
+  and a chain pays it in pieces the cache can hold.
+- **Never past the download budget.** The escalation stops at
+  `LINGUONNX_MAX_DOWNLOAD_MB` (8192 MB by default), so routing keeps agreeing
+  with what `ensure_model_files` will fetch — except for a model already on
+  disk, which `ensure_model_files` does not budget-check either, because it
+  downloads nothing. Routing keeps such a model as a fallback step for the
+  same reason.
+
+`Route.waived_size_cap` says which cap a route was allowed past, and `None`
+says the route fits the budget. `str(route)` reports it too. An exception to a
+limit an operator configured must be visible, or it is indistinguishable from
+the limit not working.
+
+With `oversize_fallback=True`, `count_cached_as_free` defaults to `False`. The
+cached-is-free exemption is right for a download budget and wrong here: on a
+warm cache it exempts every model there is, and the budget silently stops
+doing anything.
+
+That default belongs to the **constructor flag only**. Passing
+`oversize_fallback=True` to a single `route()` call on a graph built without it
+keeps that graph's `count_cached_as_free`, which is `True`, so on a warm cache
+the cap already exempts every cached model and the per-call flag has almost
+nothing left to do — and `waived_size_cap` stays `None`, because no cap was
+waived: the model was admitted by the cached-is-free rule, not by the fallback.
+Pass `count_cached_as_free=False` in the same call to get the constructor's
+load-latency semantics per request:
+
+<!-- doc-check: norun the answer depends on what this host has cached -->
+```python
+tx.route("en", "cv", oversize_fallback=True, count_cached_as_free=False)
+```
 
 ### The budget and the hop cap interact
 
@@ -414,6 +480,44 @@ Routing is the only thing the budget governs. `translate(model=...)` pins a
 model and bypasses routing entirely, and it stays pinned; the download bound
 that protects that path is `LINGUONNX_MAX_DOWNLOAD_MB`, in
 `linguonnx/model_manager.py`.
+
+### Routing is cache-dependent
+
+Whenever `LINGUONNX_MAX_DOWNLOAD_MB` is below the largest runnable model, the
+same registry and the same configuration can give two hosts different routes.
+`ensure_model_files` checks the download budget only when a file is missing, so
+a model already on disk costs no download and the budget never sees it. Routing
+follows that rule, because the alternative is to promise a route the downloader
+then refuses.
+
+Measured, with a 600 MB budget:
+
+| box | `tx.route("en", "cv")` | time |
+|-----|------------------------|------|
+| cold | `NoRouteError` | 55 ms |
+| warm (MADLAD on disk) | `('madlad400-3b-mt-int8',)` | 12227 ms |
+
+Both answers are correct for the box they came from. The cold box is telling
+the truth: it cannot fetch 4945 MB under a 600 MB budget. The warm box is also
+telling the truth: it has to fetch nothing.
+
+Two consequences worth planning for.
+
+- A fleet is not uniform unless its caches are. Prefetch the models you intend
+  to serve, or raise the budget above the largest one, and the difference goes
+  away. Either way, do not read one box's `languages` as the fleet's.
+- The first response for a language in this tail is slow, because the cost is
+  session-load time on multi-gigabyte weights, not download time.
+
+The exemption is per model, not per size. A cached 4945 MB model does not admit
+an uncached 1207 MB one alongside it: the escalated search re-checks the budget
+against each model, so nothing enters a route that the download path would
+reject.
+
+The coverage figures in this document are not cache-dependent. They are pinned
+in `test/test_translate_registry_numbers.py` under
+`count_cached_as_free=False` with the budget cleared, which is what makes them
+a property of the registry rather than of a machine.
 
 ### What a route costs to fetch
 

@@ -47,6 +47,72 @@ capability list, so the budget cannot be applied at some points of the search
 and forgotten at others - which is how ``endpoints()`` and ``covers()`` once
 came to disagree.
 
+Oversize fallback
+-----------------
+
+``oversize_fallback=True`` turns the budget from a **filter** into a
+**preference**: a pair a model under the cap can serve is served by that
+model, and a pair *nothing* under the cap can serve falls back to the
+smallest oversized model that does, rather than failing.
+
+The filter semantics alone force a choice nobody wants to make. The long tail
+of languages exists only inside a few very large multilingual models - MADLAD
+(4945 MB), NLLB (1866 MB), M2M100-418M (1207 MB) - so a 500 MB cap that
+excludes them outright drops routable languages from 586 to 249 on the
+default registry with an empty cache (``test_translate_registry_numbers.py``
+pins both numbers). Lifting the cap instead lets those same models win pairs
+that a 165 MB ``opus-mt`` pair already served, because "one multilingual hop"
+outranks "two dedicated hops" under ``prefer="fewest_hops"`` and a 1.8 GB
+bilingual model outranks nothing at all under ``prefer="dedicated"``. Neither
+knob position is right, because the cap was never really about
+*which model is best* - it is about not paying
+multi-gigabyte session-load latency for a pair that does not need it.
+
+So the fallback is:
+
+**Per request, never global.**
+    The wider search runs only for the pair that came back empty. A pair with
+    a route under the cap never sees the oversized models at all, so nothing
+    oversized can re-enter ranking and beat a small model that already works.
+
+**Smallest sufficient, by construction.**
+    The fallback does not lift the cap; it *raises* it, one step at a time,
+    through the distinct sizes of the oversized models that touch ``src`` or
+    ``tgt`` (every model on a route from ``src`` to ``tgt`` must touch one of
+    them, so that list is complete), ascending, and stops at the first size
+    that yields a route. A pair served by both NLLB and MADLAD gets NLLB
+    without any change to the cost model - the smaller index is simply
+    searched first. See :meth:`TranslationGraph._fallback_steps`.
+
+**Per model, not per route.**
+    The cap bounds one model, and so does the fallback. A two-hop chain of
+    two 200 MB models is found by the *capped* search under a 500 MB cap and
+    wins, even though its total is 400 MB and even though a 3469 MB two-hop
+    chain of oversized models also exists: the oversized chain is never
+    enumerated, because the capped search did not come back empty. This is
+    deliberate. Session load time - the thing the cap is really bounding - is
+    paid per model, per hop, and a chain of small models pays it in small
+    pieces that the model cache can actually hold.
+
+**Bounded above by the download budget.**
+    The escalation never admits a model the downloader would then refuse
+    (``LINGUONNX_MAX_DOWNLOAD_MB``, default 8192 MB), so routing keeps
+    agreeing with what ``ensure_model_files`` will fetch. A fallback that
+    routed through a 9294 MB model and then raised ``DownloadTooLargeError``
+    would trade one confusing failure for another.
+
+**Visible.**
+    A route that used the exception carries :attr:`Route.waived_size_cap` -
+    the cap it was allowed past - and says so in ``str(route)``. A silent
+    exception to a limit the operator configured is indistinguishable from
+    the limit not working.
+
+Because a fallback exists, ``count_cached_as_free`` defaults to ``False``
+when ``oversize_fallback`` is on. The exemption for an already-downloaded
+model is right when the cap is a *download* budget, and wrong when it is a
+load-latency budget: on a warm cache every model is cached, so the cap would
+exempt everything and do nothing at all. Pass it explicitly to override.
+
 Cost model
 ----------
 
@@ -130,7 +196,7 @@ from __future__ import annotations
 
 import itertools
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from functools import lru_cache
 from typing import (Dict, FrozenSet, Iterable, List, Optional, Sequence,
@@ -668,6 +734,19 @@ class Route:
     #: curated :data:`REGIONAL_PIVOTS` plus the preference list). Reported even
     #: on direct routes, where it simply says what *would* have been used.
     pivot_basis: str = "table"
+    #: The ``max_model_mb`` this route was allowed past, or ``None`` when it
+    #: fits the configured budget. Set only by the ``oversize_fallback``
+    #: search, which runs when nothing under the cap covers the pair - so a
+    #: non-``None`` value reads "no model under {this} MB could do it". The
+    #: exception has to be inspectable: an operator who set a cap and then
+    #: measures a multi-second load has to be able to see that the cap was
+    #: waived, and why, without re-deriving the search.
+    waived_size_cap: Optional[int] = None
+
+    @property
+    def used_oversize_fallback(self) -> bool:
+        """Whether this route only exists because the size cap was waived."""
+        return self.waived_size_cap is not None
 
     @property
     def n_hops(self) -> int:
@@ -762,7 +841,12 @@ class Route:
 
     def __str__(self) -> str:
         chain = " | ".join(str(h) for h in self.hops)
-        return f"[{self.src}->{self.tgt}, {self.n_hops} hop(s), prefer={self.prefer}] {chain}"
+        waived = ""
+        if self.waived_size_cap is not None:
+            waived = (f", {self.waived_size_cap} MB size cap waived: "
+                      f"nothing under it covers this pair")
+        return (f"[{self.src}->{self.tgt}, {self.n_hops} hop(s), "
+                f"prefer={self.prefer}{waived}] {chain}")
 
 
 def _route_key(route: Route, prefer: str) -> tuple:
@@ -833,7 +917,18 @@ class _Index:
 
 def _build_index(capabilities: Iterable[Capability],
                  max_model_mb: Optional[int],
-                 count_cached_as_free: bool) -> _Index:
+                 count_cached_as_free: bool,
+                 download_ceiling: Optional[int] = None) -> _Index:
+    """Split the registry into what a search may use and what it may not.
+
+    ``download_ceiling`` is the cold-download budget, and it is a *second*,
+    per-model filter that the size cap cannot express. The escalation steps
+    are sizes, so admitting one cached model above the budget would otherwise
+    admit every uncached model of that size or below with it - a route the
+    downloader then refuses. Passing the ceiling here re-applies the
+    exemption where it belongs, model by model: over the budget and not on
+    disk means out, however wide the step.
+    """
     bilingual: Dict[Tuple[str, str], List[Capability]] = {}
     multilingual: List[Capability] = []
     endpoints: set = set()
@@ -841,6 +936,10 @@ def _build_index(capabilities: Iterable[Capability],
     oversized: List[Capability] = []
     for cap in capabilities:
         if not cap.within_size_cap(max_model_mb, count_cached_as_free):
+            oversized.append(cap)
+            continue
+        if download_ceiling is not None and cap.size_mb > download_ceiling \
+                and not cap.is_cached:
             oversized.append(cap)
             continue
         kept.append(cap)
@@ -870,7 +969,8 @@ class TranslationGraph:
         max_routes: int = 10,
         pivot_ranking: str = "auto",
         max_model_mb: Union[int, None, "_Unset"] = UNSET,
-        count_cached_as_free: bool = True,
+        count_cached_as_free: Union[bool, "_Unset"] = UNSET,
+        oversize_fallback: bool = False,
     ):
         if max_hops < 1:
             raise ValueError("max_hops must be at least 1")
@@ -909,7 +1009,15 @@ class TranslationGraph:
         self._by_model: Dict[str, Capability] = {
             cap.model_id: cap for cap in self.capabilities}
         self.max_model_mb = self._check_max_model_mb(max_model_mb)
-        self.count_cached_as_free = count_cached_as_free
+        #: Whether a pair no model under the cap covers may fall back to the
+        #: smallest oversized model that does. See the module docstring.
+        self.oversize_fallback = bool(oversize_fallback)
+        # The cached-is-free exemption is about a *download* budget. With a
+        # fallback in play the cap is a load-latency budget instead, and on a
+        # warm cache the exemption would waive it for every model there is.
+        self.count_cached_as_free = (not self.oversize_fallback) \
+            if isinstance(count_cached_as_free, _Unset) \
+            else bool(count_cached_as_free)
         self._indexes: Dict[Tuple[Optional[int], bool], _Index] = {}
         self._index = self._index_for(self.max_model_mb,
                                       self.count_cached_as_free)
@@ -952,12 +1060,13 @@ class TranslationGraph:
         return value
 
     def _index_for(self, max_model_mb: Optional[int],
-                   count_cached_as_free: bool) -> _Index:
-        key = (max_model_mb, count_cached_as_free)
+                   count_cached_as_free: bool,
+                   download_ceiling: Optional[int] = None) -> _Index:
+        key = (max_model_mb, count_cached_as_free, download_ceiling)
         index = self._indexes.get(key)
         if index is None:
             index = _build_index(self._runnable, max_model_mb,
-                                 count_cached_as_free)
+                                 count_cached_as_free, download_ceiling)
             self._indexes[key] = index
         return index
 
@@ -970,6 +1079,136 @@ class TranslationGraph:
             else count_cached_as_free
         return self._index_for(cap, free)
 
+    # -- oversize fallback ------------------------------------------------
+
+    @staticmethod
+    def _fallback_ceiling() -> Optional[int]:
+        """The highest cap the fallback may escalate to.
+
+        The cold-download budget, read now rather than at import, so routing
+        keeps agreeing with what ``ensure_model_files`` will actually fetch.
+        Escalating past it would plan a route through a model the downloader
+        then refuses with ``DownloadTooLargeError`` - a worse failure than the
+        honest "no route", because it arrives later and names the wrong knob.
+        """
+        from linguonnx.model_manager import download_budget_mb
+
+        return download_budget_mb()
+
+    def _fallback_steps(self, index: _Index, src: Optional[str] = None,
+                        tgt: Optional[str] = None,
+                        max_hops: Optional[int] = None) -> List[int]:
+        """Ascending caps to retry ``src -> tgt`` under, smallest first.
+
+        Each step is the size of one oversized model, so raising the cap to it
+        admits that model and every smaller one, and nothing else. Trying them
+        in order is what makes "smallest sufficient fallback" true by
+        construction rather than by a tie-break the cost model has to get
+        right: NLLB (1866 MB) is searched, and wins, before MADLAD (4945 MB)
+        is ever enumerated.
+
+        Only models that touch ``src`` or ``tgt`` are considered, and at
+        ``max_hops <= 2`` that loses nothing: a one-hop route is one model
+        with both endpoints in it, and a two-hop route is ``src -> pivot``
+        then ``pivot -> tgt``, so each of its two models still holds ``src``
+        or ``tgt``. It stops being true at three hops, where the middle model
+        of ``src -> p1 -> p2 -> tgt`` touches neither endpoint - so above two
+        hops the filter is dropped and the whole graph's steps are used. That
+        keeps ``route`` and :attr:`languages` answering for the same models,
+        which is the invariant :class:`_Index` exists to hold, and it costs
+        nothing on the common path: the filter is what takes an unroutable
+        pair from a search per oversized size to two searches, and
+        ``max_hops <= 2`` still gets it. Omit the pair to get the steps for
+        the whole graph, which is what :attr:`languages` needs.
+
+        A model already on disk is exempt from the download ceiling, because
+        ``ensure_model_files`` only checks the download budget when a file is
+        missing. Filtering it out here would refuse a route the downloader
+        would have served, and the error would then advise prefetching a
+        model that is already prefetched.
+
+        That exemption is per model, but a step is a *size*, so it cannot
+        carry the exemption with it: a step raised to a cached 4945 MB model
+        also admits an uncached 1207 MB one that the budget forbids. The
+        exemption is therefore re-applied per model when the escalated index
+        is built - see the ``download_ceiling`` argument of
+        :func:`_build_index` - and the steps here only decide *how far* the
+        search may reach, never *who* it reaches.
+        """
+        cap = index.max_model_mb
+        if cap is None:
+            return []
+        ceiling = self._fallback_ceiling()
+        hops = self.max_hops if max_hops is None else max_hops
+        endpoint_filter = (src is not None or tgt is not None) and hops <= 2
+        sizes = set()
+        for capability in index.oversized:
+            # Every member of `index.oversized` already failed
+            # `within_size_cap` against this same cap, so it is over it by
+            # construction - the cached-is-free rule only ever *keeps* a
+            # model, it never puts one here. No size re-check is needed.
+            if endpoint_filter:
+                ends = capability.endpoints()
+                if src not in ends and tgt not in ends:
+                    continue
+            # Last, because `is_cached` stats the filesystem: the endpoint
+            # filter above has already dropped most of the registry by then,
+            # so a request pays the disk check for a handful of models rather
+            # than for every oversized one.
+            if ceiling is not None and capability.size_mb > ceiling \
+                    and not capability.is_cached:
+                continue
+            sizes.add(capability.size_mb)
+        return sorted(sizes)
+
+    def _search(self, src: str, tgt: str, max_hops: int, prefer: str,
+                short_circuit: bool, index: _Index,
+                fallback: bool) -> Tuple[List[Route], Optional[int]]:
+        """Enumerate under the cap, then above it only if that found nothing.
+
+        Returns the routes and the cap that was waived to get them, ``None``
+        when the cap was respected. The order is the whole point: the wider
+        search is unreachable for any pair the capped one can serve, so an
+        oversized model can never outrank a small model that already works.
+
+        The escalation is bounded twice over. It is bounded *by construction*
+        at one search per distinct oversized model size - 34 of them on the
+        default registry under a 500 MB cap, and fewer once the pair's own
+        endpoint filter applies - never more than the model count. It is
+        bounded again, and much more tightly, by probing the **widest** step
+        before scanning the ascending ones: the
+        step indexes are nested, so a pair the widest cap cannot route is a
+        pair no step can, and without the probe every unroutable pair pays a
+        full two-hop search per step to arrive at the same empty list. That
+        is the request-facing cost - a miss is what a server answers with 404
+        - and it drops from N searches to two.
+        """
+        found = self._enumerate(src, tgt, max_hops, prefer, short_circuit,
+                                index)
+        if found or not fallback:
+            return found, None
+        steps = self._fallback_steps(index, src, tgt, max_hops)
+        if not steps:
+            return [], None
+        ceiling = self._fallback_ceiling()
+        widest = self._index_for(steps[-1], index.count_cached_as_free,
+                                 ceiling)
+        at_widest = self._enumerate(src, tgt, max_hops, prefer, short_circuit,
+                                    widest)
+        if not at_widest:
+            return [], None
+        for step in steps[:-1]:
+            wider = self._index_for(step, index.count_cached_as_free, ceiling)
+            found = self._enumerate(src, tgt, max_hops, prefer, short_circuit,
+                                    wider)
+            if found:
+                return found, index.max_model_mb
+        return at_widest, index.max_model_mb
+
+    def _fallback_on(self, oversize_fallback: Optional[bool]) -> bool:
+        return self.oversize_fallback if oversize_fallback is None \
+            else bool(oversize_fallback)
+
     # -- introspection ----------------------------------------------------
 
     @property
@@ -979,11 +1218,17 @@ class TranslationGraph:
         A language only an unrunnable or over-budget model reaches is not
         listed, because a caller reads this as "these are the languages I can
         ask for", and both filters apply to the models :meth:`route` will use.
+
+        With ``oversize_fallback`` on, a language reachable *only* through an
+        oversized model is listed, because :meth:`route` will now serve it.
+        The cap still decides which model serves the pairs it can serve; it no
+        longer decides which languages exist.
         """
-        return self._index.languages
+        return self._languages_for(self._index, self.oversize_fallback)
 
     def languages_under(self, max_model_mb: Union[int, None, "_Unset"] = UNSET,
-                        count_cached_as_free: Optional[bool] = None
+                        count_cached_as_free: Optional[bool] = None,
+                        oversize_fallback: Optional[bool] = None
                         ) -> FrozenSet[str]:
         """:attr:`languages` for a size cap this graph was not built with.
 
@@ -991,7 +1236,25 @@ class TranslationGraph:
         :meth:`route`, so a caller who overrides the budget for one call can
         still ask what that budget covers.
         """
-        return self._resolve(max_model_mb, count_cached_as_free).languages
+        index = self._resolve(max_model_mb, count_cached_as_free)
+        return self._languages_for(index, self._fallback_on(oversize_fallback))
+
+    def _languages_for(self, index: _Index, fallback: bool) -> FrozenSet[str]:
+        """The languages :meth:`route` can reach against ``index``.
+
+        Answered from one index built at the escalation ceiling rather than by
+        walking every step: the steps are nested, so their union is the widest
+        of them, and this is read on the hot path by servers advertising a
+        language list.
+        """
+        if not fallback:
+            return index.languages
+        steps = self._fallback_steps(index)
+        if not steps:
+            return index.languages
+        widest = self._index_for(steps[-1], index.count_cached_as_free,
+                                 self._fallback_ceiling())
+        return index.languages | widest.languages
 
     @property
     def oversized_capabilities(self) -> Tuple[Capability, ...]:
@@ -1191,7 +1454,8 @@ class TranslationGraph:
                prefer: Optional[str] = None,
                limit: Optional[int] = None,
                max_model_mb: Union[int, None, "_Unset"] = UNSET,
-               count_cached_as_free: Optional[bool] = None) -> List[Route]:
+               count_cached_as_free: Optional[bool] = None,
+               oversize_fallback: Optional[bool] = None) -> List[Route]:
         """Every viable route, ranked best-first under the active policy.
 
         Bounded on purpose: returns at most ``limit`` routes (default
@@ -1209,8 +1473,12 @@ class TranslationGraph:
         index = self._resolve(max_model_mb, count_cached_as_free)
         if src == tgt:
             return []
-        found = self._enumerate(src, tgt, max_hops, prefer,
-                                short_circuit=False, index=index)
+        found, waived = self._search(src, tgt, max_hops, prefer,
+                                     short_circuit=False, index=index,
+                                     fallback=self._fallback_on(
+                                         oversize_fallback))
+        if waived is not None:
+            found = [replace(r, waived_size_cap=waived) for r in found]
         found.sort(key=lambda r: _route_key(r, prefer))
         # Dedupe identical hop chains that different pivot orders produced.
         out, seen = [], set()
@@ -1227,13 +1495,15 @@ class TranslationGraph:
     def route(self, src: str, tgt: str, max_hops: Optional[int] = None,
               prefer: Optional[str] = None,
               max_model_mb: Union[int, None, "_Unset"] = UNSET,
-              count_cached_as_free: Optional[bool] = None) -> Route:
+              count_cached_as_free: Optional[bool] = None,
+              oversize_fallback: Optional[bool] = None) -> Route:
         """The single best route, or raise :class:`NoRouteError`.
 
-        ``max_model_mb`` and ``count_cached_as_free`` override the graph's own
-        size budget for this call, the way ``max_hops`` and ``prefer`` override
-        the hop cap and the policy. Omit them to inherit; pass
-        ``max_model_mb=None`` to lift the budget for one call.
+        ``max_model_mb``, ``count_cached_as_free`` and ``oversize_fallback``
+        override the graph's own size budget for this call, the way
+        ``max_hops`` and ``prefer`` override the hop cap and the policy. Omit
+        them to inherit; pass ``max_model_mb=None`` to lift the budget for one
+        call.
         """
         raw_src, raw_tgt = src, tgt
         src, tgt = self._node(src), self._node(tgt)
@@ -1244,17 +1514,22 @@ class TranslationGraph:
             raise NoRouteError(
                 f"source and target are the same language ({src!r}); nothing to translate")
         index = self._resolve(max_model_mb, count_cached_as_free)
-        found = self._enumerate(src, tgt, max_hops, prefer, short_circuit=True,
-                                index=index)
+        found, waived = self._search(src, tgt, max_hops, prefer,
+                                     short_circuit=True, index=index,
+                                     fallback=self._fallback_on(
+                                         oversize_fallback))
         if not found:
             raise NoRouteError(
                 f"no route from {raw_src!r} to {raw_tgt!r} within "
                 f"{max_hops} hop(s)"
-                f"{self._why_not(src, tgt, max_hops, prefer, index)}")
-        return min(found, key=lambda r: _route_key(r, prefer))
+                f"{self._why_not(src, tgt, max_hops, prefer, index, fallback=self._fallback_on(oversize_fallback))}")
+        best = min(found, key=lambda r: _route_key(r, prefer))
+        if waived is not None:
+            best = replace(best, waived_size_cap=waived)
+        return best
 
     def _why_not(self, src: str, tgt: str, max_hops: int, prefer: str,
-                 index: _Index) -> str:
+                 index: _Index, fallback: bool = False) -> str:
         """Name the constraint that actually blocked the route.
 
         Two caps can each turn a servable pair into a failure, they are fixed
@@ -1289,6 +1564,18 @@ class TranslationGraph:
             if self._enumerate(src, tgt, 2, prefer, short_circuit=True,
                                index=index):
                 hint += "; a 2-hop route exists, so raise max_hops to use it"
+        if fallback:
+            # `max_model_mb` did not block this pair - the fallback already
+            # waived it and still found nothing, so naming it sends the
+            # operator to a knob that is switched off for exactly this case.
+            ceiling = self._download_ceiling_hint(src, tgt, max_hops, prefer,
+                                                  index)
+            if ceiling:
+                return hint + ceiling
+            if hint:
+                return hint
+            return (self._excluded_licence_hint(src, tgt)
+                    + self._unrunnable_hint(src, tgt))
         if index.oversized:
             uncapped = self._index_for(None, True)
             if self._enumerate(src, tgt, max_hops, prefer, short_circuit=True,
@@ -1307,6 +1594,54 @@ class TranslationGraph:
             return hint
         return (self._excluded_licence_hint(src, tgt)
                 + self._unrunnable_hint(src, tgt))
+
+    def _download_ceiling_hint(self, src: str, tgt: str, max_hops: int,
+                               prefer: str, index: _Index) -> str:
+        """Name the download budget when it, not the size cap, blocked a pair.
+
+        Only reachable with ``oversize_fallback`` on. There the size cap is a
+        preference and was already waived for this pair, so the model that
+        would serve it was not kept out by ``max_model_mb`` at all - it was
+        kept out by ``LINGUONNX_MAX_DOWNLOAD_MB``, which
+        :meth:`_fallback_steps` refuses to escalate past so that routing keeps
+        agreeing with ``ensure_model_files``.
+
+        Saying "raise max_model_mb" here is worse than saying nothing. Raising
+        it does make the route appear, because an explicit cap is not clamped
+        to the download budget - and then ``translate()`` fetches the model
+        and fails with ``DownloadTooLargeError``. The advice would walk the
+        operator from a clear failure into a confusing one.
+
+        A model already on disk is never named here, because
+        ``ensure_model_files`` checks the download budget only when a file is
+        missing: a cached model is not blocked by the budget, so
+        :meth:`_fallback_steps` keeps it and this hint has nothing to say
+        about it. That is what makes "prefetch the model" true advice - the
+        models this message names are exactly the ones prefetching would
+        unblock.
+        """
+        ceiling = self._fallback_ceiling()
+        if ceiling is None:
+            return ""
+        uncapped = self._index_for(None, index.count_cached_as_free)
+        if not self._enumerate(src, tgt, max_hops, prefer, short_circuit=True,
+                               index=uncapped):
+            return ""  # genuinely uncovered; not a budget question at all
+        blocking = sorted({
+            f"{cap.model_id} ({cap.size_mb} MB)"
+            for cap in index.oversized
+            if cap.size_mb > ceiling and not cap.is_cached
+            and self._could_serve(cap, src, tgt, uncapped, max_hops)})
+        if not blocking:
+            return ""
+        return (
+            f" -- the {index.max_model_mb} MB size cap (max_model_mb) was "
+            f"already waived for this pair (oversize_fallback), but the "
+            f"{ceiling} MB download budget (LINGUONNX_MAX_DOWNLOAD_MB) still "
+            f"excludes the only model(s) that would serve it: "
+            f"{', '.join(blocking)}. Raise LINGUONNX_MAX_DOWNLOAD_MB, or "
+            f"prefetch the model so no download is needed; raising "
+            f"max_model_mb will not help")
 
     def _could_serve(self, cap: Capability, src: str, tgt: str,
                      uncapped: _Index, max_hops: int) -> bool:
@@ -1362,7 +1697,8 @@ class TranslationGraph:
 
     def can_translate(self, src: str, tgt: str, max_hops: Optional[int] = None,
                       max_model_mb: Union[int, None, "_Unset"] = UNSET,
-                      count_cached_as_free: Optional[bool] = None) -> bool:
+                      count_cached_as_free: Optional[bool] = None,
+                      oversize_fallback: Optional[bool] = None) -> bool:
         """Whether :meth:`route` would succeed *and* the route would execute.
 
         Answers for the same models ``translate()`` will use: a pair served
@@ -1372,7 +1708,8 @@ class TranslationGraph:
         try:
             self.route(src, tgt, max_hops=max_hops,
                        max_model_mb=max_model_mb,
-                       count_cached_as_free=count_cached_as_free)
+                       count_cached_as_free=count_cached_as_free,
+                       oversize_fallback=oversize_fallback)
             return True
         except NoRouteError:
             return False
