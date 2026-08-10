@@ -20,7 +20,9 @@ from __future__ import annotations
 import logging
 import threading
 from collections import OrderedDict
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from contextlib import contextmanager
+from typing import (Dict, Iterable, Iterator, List, Optional, Sequence, Tuple,
+                    Union)
 
 from linguonnx.limits import operator_budget_is_set
 from linguonnx.model_manager import list_models
@@ -47,6 +49,20 @@ __all__ = ["Translator", "load_translator", "Route", "Hop", "NoRouteError",
 #: restarts cold and pays every download again. Four keeps a two-hop route and
 #: its neighbours warm while staying inside a few GB.
 DEFAULT_MODEL_CACHE_SIZE = 4
+
+#: Byte budget for the *cache*, in MB. ``None`` means no byte budget, so
+#: ``model_cache_size`` alone bounds it, exactly as before this field existed.
+#:
+#: This bounds what the cache RETAINS. It does not bound peak RSS, and no
+#: cache setting can: a model being translated through is resident because a
+#: thread is using it, not because the cache kept it. See
+#: :attr:`Translator.loaded_mb` and ``docs/models.md`` for the real formula.
+DEFAULT_MAX_LOADED_MB = None
+
+#: How many translations may run at once, or ``None`` for no limit. This is
+#: the only setting that bounds peak RSS, because the in-flight models are
+#: the dominant term on a threaded server - see ``docs/models.md``.
+DEFAULT_MAX_CONCURRENT_TRANSLATIONS = None
 
 
 def _select_entries(precision: Optional[str], include_noncommercial: bool,
@@ -102,6 +118,9 @@ class Translator:
                  num_beams: int = 4, max_new_tokens: int = 128,
                  length_penalty: float = 1.0, no_repeat_ngram_size: int = 0,
                  model_cache_size: int = DEFAULT_MODEL_CACHE_SIZE,
+                 max_loaded_mb: Optional[int] = DEFAULT_MAX_LOADED_MB,
+                 max_concurrent_translations: Optional[int] =
+                 DEFAULT_MAX_CONCURRENT_TRANSLATIONS,
                  enforce_download_budget: bool = True):
         self._entries = entries
         # Routing and downloading have to agree. `max_model_mb` keeps the
@@ -146,6 +165,20 @@ class Translator:
         if model_cache_size < 1:
             raise ValueError("model_cache_size must be at least 1")
         self._cache_size = model_cache_size
+        if max_loaded_mb is not None and max_loaded_mb < 1:
+            raise ValueError("max_loaded_mb must be at least 1, or None")
+        self._max_loaded_mb = max_loaded_mb
+        if max_concurrent_translations is not None \
+                and max_concurrent_translations < 1:
+            raise ValueError(
+                "max_concurrent_translations must be at least 1, or None")
+        self._max_concurrent = max_concurrent_translations
+        # The only bound on peak RSS. A cache limit cannot provide one: an
+        # in-flight model is held by the thread decoding through it, not by
+        # the cache, so evicting it frees nothing. Limiting how many decodes
+        # run at once limits how many models can be resident at once.
+        self._slots = (threading.Semaphore(max_concurrent_translations)
+                       if max_concurrent_translations is not None else None)
         self._loaded: "OrderedDict[str, TranslationModel]" = OrderedDict()
         # `_cache_lock` guards the cache bookkeeping only and is never held
         # across a load. The per-model locks in `_load_locks` are what a cold
@@ -283,6 +316,45 @@ class Translator:
         with self._cache_lock:
             return list(self._loaded)
 
+    @property
+    def max_loaded_mb(self) -> Optional[int]:
+        """The cache's byte budget in MB, or ``None`` for no budget."""
+        return self._max_loaded_mb
+
+    @property
+    def max_concurrent_translations(self) -> Optional[int]:
+        """How many translations may run at once, or ``None`` for no limit."""
+        return self._max_concurrent
+
+    @property
+    def loaded_mb(self) -> int:
+        """Declared MB the cache currently retains, over :attr:`loaded_models`.
+
+        This is the registry's ``size_mb``, **not** measured RSS, and that is
+        deliberate. The ONNX sessions are memory-mapped, so a session's RSS
+        depends on which pages the last request happened to touch: it climbs
+        as a model is used and does not fall when it stops being used. You
+        cannot evict against a number that moves under you, and two hosts
+        running the same route would read different numbers. ``size_mb``
+        already drives routing (``max_model_mb``), it is stable, and it is
+        known *before* the model is loaded - which is what a budget needs.
+
+        It is a proxy, and a generous one. Measured on this library's own
+        models, peak RSS runs **1.8x to 3.7x** the declared size, and the
+        multiplier moves *inversely* with size: 78 MB -> 288 MB is 3.7x,
+        1207 MB -> 2166 MB is 1.8x. A fixed per-process cost - ONNX Runtime
+        and its arenas - dominates a small model and is noise for a large one.
+
+        This counts what the **cache retains**, which is bounded by
+        ``max_loaded_mb`` at all times. It is not process RSS and does not
+        try to be: a model being translated through by a thread that already
+        took it out of the cache is resident and is not counted here, because
+        the cache neither owns it nor can free it. Bound that term with
+        ``max_concurrent_translations``; see ``docs/models.md``.
+        """
+        with self._cache_lock:
+            return self._loaded_mb_locked()
+
     def _touch(self, model_id: str) -> Optional[TranslationModel]:
         """The cached model, moved to the most-recent end. None if not cached."""
         with self._cache_lock:
@@ -291,18 +363,72 @@ class Translator:
                 self._loaded.move_to_end(model_id)
             return model
 
+    def _size_mb(self, model_id: str) -> int:
+        """The registry's declared size for ``model_id``, in MB."""
+        entry = self._entries.get(model_id)
+        return int(entry["size_mb"]) if entry else 0
+
+    def _loaded_mb_locked(self) -> int:
+        return sum(self._size_mb(model_id) for model_id in self._loaded)
+
     def _evict_down_to_size(self) -> None:
+        """Drop least-recently-used entries until both budgets are met.
+
+        Eviction removes the dict entry and nothing else. It deliberately
+        does **not** clear the evicted model's ``_decoder``/``_tokenizer``.
+        Clearing them is a no-op when the cache held the last reference -
+        dropping the entry already frees the sessions - and it is a bug when
+        it did not: a thread decoding through that model still holds it, and
+        the next attribute access rebuilds three InferenceSessions on an
+        object no longer in ``_loaded``. Those bytes are then resident,
+        uncounted and unevictable for the life of the object.
+
+        Leaving the object alone makes eviction mean "the cache stops
+        retaining this". The sessions die with the last reference, which is
+        the last thread using them, which is exactly when they may die.
+        """
         while len(self._loaded) > self._cache_size:
-            model_id, evicted = self._loaded.popitem(last=False)
+            model_id, _ = self._loaded.popitem(last=False)
             LOG.debug("evicting %s from the model cache (limit %d)",
                       model_id, self._cache_size)
-            # Dropping the dict entry is not enough on its own: a caller may
-            # still hold the TranslationModel it got back from `model()`, and
-            # the three InferenceSessions hang off the decoder. Clearing them
-            # here releases the memory now; both attributes are lazy, so a
-            # caller holding the object simply reloads on next use.
-            evicted._decoder = None
-            evicted._tokenizer = None
+        if self._max_loaded_mb is None:
+            return
+        # The byte budget, applied after the count budget: whichever binds
+        # first evicts. Same LRU order, so the two limits cannot disagree
+        # about *which* model goes - only about how many. One model is always
+        # kept: a model bigger than the whole budget still loads, because
+        # refusing it would delete a language rather than shrink a cache, and
+        # the models covering the long tail are exactly the ones no small
+        # budget admits.
+        while len(self._loaded) > 1 and \
+                self._loaded_mb_locked() > self._max_loaded_mb:
+            model_id, _ = self._loaded.popitem(last=False)
+            LOG.debug("evicting %s from the model cache (%d MB budget)",
+                      model_id, self._max_loaded_mb)
+        resident = self._loaded_mb_locked()
+        if resident > self._max_loaded_mb:
+            LOG.warning(
+                "model cache holds %s at %d MB, over the %d MB max_loaded_mb "
+                "budget; loading it anyway rather than refusing the language",
+                next(iter(self._loaded)), resident, self._max_loaded_mb)
+
+    @contextmanager
+    def _translation_slot(self) -> Iterator[None]:
+        """Hold one of ``max_concurrent_translations`` slots, or nothing.
+
+        Callers over the limit block here rather than loading another model.
+        Blocking is the point: this is what turns "peak RSS grows with
+        whatever the web server's threadpool admits" into a number an
+        operator chose.
+        """
+        if self._slots is None:
+            yield
+            return
+        self._slots.acquire()
+        try:
+            yield
+        finally:
+            self._slots.release()
 
     def _reject_unselected(self, model_id: str) -> None:
         """Refuse a model this translator did not select, and say why.
@@ -429,10 +555,16 @@ class Translator:
                  " | ".join(f"{hop.model_id}:{hop.src}->{hop.tgt}"
                             for hop in chosen.hops))
 
-        out = text
-        for hop in chosen.hops:
-            out = self.model(hop.model_id).translate(
-                out, hop.src, hop.tgt, config=config, target_token=target_token)
+        # One slot per translation, not per hop: the hops of a route run in
+        # sequence, so a route holds at most one model in flight at a time,
+        # and taking the slot per hop would let a two-hop route deadlock
+        # against itself at `max_concurrent_translations=1`.
+        with self._translation_slot():
+            out = text
+            for hop in chosen.hops:
+                out = self.model(hop.model_id).translate(
+                    out, hop.src, hop.tgt, config=config,
+                    target_token=target_token)
         return (out, chosen) if return_route else out
 
     def _pinned_route(self, model_id: str, src: Optional[str],
@@ -475,7 +607,10 @@ def load_translator(models: Optional[Sequence[str]] = None,
                     max_new_tokens: int = 128,
                     length_penalty: float = 1.0,
                     no_repeat_ngram_size: int = 0,
-                    model_cache_size: int = DEFAULT_MODEL_CACHE_SIZE) -> Translator:
+                    model_cache_size: int = DEFAULT_MODEL_CACHE_SIZE,
+                    max_loaded_mb: Optional[int] = DEFAULT_MAX_LOADED_MB,
+                    max_concurrent_translations: Optional[int] =
+                    DEFAULT_MAX_CONCURRENT_TRANSLATIONS) -> Translator:
     """Build a :class:`Translator` over the registry.
 
     The default graph is **every permissive-licensed int8 model**: M2M100-418M
@@ -532,6 +667,12 @@ def load_translator(models: Optional[Sequence[str]] = None,
         and M2M100. ``Route.waived_size_cap`` says when the exception was
         used. See ``linguonnx.translate.graph`` for the full semantics.
     :param num_beams: 4 by default; 1 is greedy and about 4x faster.
+    :param max_loaded_mb: byte budget for the cache, in MB, or ``None``.
+        Bounds what the cache *retains*, not peak RSS - see
+        ``max_concurrent_translations`` and ``docs/models.md``.
+    :param max_concurrent_translations: how many translations may run at
+        once, or ``None`` for no limit. The only setting that bounds peak
+        RSS on a threaded server.
     :param model_cache_size: how many loaded models to keep alive at once,
         least-recently-used evicted first. The whole default graph is ~25 GB,
         so an unbounded cache is an OOM kill in any long-lived server that
@@ -571,4 +712,6 @@ def load_translator(models: Optional[Sequence[str]] = None,
                       num_beams=num_beams, max_new_tokens=max_new_tokens,
                       length_penalty=length_penalty,
                       no_repeat_ngram_size=no_repeat_ngram_size,
-                      model_cache_size=model_cache_size)
+                      model_cache_size=model_cache_size,
+                      max_loaded_mb=max_loaded_mb,
+                      max_concurrent_translations=max_concurrent_translations)

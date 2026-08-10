@@ -3,8 +3,10 @@
 Models are stubbed, so nothing downloads and no ONNX session is built.
 """
 
+import gc
 import threading
 import time
+import weakref
 
 import pytest
 
@@ -96,13 +98,39 @@ def test_eviction_is_least_recently_used(counting_factory):
 
 
 def test_evicted_model_releases_its_onnx_sessions(counting_factory):
+    """Eviction must free the sessions - by dropping the last reference.
+
+    This used to be asserted as `first._decoder is None`, i.e. the cache
+    reached into the evicted object and cleared its lazy attributes. That is
+    a no-op when the cache held the last reference (dropping the dict entry
+    already frees it) and a bug when it did not: a thread mid-decode still
+    holds the object, and its next attribute access rebuilds three
+    InferenceSessions on an object no longer in `_loaded` - resident,
+    uncounted and unevictable. So the requirement is tested here the way it
+    actually has to hold: nothing references the model after eviction.
+    """
     tx = Translator(REGISTRY, model_cache_size=1)
-    first = tx.model("multi")
-    tx.model("pt-en")
-    # A caller who kept the object must not keep three InferenceSessions alive
-    # with it; the lazy attributes are cleared on eviction.
-    assert first._decoder is None
-    assert first._tokenizer is None
+    ref = weakref.ref(tx.model("multi"))
+    assert ref() is not None
+    tx.model("pt-en")     # evicts "multi"
+    gc.collect()
+    assert ref() is None, "eviction left the model, and its sessions, alive"
+
+
+def test_eviction_does_not_disturb_a_model_a_caller_still_holds(counting_factory):
+    """The other half: a holder is a user, and its object stays intact.
+
+    Clearing it would corrupt an in-flight decode, which is the failure this
+    cache is meant to prevent, not cause.
+    """
+    tx = Translator(REGISTRY, model_cache_size=1)
+    held = tx.model("multi")
+    held._decoder = object()
+    held._tokenizer = object()
+    tx.model("pt-en")     # evicts "multi"
+    assert tx.loaded_models == ["pt-en"]
+    assert held._decoder is not None
+    assert held._tokenizer is not None
 
 
 def test_evicted_model_is_rebuilt_on_next_use(counting_factory):

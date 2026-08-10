@@ -178,8 +178,10 @@ prefetch("opus-mt-pt-en-int8", kind="translate")
 ### How many models stay loaded
 
 A `Translator` keeps at most `model_cache_size` loaded models alive, four by
-default, and evicts the least recently used one. Eviction releases that model's
-three ONNX sessions.
+default, and evicts the least recently used one. Eviction drops the cache's
+reference, which releases that model's three ONNX sessions once nothing else
+holds it — so a request still decoding through an evicted model keeps working,
+and its sessions go when it finishes.
 
 The bound matters because the whole default graph is 73 models and about
 25 GB. Without it, a long-lived server that routes over many language pairs
@@ -196,6 +198,86 @@ print(tx.loaded_models)                    # least recently used first
 Raise it when one process serves a few hot pairs and has the RAM; lower it on a
 small device. An evicted model reloads from the disk cache on next use, so
 eviction costs session-build time, not a download.
+
+### Bounding the cache by size
+
+`model_cache_size` counts models, and models are not the same size: four
+Marian models are about 1.4 GB, four MADLAD-400-3B are about 20 GB. Set
+`max_loaded_mb` to bound the cache in megabytes as well as in models.
+
+```python
+tx = load_translator(model_cache_size=8, max_loaded_mb=2000)
+print(tx.loaded_mb)    # declared MB the cache currently retains
+```
+
+Whichever limit binds first evicts. `loaded_mb` sums the registry's declared
+`size_mb`, not measured RSS: the sessions are memory-mapped, so real RSS
+climbs as a model is used and does not fall when it stops being used, and you
+cannot evict against a number that moves under you.
+
+Declared size is a *proxy*. Measured on this library's own models, peak RSS
+runs **1.8x to 3.7x** the declared size, and the multiplier moves inversely
+with size — 78 MB becomes 288 MB (3.7x), 1207 MB becomes 2166 MB (1.8x) —
+because a fixed per-process cost dominates a small model and is noise for a
+large one.
+
+A model larger than the whole budget still loads. Refusing it would delete a
+language rather than shrink a cache, and the models covering the long tail are
+exactly the ones no small budget admits.
+
+### What actually bounds memory
+
+**`max_loaded_mb` bounds what the cache retains. It does not bound peak RSS,
+and no cache setting can.** A model being translated through is resident
+because a thread is decoding with it, not because the cache kept it. Evicting
+it frees nothing while that thread runs.
+
+So the honest formula for peak resident memory is:
+
+```
+peak RSS  ~=  per-process overhead
+            + max_loaded_mb                       (what the cache retains)
+            + concurrency x largest model in flight
+            ... all times the 1.8-3.7x declared-size multiplier
+```
+
+The third term dominates, and it scales with **concurrency**, which is set by
+your web server, not by this library. `ovos-translate-server` declares its
+endpoints as synchronous `def`, so Starlette runs them on its default
+threadpool of **40 threads**. Forty concurrent requests for forty different
+language pairs will make forty models resident, whatever `model_cache_size`
+and `max_loaded_mb` say.
+
+Bound that term with `max_concurrent_translations`:
+
+```python
+tx = load_translator(
+    model_cache_size=4,
+    max_loaded_mb=2000,             # steady-state cache ceiling
+    max_concurrent_translations=4,  # the ceiling that bounds peak RSS
+)
+```
+
+Requests over the limit wait for a slot instead of loading another model.
+
+#### Sizing for a 12 GiB host
+
+Do not size from `max_loaded_mb` alone. Work backwards from the concurrency
+limit and the largest model a route can reach:
+
+| Setting | Value | Why |
+|---|---|---|
+| `max_concurrent_translations` | 4 | 4 x 4945 MB (MADLAD) x 1.8 ~= 8.9 GB worst case |
+| `max_loaded_mb` | 2000 | retained set, ~2-4 GB real |
+| container `mem_limit` | 12 GiB | the backstop; keep it |
+
+Keep the container memory limit whatever the settings say. It is the only
+bound that holds when an assumption here is wrong, and a limit that restarts
+one container beats a host that OOM-kills an arbitrary process.
+
+If a host must serve high concurrency, cap the routes rather than the cache:
+`max_model_mb` keeps the router away from the models that make the worst case
+worst, and it applies before anything is loaded.
 
 ## Keeping it in sync
 
