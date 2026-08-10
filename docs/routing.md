@@ -379,7 +379,7 @@ filter:
 ```python
 tx = load_translator(max_model_mb=500, oversize_fallback=True)
 
-print(tx.route("en", "ca").model_ids)      # ('opus-mt-en-ca-int8',)   165 MB
+print(tx.route("en", "ca").model_ids)      # ('opus-mt-en-ca-int8',)   157 MB
 print(tx.route("en", "cv").model_ids)      # ('madlad400-3b-mt-int8',) 4945 MB
 print(tx.route("en", "cv").waived_size_cap)  # 500
 print(len(tx.available_languages))         # 586, not 249
