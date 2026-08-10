@@ -3184,6 +3184,16 @@
       "decoder_with_past": "decoder_with_past_model.onnx"
     },
     "hf_repo": "TigreGotico/madlad400-3b-mt-onnx",
+    "language_flags": {
+      "cv": {
+        "reason": "answers in ru",
+        "evidence": "en→cv 'Good day, my friend.' → 'Добрый день, мой друг.'",
+        "detector": "glotlid=ru",
+        "date": "2026-08-10",
+        "method": "int8-sweep",
+        "side": "target"
+      }
+    },
     "languages": [
       "abt",
       "ace",
@@ -3654,6 +3664,16 @@
       "decoder_with_past": "int8/decoder_with_past_model.onnx"
     },
     "hf_repo": "TigreGotico/madlad400-3b-mt-onnx",
+    "language_flags": {
+      "cv": {
+        "reason": "answers in ru",
+        "evidence": "en→cv 'Good day, my friend.' → 'Добрый день, мой друг.'",
+        "detector": "glotlid=ru",
+        "date": "2026-08-10",
+        "method": "int8-sweep",
+        "side": "target"
+      }
+    },
     "languages": [
       "abt",
       "ace",

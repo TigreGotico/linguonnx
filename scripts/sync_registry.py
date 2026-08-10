@@ -16,8 +16,9 @@ Generated, but not the only author
 ----------------------------------
 
 The registry also holds facts a crawl cannot produce: a ``quality`` block of
-chrF numbers measured against a FLORES-200/MAFAND reference, and ``notes``
-caveats found by reading real output. So the merge is a positive rule - this
+chrF numbers measured against a FLORES-200/MAFAND reference, ``notes``
+caveats found by reading real output, and ``language_flags`` naming a single
+language a model advertises and cannot actually write. So the merge is a positive rule - this
 script owns :data:`GENERATED_KEYS` and may overwrite or remove those; every
 other field in a committed entry survives untouched, and
 :data:`HUMAN_OWNED_KEYS` survive even against a competing generated value.
@@ -705,11 +706,20 @@ GENERATED_KEYS: FrozenSet[str] = frozenset({
 #: all - a file listing cannot produce a chrF number - so it would survive on
 #: the allow-list rule alone. It is named here as well to state the intent.
 #:
+#: ``language_flags`` is the same case and is named for the same reason. It
+#: records that a model advertises a language and answers in a different one
+#: - ``madlad400-3b-mt`` returns Russian for Chuvash - which is an
+#: observation someone made by reading output, and no crawl of the Hub can
+#: rediscover it. Naming it here also keeps it out of the "in neither list"
+#: notice, so a curated flag reads as curated rather than as a suspected
+#: typo. If the generator ever learns to emit a flag (it cannot today), the
+#: committed one still wins and the disagreement is reported.
+#:
 #: The generator is not silenced, only outvoted: :func:`merge_preserving`
 #: reports every entry where its value disagrees with the committed one, so
 #: "the model card genuinely changed upstream" still reaches a reviewer
 #: instead of being applied behind their back.
-HUMAN_OWNED_KEYS: Tuple[str, ...] = ("notes", "quality")
+HUMAN_OWNED_KEYS: Tuple[str, ...] = ("notes", "quality", "language_flags")
 
 
 def _assert_generated_keys_declared(registry: Dict[str, dict]) -> None:
