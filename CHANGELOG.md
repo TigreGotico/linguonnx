@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.0a1](https://github.com/TigreGotico/linguonnx/tree/0.12.0a1) (2026-08-10)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.11.1a2...0.12.0a1)
+
+**Merged pull requests:**
+
+- feat: bound the model cache by size, and peak memory by concurrency [\#79](https://github.com/TigreGotico/linguonnx/pull/79) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.11.1a2](https://github.com/TigreGotico/linguonnx/tree/0.11.1a2) (2026-08-10)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.11.1a1...0.11.1a2)
