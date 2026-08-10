@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.1a1](https://github.com/TigreGotico/linguonnx/tree/0.11.1a1) (2026-08-10)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.11.0a1...0.11.1a1)
+
+**Merged pull requests:**
+
+- fix: correct stale registry-derived numbers in docs, pin them with a test [\#81](https://github.com/TigreGotico/linguonnx/pull/81) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.11.0a1](https://github.com/TigreGotico/linguonnx/tree/0.11.0a1) (2026-08-10)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.10.0a1...0.11.0a1)
