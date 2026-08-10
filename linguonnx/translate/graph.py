@@ -1593,6 +1593,7 @@ class TranslationGraph:
         if hint:
             return hint
         return (self._excluded_licence_hint(src, tgt)
+                + self._uncached_hint(src, tgt)
                 + self._unrunnable_hint(src, tgt))
 
     def _download_ceiling_hint(self, src: str, tgt: str, max_hops: int,
@@ -1678,6 +1679,31 @@ class TranslationGraph:
             return ""
         return (f" -- excluded non-commercial model(s) cover this pair: "
                 f"{', '.join(covering)}; pass include_noncommercial=True to use them")
+
+    def _uncached_hint(self, src: str, tgt: str) -> str:
+        """Say when the only thing blocking a route is that nothing is cached.
+
+        With ``fetch_on_demand=False`` an absent model is not routable, so a
+        pair only an absent model covers comes back as "no route". That is a
+        *constraint the operator set*, not a gap in the registry, and the two
+        must never read the same: the operator's fix is a prefetch, and the
+        message has to say which model to prefetch for that to be actionable.
+
+        :class:`~linguonnx.translate.Translator` fills
+        ``uncached_capabilities`` in; a graph built directly has no such
+        attribute and this hint stays empty, exactly like the licence one.
+        """
+        uncached = getattr(self, "uncached_capabilities", None)
+        if not uncached:
+            return ""
+        covering = sorted({f"{cap.model_id} ({cap.size_mb} MB)"
+                           for cap in uncached if cap.covers(src, tgt)})
+        if not covering:
+            return ""
+        return (f" -- model(s) cover this pair but are not cached and "
+                f"fetch_on_demand is off: {', '.join(covering)}; prefetch "
+                f"them (linguonnx.model_manager.prefetch) or pass "
+                f"fetch_on_demand=True to download on the request path")
 
     def _unrunnable_hint(self, src: str, tgt: str) -> str:
         """Say when the pair is covered, but only by a model nothing can run.

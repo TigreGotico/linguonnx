@@ -25,6 +25,7 @@ from typing import (Dict, Iterable, Iterator, List, Optional, Sequence, Tuple,
                     Union)
 
 from linguonnx.limits import operator_budget_is_set
+from linguonnx import model_manager
 from linguonnx.model_manager import list_models
 from linguonnx.translate.decode import GenerationConfig
 from linguonnx.translate.graph import (DEFAULT_PIVOT_PREFERENCE, UNSET,
@@ -121,7 +122,28 @@ class Translator:
                  max_loaded_mb: Optional[int] = DEFAULT_MAX_LOADED_MB,
                  max_concurrent_translations: Optional[int] =
                  DEFAULT_MAX_CONCURRENT_TRANSLATIONS,
-                 enforce_download_budget: bool = True):
+                 enforce_download_budget: bool = True,
+                 fetch_on_demand: bool = True):
+        # Whether an absent model may be downloaded on the request path.
+        # `False` is the embedded/metered stance: routing sees only what is
+        # already on disk, so latency is bounded by decode instead of by a
+        # download nobody asked for. The absent models are kept - not
+        # forgotten - so a miss can name what to prefetch.
+        self.fetch_on_demand = bool(fetch_on_demand)
+        absent: Dict[str, dict] = {}
+        if not self.fetch_on_demand:
+            cached: Dict[str, dict] = {}
+            for model_id, entry in entries.items():
+                target = cached if model_manager.is_cached(
+                    model_id, kind="translate") else absent
+                target[model_id] = entry
+            if not cached:
+                raise ValueError(
+                    "fetch_on_demand=False and none of the "
+                    f"{len(absent)} selected translation model(s) are cached; "
+                    "prefetch at least one (linguonnx.model_manager.prefetch) "
+                    "or pass fetch_on_demand=True")
+            entries = cached
         self._entries = entries
         # Routing and downloading have to agree. `max_model_mb` keeps the
         # router from proposing a model the download path would refuse; when
@@ -156,8 +178,14 @@ class Translator:
         self.graph.excluded_capabilities = [
             capability_from_entry(e)
             for model_id, e in list_models(kind="translate").items()
-            if model_id not in chosen
+            if model_id not in chosen and model_id not in absent
         ] if entries else []
+        # Left out by `fetch_on_demand=False` specifically, and kept apart
+        # from the filter exclusions above: "a model covers this pair, it is
+        # just not on this disk yet" is a different sentence, with a different
+        # fix, from "a model covers this pair and you filtered it out".
+        self.graph.uncached_capabilities = [capability_from_entry(e)
+                                            for e in absent.values()]
         self.generation = GenerationConfig(
             max_new_tokens=max_new_tokens, num_beams=num_beams,
             length_penalty=length_penalty,
@@ -630,7 +658,8 @@ def load_translator(models: Optional[Sequence[str]] = None,
                     model_cache_size: int = DEFAULT_MODEL_CACHE_SIZE,
                     max_loaded_mb: Optional[int] = DEFAULT_MAX_LOADED_MB,
                     max_concurrent_translations: Optional[int] =
-                    DEFAULT_MAX_CONCURRENT_TRANSLATIONS) -> Translator:
+                    DEFAULT_MAX_CONCURRENT_TRANSLATIONS,
+                    fetch_on_demand: bool = True) -> Translator:
     """Build a :class:`Translator` over the registry.
 
     The default graph is **every permissive-licensed int8 model**: M2M100-418M
@@ -686,6 +715,21 @@ def load_translator(models: Optional[Sequence[str]] = None,
         delete the long tail of languages that lives only inside MADLAD, NLLB
         and M2M100. ``Route.waived_size_cap`` says when the exception was
         used. See ``linguonnx.translate.graph`` for the full semantics.
+    :param fetch_on_demand: whether a model that is not in the local cache may
+        be downloaded on the request path. ``True`` (default) is today's
+        behaviour: the first request for an uncached pair pays the download,
+        which is the right trade on a well-provisioned server and keeps the
+        full registry reachable. ``False`` is the embedded/metered/small-disk
+        stance: routing sees only what is already on disk, so a pair a cached
+        chain can serve is served by it, and a pair *nothing* cached covers
+        raises :class:`NoRouteError` naming the models to prefetch instead of
+        stalling the request for minutes. Orthogonal to ``max_model_mb``,
+        which bounds a model's *size* rather than its presence: with
+        ``fetch_on_demand=False`` an absent model is unavailable however small
+        it is, and ``count_cached_as_free`` becomes moot for it because the
+        only models left are cached ones. The default is deliberately the
+        permissive one - silently narrowing an existing deployment's coverage
+        on upgrade would be a worse failure than a slow first request.
     :param num_beams: 4 by default; 1 is greedy and about 4x faster.
     :param max_loaded_mb: byte budget for the cache, in MB, or ``None``.
         Bounds what the cache *retains*, not peak RSS - see
@@ -734,4 +778,5 @@ def load_translator(models: Optional[Sequence[str]] = None,
                       no_repeat_ngram_size=no_repeat_ngram_size,
                       model_cache_size=model_cache_size,
                       max_loaded_mb=max_loaded_mb,
-                      max_concurrent_translations=max_concurrent_translations)
+                      max_concurrent_translations=max_concurrent_translations,
+                      fetch_on_demand=fetch_on_demand)
