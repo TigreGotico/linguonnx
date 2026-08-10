@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.1a2](https://github.com/TigreGotico/linguonnx/tree/0.11.1a2) (2026-08-10)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.11.1a1...0.11.1a2)
+
+**Merged pull requests:**
+
+- docs: catalogue the aina-translator, nos-mt, m2m100\_418M African and eus/oci-cat model families [\#82](https://github.com/TigreGotico/linguonnx/pull/82) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.11.1a1](https://github.com/TigreGotico/linguonnx/tree/0.11.1a1) (2026-08-10)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.11.0a1...0.11.1a1)
