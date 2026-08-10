@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.0a1](https://github.com/TigreGotico/linguonnx/tree/0.10.0a1) (2026-08-10)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.9.4a1...0.10.0a1)
+
+**Merged pull requests:**
+
+- feat: max\_model\_mb deprioritises oversized models instead of deleting languages [\#75](https://github.com/TigreGotico/linguonnx/pull/75) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.9.4a1](https://github.com/TigreGotico/linguonnx/tree/0.9.4a1) (2026-08-04)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.9.3a2...0.9.4a1)
