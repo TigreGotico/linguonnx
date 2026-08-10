@@ -26,8 +26,12 @@ it sounds.
 | `indictrans2-indic-en-dist-200M` | IndicTrans2 | 25 Indic tags → English, **one-way** | 342 MB | MIT |
 | `indictrans2-indic-indic-dist-320M` | IndicTrans2 | 25 Indic tags, any-to-any | 532 MB | MIT |
 | `aina-es-oc` | NLLB fine-tune | Spanish → Aranese, **one-way** | 1.9 GB | **CC-BY-NC-4.0** |
+| `aina-translator-*` (18) | Marian / M2M100 / NLLB fine-tune | one pair each; ca↔{de, en, es, fr, it, pt, zh}, eu → ca, gl → ca, es → {an, ast} | 1.58 GB – 2.35 GB | Apache-2.0; **es-an, es-ast: CC-BY-NC-4.0** |
 | `nos-coda_iacobus-*` (6) | OpenNMT | one pair each; en/es/pt → gl, es↔pt, en↔es | 499 MB – 814 MB | MIT |
+| `nos-mt-*` (7) | OpenNMT | one pair each; en↔gl, es↔gl, es → {arg, arn, ast} | 445 MB – 747 MB | MIT |
 | `mt-hitz-*` (6) | Marian | `ca-eu`, `en-eu`, `es-eu`, `eu-en`, `eu-es`, `gl-eu` | 90 MB – 153 MB | Apache-2.0 |
+| `m2m100_418M_*` African fine-tunes (12) | M2M100 | one pair each; fr↔{bam, bbj, mos}, fr → {fon, ewe}, en↔hau, en↔nso | 1.21 GB – 3.18 GB | Apache-2.0 for the `nso` pair; **AFL-3.0 for the rest** |
+| `translate-eus-cat`, `translate-oci-cat` | Pegasus (fast) | `eu-ca`, `oc-ca` | 590 MB each | MIT |
 | `opus-mt-*` (124) | Marian | one pair each | 78 MB – 716 MB | Apache-2.0 or CC-BY-4.0 |
 
 The opus-mt pairs published as int8:
@@ -55,8 +59,18 @@ Together they reach 586 languages over the default graph. MADLAD supplies most
 of the tail, including the ones no other model here has: Mirandese, Aragonese,
 Occitan and several hundred more.
 
-Four entries — `nllb-600M` and `aina-es-oc`, in both precisions — are
-non-commercial and out of the default graph. See [licences.md](licences.md).
+Eight entries — `nllb-600M`, `aina-es-oc`, `aina-translator-es-an` and
+`aina-translator-es-ast`, in both precisions — are non-commercial and out of
+the default graph. See [licences.md](licences.md).
+
+`aina-translator-es-ca` ships fp32 only; no int8 export is in the registry
+yet.
+
+The `m2m100_418M_*` African fine-tunes carry Apache-2.0 for the `en-nso` and
+`nso-en` pair, and AFL-3.0 for the other ten. AFL-3.0 grants use, modification
+and redistribution but adds a patent-retaliation clause and a naming
+restriction absent from Apache-2.0 and MIT, so it needs the same care as a
+non-commercial licence when a downstream project sets its own terms.
 
 Sizes are the sum of the blobs an entry actually references, not the repo
 total: these repos also carry a `decoder_model_merged.onnx` that `linguonnx`
