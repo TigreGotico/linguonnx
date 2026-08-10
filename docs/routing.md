@@ -683,6 +683,63 @@ for reason in tx.quality_flag_reasons("opus-mt-az-en"):
 # chrF-vs-reference 25.9 is below the 40 floor (flores200-devtest, n=20)
 ```
 
+## Routable is not usable
+
+Everything above is whole-model: one chrF number per entry. A model can also
+advertise one language and answer in another, which no single number can say.
+
+`madlad400-3b-mt` covers Chuvash. Ask it for `en -> cv` and it returns
+Russian — `"Good day, my friend."` comes back as `"Добрый день, мой друг."`.
+The routing is correct: `<2cv>` is SentencePiece piece 222, distinct from
+`<2ru>`'s 118. The model is asked for Chuvash and writes Russian. MADLAD is
+the only model in the registry with Chuvash at all, so `cv` is counted as
+routable and is not usable.
+
+So an entry may carry `language_flags`, one language at a time, with the
+observation behind it:
+
+```json
+"language_flags": {
+  "cv": {"reason": "answers in ru",
+         "evidence": "en→cv 'Good day, my friend.' → 'Добрый день, мой друг.'",
+         "detector": "glotlid=ru", "date": "2026-08-10",
+         "method": "int8-sweep", "side": "target"}
+}
+```
+
+`side` says which direction the observation covers — `"target"` (the
+default) means the model must not be asked to *write* the language,
+`"source"` that it must not be asked to *read* it, `"both"` neither. One
+does not imply the other: the MADLAD failure is target-side, and `cv -> en`
+was not measured. A flag applies to the model's precision counterpart too,
+because both precisions are one export and quantising a model does not
+change which languages it can write.
+
+A `Translator` reports both numbers:
+
+```python
+tx = load_translator(models=["madlad400-3b-mt-int8"], max_model_mb=None)
+len(tx.available_languages)   # every tag some in-budget model claims
+len(tx.unflagged_languages)   # the same, minus the claims known to be wrong
+tx.flagged_languages
+# {'cv': ('madlad400-3b-mt-int8: answers in ru',)}
+```
+
+`unflagged_languages` is the number worth quoting as coverage.
+`flagged_languages` deducts a language only when **every** selected model
+that can write it is flagged for it, so a flag on one of two providers costs
+nothing.
+
+A flag never removes the model, and it does not rewrite the coverage claim
+either: `cv` stays in MADLAD's `languages`, so the library can still say
+*why* it refuses the language instead of reporting it as unsupported. Every
+flag names an observation somebody made; there is no heuristic that mints
+them.
+
+`language_flags` is hand-curated. `scripts/sync_registry.py` lists it in
+`HUMAN_OWNED_KEYS`, next to `notes` and `quality`, so a re-crawl of the Hub
+cannot overwrite it.
+
 ## Choosing the path yourself
 
 The cost model is a default, not a verdict. There are three ways to overrule

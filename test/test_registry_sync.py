@@ -905,6 +905,11 @@ class TestASyncCannotDestroyCuratedRegistryData:
         "quality": {"chrf": 41.2, "corpus": "flores200", "metric": "chrf",
                     "mode": "beam4", "n": 100, "max_new_tokens": 256},
         "verified_by": "hand check, 2026-08",
+        "language_flags": {
+            "fo": {"reason": "answers in da", "evidence": "en->fo 'x' -> 'y'",
+                   "detector": "glotlid=da", "date": "2026-08-10",
+                   "method": "hand check", "side": "target"},
+        },
     }
 
     #: The same entry as a fresh crawl sees it: a bigger download, and the
@@ -968,6 +973,43 @@ class TestASyncCannotDestroyCuratedRegistryData:
         "keep it only if the generator says nothing" rule never fired.
         """
         assert self._resynced(sync)["notes"] == self.CURATED["notes"]
+
+    def test_a_curated_language_flag_survives_a_resync(self, sync):
+        """The MADLAD/Chuvash case, in one assertion.
+
+        `language_flags` says a model advertises a language and writes a
+        different one. Nothing on the Hub records that - it comes from
+        someone reading output - so a crawl that dropped it would leave the
+        registry claiming coverage that does not work, which is the exact
+        failure the field exists to record.
+        """
+        assert self._resynced(sync)["language_flags"] == \
+            self.CURATED["language_flags"]
+
+    def test_a_curated_language_flag_beats_a_generated_one(
+            self, sync, monkeypatch, capsys):
+        """Preservation that does not depend on the generator staying silent.
+
+        Being absent from `GENERATED_KEYS` is enough *today*, because no
+        crawl can produce a flag. That is a property of today's generator,
+        not of the merge, and the `notes` regression is what happens when a
+        field is protected only by the generator having nothing to say. This
+        pins the stronger rule: even when the generator emits a competing
+        value for the key, the curated flag wins and the disagreement is
+        reported. Fails unless `language_flags` is in `HUMAN_OWNED_KEYS`.
+        """
+        monkeypatch.setattr(
+            sync, "GENERATED_KEYS",
+            sync.GENERATED_KEYS | {"language_flags"})
+        guess = {"fo": {"reason": "guessed by a crawl", "side": "target"}}
+        monkeypatch.setattr(
+            sync, "build",
+            lambda: ({"demo-mt": dict(self.GENERATED, language_flags=guess)},
+                     dict(self.LID), [], {}))
+        assert self._resynced(sync)["language_flags"] == \
+            self.CURATED["language_flags"]
+        assert "OVERRULED translate.json demo-mt: kept the committed " \
+            "'language_flags'" in capsys.readouterr().err
 
     def test_a_field_the_generator_has_never_heard_of_survives(self, sync):
         """The reason this is an allow-list of *generated* keys.

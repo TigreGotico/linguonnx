@@ -97,15 +97,109 @@ Flagging never excludes a model from the registry - the "publish everything"
 rule holds regardless of quality. It only informs :func:`_select_entries`
 callers (``exclude_flagged=``, ``min_chrf=``) who choose to filter at
 runtime, exactly like the existing ``precision=``/``max_model_mb=`` knobs.
+
+Per-language flags
+------------------
+
+Everything above is **whole-model**: one ``chrf_vs_ref`` per entry, so a
+model is good or bad for all of its languages at once. That is the wrong
+shape for the failure this section exists for.
+
+``madlad400-3b-mt`` advertises Chuvash. Ask it for ``en -> cv`` and it
+answers in Russian: ``"Good day, my friend."`` comes back as
+``"Добрый день, мой друг."``. It is not a routing bug - the ``<2cv>``
+control piece is SentencePiece id 222, distinct from ``<2ru>``'s 118, so the
+model is being asked the right question and answering in the wrong language.
+MADLAD is a good model; it is a good model that cannot write Chuvash. One
+chrF number for 400 languages cannot say that, and a whole-model flag would
+throw away the other 399.
+
+So an entry may carry ``language_flags``, a dict of BCP-47 tag -> evidence:
+
+.. code-block:: json
+
+    "language_flags": {
+      "cv": {"reason": "answers in ru",
+             "evidence": "en->cv 'Good day, my friend.' -> 'Добрый день, мой друг.'",
+             "detector": "glotlid=ru",
+             "date": "2026-08-10",
+             "method": "int8-sweep",
+             "side": "target"}
+    }
+
+``reason``
+    One short clause, written to be read inside a sentence: the failure
+    message reads "MADLAD covers cv but is flagged: answers in ru".
+``evidence``
+    The observation itself - input, output, direction. A flag with no
+    observation behind it does not belong here; this field is where that
+    rule is enforced by eye.
+``detector`` / ``date`` / ``method``
+    How the wrong language was identified, when, and in which sweep. Enough
+    to re-run the check and to decide whether it has gone stale.
+``side``
+    Which direction the flag covers. See below.
+
+Which side a flag applies to
+----------------------------
+
+**A flag applies to the side its** ``side`` **key names, and to nothing
+else.** ``"target"`` (the default when the key is absent) means the model
+must not be asked to *write* this language; ``"source"`` means it must not
+be asked to *read* it; ``"both"`` means neither.
+
+Target and source failures are different failures and one does not imply the
+other. The MADLAD case is target-side: the model clearly has Chuvash text in
+its training data - it just cannot generate it on request, and ``cv -> en``
+may well work. Defaulting an observation of one direction into a claim about
+the other would delete coverage nobody measured, which is the same sin as
+publishing a coverage claim nobody measured.
+
+The default is ``"target"`` because that is the direction a language-token
+mechanism can fail in at all: the target is *selected* (a ``<2xx>`` piece, a
+forced BOS id), while the source is merely *read*. Committed entries state
+``side`` explicitly anyway - ``test_registry_invariants`` requires it - so
+the default only ever covers a hand-built dict in a caller's own code.
+
+Precision counterparts
+----------------------
+
+**A language flag on one precision applies to its** ``counterpart_model_id``
+**too**, and :func:`language_flag_reason_for` unions the two.
+
+Unlike the int8-gap check, this is not a comparison between the precisions:
+it is a claim about the weights both precisions were exported from. A model
+that answers Chuvash in Russian does so because Chuvash is not really in the
+model, and quantising it to int8 does not teach it any. The two entries are
+one export at two bit depths, so a flag observed on either is a fact about
+both.
+
+The consequence worth stating: a flag curated on only one precision cannot
+be escaped by routing to the other. Both entries are still populated
+explicitly, because a curated flag is meant to be readable in the registry
+where a human will look for it, not inferred by a reader who knows the rule.
+
+What a flag is *not*
+--------------------
+
+It is not a whole-model flag. :func:`is_quality_flagged` and
+``exclude_flagged=`` are deliberately left alone: dropping all of MADLAD
+over one language would cost the ~400 it does fine. The routing integration
+- skip the flagged language, fall through to the next candidate model, keep
+the model - is a separate change.
 """
 
 from __future__ import annotations
 
-from typing import Dict, Optional, Tuple
+from typing import Dict, FrozenSet, Optional, Tuple
 
 __all__ = [
-    "QUALITY_ABSOLUTE_FLOOR", "QUALITY_INT8_GAP", "counterpart_model_id",
+    "QUALITY_ABSOLUTE_FLOOR", "QUALITY_INT8_GAP", "LANGUAGE_FLAG_SIDES",
+    "counterpart_model_id",
     "quality_flag_reasons", "quality_flag_reasons_for", "is_quality_flagged",
+    "language_flag_reason", "flagged_languages", "language_flag_reason_for",
+    "is_language_flagged", "entry_target_languages",
+    "flagged_target_languages",
 ]
 
 #: chrF-vs-reference below this, in either precision, is a weak-model flag
@@ -182,3 +276,140 @@ def quality_flag_reasons_for(model_id: str,
 def is_quality_flagged(model_id: str, registry: Optional[Dict[str, Dict]] = None) -> bool:
     """Whether ``model_id`` carries any :func:`quality_flag_reasons`."""
     return bool(quality_flag_reasons_for(model_id, registry))
+
+
+# ---------------------------------------------------------------------------
+# Per-language flags
+# ---------------------------------------------------------------------------
+
+#: The values ``language_flags[lang]["side"]`` may take. ``"target"`` is the
+#: default when the key is absent - see the module docstring for why the
+#: two directions are not allowed to imply each other.
+LANGUAGE_FLAG_SIDES: Tuple[str, ...] = ("target", "source", "both")
+
+
+def _flag_covers(flag: Dict, side: str) -> bool:
+    """Whether a single flag dict covers the direction ``side`` asks about."""
+    declared = flag.get("side", "target")
+    if declared not in LANGUAGE_FLAG_SIDES:
+        raise ValueError(
+            f"language flag side {declared!r} is not one of "
+            f"{LANGUAGE_FLAG_SIDES}")
+    return declared == "both" or declared == side
+
+
+def language_flag_reason(entry: Dict, lang: str,
+                         side: str = "target") -> Optional[str]:
+    """Why ``entry`` is flagged for ``lang``, or ``None`` when it is not.
+
+    Pure function over one registry entry dict - no I/O, no registry lookup,
+    so the counterpart rule is *not* applied here. Use
+    :func:`language_flag_reason_for` when you want it.
+
+    ``side`` is the direction being asked about: ``"target"`` for "may this
+    model be asked to write ``lang``", ``"source"`` for "may it be asked to
+    read it". A flag declaring the other side does not answer.
+
+    The returned string is the ``reason`` clause, meant to be read inside a
+    sentence: ``f"{model_id} covers {lang} but is flagged: {reason}"``.
+    """
+    if side not in LANGUAGE_FLAG_SIDES:
+        raise ValueError(f"side must be one of {LANGUAGE_FLAG_SIDES}")
+    flag = (entry.get("language_flags") or {}).get(lang)
+    if not flag or not _flag_covers(flag, side):
+        return None
+    return flag.get("reason") or "flagged, no reason recorded"
+
+
+def flagged_languages(entry: Dict, side: str = "target") -> FrozenSet[str]:
+    """Every language ``entry`` is flagged for in the direction ``side``."""
+    return frozenset(
+        lang for lang in (entry.get("language_flags") or {})
+        if language_flag_reason(entry, lang, side) is not None)
+
+
+def language_flag_reason_for(model_id: str, lang: str,
+                             side: str = "target",
+                             registry: Optional[Dict[str, Dict]] = None
+                             ) -> Optional[str]:
+    """:func:`language_flag_reason` for a registry id, **including its
+    precision counterpart's flags**.
+
+    A wrong-language answer is a property of the weights, not of the
+    quantisation, so a flag curated on ``madlad400-3b-mt`` holds for
+    ``madlad400-3b-mt-int8`` and the other way round. Following the shape of
+    :func:`quality_flag_reasons_for`: ``registry`` defaults to the full
+    committed translate registry.
+    """
+    if registry is None:
+        from linguonnx.model_manager import list_models
+        registry = list_models(kind="translate")
+    entry = registry.get(model_id)
+    if entry is not None:
+        reason = language_flag_reason(entry, lang, side)
+        if reason is not None:
+            return reason
+    counterpart = registry.get(counterpart_model_id(model_id))
+    if counterpart is not None:
+        return language_flag_reason(counterpart, lang, side)
+    return None
+
+
+def is_language_flagged(model_id: str, lang: str, side: str = "target",
+                        registry: Optional[Dict[str, Dict]] = None) -> bool:
+    """Whether ``model_id`` carries a language flag for ``lang``."""
+    return language_flag_reason_for(model_id, lang, side, registry) is not None
+
+
+def entry_target_languages(entry: Dict) -> FrozenSet[str]:
+    """Every BCP-47 tag ``entry`` claims it can **write**.
+
+    Mirrors the three coverage shapes
+    :func:`linguonnx.translate.models.capability_from_entry` reads: a
+    bilingual ``pair`` writes its second element, a directional multilingual
+    model writes ``tgt_languages``, and an any-to-any one writes everything
+    in ``languages``.
+    """
+    from linguonnx.translate.graph import normalize_tag
+
+    pair = entry.get("pair")
+    if pair:
+        return frozenset({normalize_tag(pair[1])})
+    tgt = entry.get("tgt_languages")
+    if tgt is not None:
+        return frozenset(normalize_tag(code) for code in tgt)
+    return frozenset(normalize_tag(code) for code in entry.get("languages", ()))
+
+
+def flagged_target_languages(entries: Dict[str, Dict],
+                             registry: Optional[Dict[str, Dict]] = None
+                             ) -> Dict[str, Tuple[str, ...]]:
+    """``lang -> reasons`` for every language ``entries`` covers as a target
+    and **every** covering model is flagged for.
+
+    This is the honest half of a coverage count. A language one model is
+    flagged for and another is not stays usable and is absent here; a
+    language only ``madlad400-3b-mt`` reaches, and which MADLAD is flagged
+    for, is not usable as a target at all no matter how the router chooses.
+
+    ``entries`` is the selection being counted (a ``Translator``'s own
+    models). ``registry`` is where counterparts are looked up for the
+    precision rule and defaults to ``entries`` itself, so a caller who
+    filtered to ``precision="int8"`` can still pass the full registry and
+    have the fp32 entry's flags apply.
+    """
+    if registry is None:
+        registry = entries
+    reasons: Dict[str, Tuple[str, ...]] = {}
+    unflagged: set = set()
+    for model_id, entry in entries.items():
+        for lang in entry_target_languages(entry):
+            reason = language_flag_reason_for(model_id, lang, "target",
+                                              registry)
+            if reason is None:
+                unflagged.add(lang)
+            else:
+                reasons[lang] = reasons.get(lang, ()) + \
+                    (f"{model_id}: {reason}",)
+    return {lang: found for lang, found in sorted(reasons.items())
+            if lang not in unflagged}

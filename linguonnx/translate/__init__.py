@@ -29,13 +29,17 @@ from linguonnx.translate.graph import (DEFAULT_PIVOT_PREFERENCE, UNSET,
                                        Capability, Hop, NoRouteError, Route,
                                        TranslationGraph, _Unset, normalize_tag)
 from linguonnx.translate.models import TranslationModel, capability_from_entry
-from linguonnx.translate.quality import (is_quality_flagged,
+from linguonnx.translate.quality import (flagged_target_languages,
+                                         is_language_flagged,
+                                         is_quality_flagged,
+                                         language_flag_reason_for,
                                          quality_flag_reasons_for)
 
 LOG = logging.getLogger(__name__)
 
 __all__ = ["Translator", "load_translator", "Route", "Hop", "NoRouteError",
-           "GenerationConfig", "is_quality_flagged", "quality_flag_reasons_for"]
+           "GenerationConfig", "is_quality_flagged", "quality_flag_reasons_for",
+           "is_language_flagged", "language_flag_reason_for"]
 
 #: How many loaded models a Translator keeps alive at once. The full default
 #: graph is 73 models / ~25 GB, so an unbounded cache converges on the whole
@@ -167,6 +171,42 @@ class Translator:
         graph.
         """
         return quality_flag_reasons_for(model_id)
+
+    def language_flag_reason(self, model_id: str, lang: str,
+                             side: str = "target") -> Optional[str]:
+        """Why ``model_id`` must not be used for ``lang``, or ``None``.
+
+        Looked up against the full registry for the same reason
+        :meth:`quality_flag_reasons` is: the flag is a fact about the export,
+        so the precision counterpart's flags count even when this
+        ``Translator`` filtered that precision out.
+        """
+        return language_flag_reason_for(model_id, lang, side)
+
+    @property
+    def flagged_languages(self) -> Dict[str, Tuple[str, ...]]:
+        """``lang -> reasons`` for languages this translator cannot *write*.
+
+        A language is listed only when every selected model that covers it as
+        a target is flagged for it, so a flag on one of two providers costs
+        nothing. See :func:`~linguonnx.translate.quality.flagged_target_languages`.
+        """
+        return flagged_target_languages(self._entries,
+                                        list_models(kind="translate"))
+
+    @property
+    def unflagged_languages(self) -> frozenset:
+        """:attr:`available_languages` minus :attr:`flagged_languages`.
+
+        **Routable is not usable.** ``available_languages`` counts every tag
+        some in-budget model *claims*, and a claim can be wrong: MADLAD
+        advertises Chuvash and answers it in Russian. This is the number to
+        quote as coverage.
+
+        A language reachable only as a *source* is kept: a target-side flag
+        says nothing about reading it.
+        """
+        return self.available_languages - frozenset(self.flagged_languages)
 
     @property
     def models(self) -> Dict[str, dict]:
