@@ -178,8 +178,10 @@ prefetch("opus-mt-pt-en-int8", kind="translate")
 ### How many models stay loaded
 
 A `Translator` keeps at most `model_cache_size` loaded models alive, four by
-default, and evicts the least recently used one. Eviction releases that model's
-three ONNX sessions.
+default, and evicts the least recently used one. Eviction drops the cache's
+reference, which releases that model's three ONNX sessions once nothing else
+holds it — so a request still decoding through an evicted model keeps working,
+and its sessions go when it finishes.
 
 The bound matters because the whole default graph is 73 models and about
 25 GB. Without it, a long-lived server that routes over many language pairs
@@ -196,6 +198,126 @@ print(tx.loaded_models)                    # least recently used first
 Raise it when one process serves a few hot pairs and has the RAM; lower it on a
 small device. An evicted model reloads from the disk cache on next use, so
 eviction costs session-build time, not a download.
+
+### Bounding the cache by size
+
+`model_cache_size` counts models, and models are not the same size: four
+Marian models are about 1.4 GB, four MADLAD-400-3B are about 20 GB. Set
+`max_loaded_mb` to bound the cache in megabytes as well as in models.
+
+```python
+tx = load_translator(model_cache_size=8, max_loaded_mb=2000)
+print(tx.loaded_mb)    # declared MB the cache currently retains
+```
+
+Whichever limit binds first evicts. `loaded_mb` sums the registry's declared
+`size_mb`, not measured RSS: the sessions are memory-mapped, so real RSS
+climbs as a model is used and does not fall when it stops being used, and you
+cannot evict against a number that moves under you.
+
+Declared size is a *proxy*. Measured on this library's own models, peak RSS
+runs **1.84x to 3.7x** the declared size, and the multiplier moves inversely
+with size — 78 MB becomes 288 MB (3.7x), 1207 MB becomes 2161 MB (1.84x) —
+because a fixed per-process cost dominates a small model and is noise for a
+large one.
+
+A model larger than the whole budget still loads. Refusing it would delete a
+language rather than shrink a cache, and the models covering the long tail are
+exactly the ones no small budget admits.
+
+### What actually bounds memory
+
+**`max_loaded_mb` bounds what the cache retains. It does not bound peak RSS,
+and no cache setting can.** A model being translated through is resident
+because a thread is decoding with it, not because the cache kept it. Evicting
+it frees nothing while that thread runs.
+
+So the honest formula for peak resident memory is:
+
+```
+peak RSS  ~=  ~86 MB baseline
+            + 1.84 x ( max_loaded_mb + concurrency x largest declared size in flight )
+```
+
+Two things about that formula are easy to get wrong, so they are spelled out:
+
+* **The per-model multiplier already contains the per-process overhead**, so
+  overhead is *not* a separate term. Adding it again double-counts. Measured:
+  1207 MB declared becomes 2161 MB absolute, a delta of 2075 MB over a
+  baseline of about 86 MB.
+* **The multiplier is 1.84x**, measured across this library's models. It is
+  higher for small models (78 MB becomes 288 MB) because the fixed cost
+  dominates them, but sizing must use the figure for the *large* models,
+  since those are what set the peak.
+
+The `concurrency x largest` term dominates, and concurrency is set by your web
+server, not by this library. `ovos-translate-server` declares its endpoints as
+synchronous `def`, so Starlette runs them on its default threadpool of
+**40 threads**. Forty concurrent requests for forty different language pairs
+will make forty models resident, whatever `model_cache_size` and
+`max_loaded_mb` say.
+
+Bound that term with `max_concurrent_translations`. Requests over the limit
+wait for a slot instead of loading another model.
+
+#### Sizing for a 12 GiB host
+
+**Size from the largest model a route can reach, not from `max_loaded_mb`.**
+
+The default graph contains **MADLAD-400-3B: 4945 MB declared, Apache-2.0,
+int8** — it is permissively licensed, so it is *not* excluded by
+`include_noncommercial=False`, and it covers the long tail of languages, so
+routing reaches for it exactly when nothing smaller can serve a pair. One
+MADLAD in flight measures **9081 MB**. On a 12 GiB (12288 MB) host that leaves
+about 3.0 GiB, and a *second* concurrent MADLAD needs 18.3 GB total — so the
+box OOMs on the second concurrent request.
+
+That gives two supportable configurations, and concurrency alone is not enough
+for either:
+
+**A. MADLAD reachable — concurrency must be 1**
+
+| Setting | Value | Why |
+|---|---|---|
+| `max_concurrent_translations` | **1** | `86 + 1.84 x 4945` = 9185 MB; ~3.0 GiB spare |
+| `max_loaded_mb` | 500 | `86 + 1.84 x (500 + 4945)` = 10105 MB, still inside |
+| container `mem_limit` | 12 GiB | the backstop; keep it |
+
+Serving one request at a time is a real cost. If that is unacceptable, use B.
+
+**B. Cap the routes, then raise concurrency** *(recommended)*
+
+`max_model_mb` is the lever that actually helps here, because it removes the
+worst case instead of serialising against it. It applies **before anything is
+loaded**, at routing time.
+
+| Setting | Value | Why |
+|---|---|---|
+| `max_model_mb` | 1300 | drops MADLAD; largest reachable is ~1207 MB |
+| `max_concurrent_translations` | 4 | `86 + 1.84 x (1500 + 4 x 1207)` = 11730 MB |
+| `max_loaded_mb` | 1500 | retained set |
+| container `mem_limit` | 12 GiB | the backstop; keep it |
+
+Drop to `max_concurrent_translations=2` for a comfortable 7.1 GiB if the host
+does anything else at all.
+
+```python
+tx = load_translator(
+    max_model_mb=1300,               # removes the worst case
+    max_loaded_mb=1500,              # steady-state cache ceiling
+    max_concurrent_translations=2,   # bounds models in flight
+)
+```
+
+Setting `max_model_mb` costs coverage: a language that only MADLAD serves
+becomes unroutable. `oversize_fallback=True` softens that — every pair a
+smaller model can serve still uses it, and only a pair nothing under the cap
+covers escalates — but an escalated route puts MADLAD back in flight, so size
+for case A if you enable it.
+
+**Keep the container memory limit whatever these settings say.** It is the
+only bound that holds when an assumption here is wrong, and a limit that
+restarts one container beats a host that OOM-kills an arbitrary process.
 
 ## Keeping it in sync
 
