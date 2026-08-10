@@ -30,6 +30,8 @@ answer. A coverage number that changed per machine could not be documented;
 a per-request route that changes per machine can be, and is.
 """
 
+import re
+
 import pytest
 
 from linguonnx.model_manager import list_models
@@ -212,3 +214,69 @@ class TestTheDocumentedRegistrySizeNumbers:
             f"table. Update LID_MODELS above, and correct the model count in "
             f"README.md's \"What ships\" table (\"N models, ... labels, ... "
             f"MB to ... GB\").")
+
+
+# Every family documented in the `docs/models.md` translation table, as the
+# `hf_repo` prefix pattern that identifies it. This is not a list of model
+# ids: a family like `aina-translator-*` is one documented row that covers
+# many repos, and a repo that has not shipped yet (an int8 export still
+# missing from the committed registry, say) is already covered the moment its
+# fp32 sibling's prefix matches - no per-model_id maintenance needed here.
+#
+# A `hf_repo` that matches none of these is a model family nobody can
+# discover from the docs, and worse, whose licence nobody can see without
+# reading this JSON file by hand.
+DOCUMENTED_TRANSLATE_FAMILIES = [
+    r"^TigreGotico/madlad400-3b-mt-onnx$",
+    r"^TigreGotico/nllb-200-distilled-600M-onnx$",
+    r"^TigreGotico/m2m100-418M-onnx$",
+    r"^TigreGotico/m2m100-1\.2B-onnx$",
+    r"^TigreGotico/m2m100-418M-smugri-onnx$",
+    r"^TigreGotico/liv4ever-mt-onnx$",
+    r"^TigreGotico/indictrans2-en-indic-dist-200M-onnx$",
+    r"^TigreGotico/indictrans2-indic-en-dist-200M-onnx$",
+    r"^TigreGotico/indictrans2-indic-indic-dist-320M-onnx$",
+    r"^TigreGotico/aina-translator-.+-onnx$",  # includes aina-es-oc's own repo
+    r"^TigreGotico/nos-coda_iacobus-.+-onnx$",
+    r"^TigreGotico/nos-mt-.+-onnx$",
+    r"^TigreGotico/mt-hitz-.+-onnx$",
+    r"^TigreGotico/m2m100_418[Mm][-_].+-onnx$",  # African fine-tunes
+    r"^TigreGotico/translate-eus-cat-onnx$",
+    r"^TigreGotico/translate-oci-cat-onnx$",
+    r"^TigreGotico/opus-mt-.+-onnx$",
+]
+
+
+class TestTheCatalogueIsComplete:
+    """Every family in `translate.json` has to show up in `docs/models.md`.
+
+    A registry entry with no documented row is invisible to a user browsing
+    the docs, and - the sharper failure - its licence is invisible too. This
+    caught `aina-translator-*`, `nos-mt-*`, the `m2m100_418M_*` African
+    fine-tunes and `translate-eus-cat`/`translate-oci-cat` sitting in the
+    registry with no row in the table, one of them (`aina-translator-es-an`
+    and `-es-ast`) carrying CC-BY-NC-4.0 the docs never mentioned.
+
+    Matching is by `hf_repo` prefix, not by exact `model_id`: a documented
+    family covers every repo under it, published today or tomorrow. That is
+    what lets this test stay green when `aina-translator-es-ca-int8` lands in
+    a future registry sync - it is the same repo family as the already
+    -documented `aina-translator-es-ca`, so no doc edit is required for that
+    day. A genuinely new family, one whose `hf_repo` matches none of the
+    patterns below, is exactly the failure this test exists to catch.
+    """
+
+    def test_every_translate_hf_repo_belongs_to_a_documented_family(self):
+        registry = list_models(kind="translate")
+        repos = sorted({entry["hf_repo"] for entry in registry.values()})
+        patterns = [re.compile(p) for p in DOCUMENTED_TRANSLATE_FAMILIES]
+        undocumented = [r for r in repos
+                        if not any(p.match(r) for p in patterns)]
+        assert not undocumented, (
+            f"{len(undocumented)} hf_repo(s) in translate.json belong to no "
+            f"family documented in docs/models.md: {undocumented}. This means "
+            f"the registry grew a new model family. Add a row for it to the "
+            f"per-model table in docs/models.md (arch, coverage, size range, "
+            f"licence - taken from translate.json, never from a model card or "
+            f"memory), then add a matching prefix pattern to "
+            f"DOCUMENTED_TRANSLATE_FAMILIES above so this test tracks it.")

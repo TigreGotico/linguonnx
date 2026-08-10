@@ -13,7 +13,7 @@ tiers, in order of how many strings are attached:
 
 | tier | what is in it | in the default graph? |
 |---|---|---|
-| `permissive` | Apache-2.0, MIT, CC-BY-4.0 | yes |
+| `permissive` | Apache-2.0, MIT, CC-BY-4.0, AFL-3.0 | yes |
 | `share-alike` | CC-BY-SA-3.0 | LID only, by name |
 | `non-commercial` | CC-BY-NC-4.0 | no |
 
@@ -36,9 +36,17 @@ name. But the choice matters:
 
 ## Translation
 
-`load_translator()` builds its graph from **permissive models only**. Four
-registry entries are excluded by default: `nllb-600M` and `aina-es-oc`, in both
-precisions. Both are CC-BY-NC-4.0.
+`load_translator()` builds its graph from **permissive models only**. Eight
+registry entries are excluded by default: `nllb-600M`, `aina-es-oc`,
+`aina-translator-es-an` and `aina-translator-es-ast`, in both precisions. All
+four are CC-BY-NC-4.0.
+
+`AFL-3.0` — carried by ten of the `m2m100_418M_*` African fine-tunes — is
+classified `permissive` and stays in the default graph. It grants use,
+modification and redistribution, but its patent-retaliation clause and naming
+restriction go beyond Apache-2.0 or MIT, so a caller with its own downstream
+licensing terms should check it separately rather than assume `permissive`
+means "as unencumbered as the rest of this tier."
 
 That is not a judgement about the models. NLLB-200 is excellent and covers 202
 languages, more than anything else here except MADLAD. It is a judgement about
