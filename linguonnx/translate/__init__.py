@@ -93,7 +93,8 @@ class Translator:
                  max_routes: int = 10,
                  pivot_ranking: str = "auto",
                  max_model_mb: Union[int, None, _Unset] = UNSET,
-                 count_cached_as_free: bool = True,
+                 count_cached_as_free: Union[bool, _Unset] = UNSET,
+                 oversize_fallback: bool = False,
                  num_beams: int = 4, max_new_tokens: int = 128,
                  length_penalty: float = 1.0, no_repeat_ngram_size: int = 0,
                  model_cache_size: int = DEFAULT_MODEL_CACHE_SIZE,
@@ -112,7 +113,8 @@ class Translator:
             pivot_preference=pivot_preference, prefer=prefer,
             max_hops=max_hops, max_routes=max_routes,
             pivot_ranking=pivot_ranking, max_model_mb=max_model_mb,
-            count_cached_as_free=count_cached_as_free)
+            count_cached_as_free=count_cached_as_free,
+            oversize_fallback=oversize_fallback)
         if pivot_ranking == "auto" and self.graph.pivot_ranking != "phonological":
             # `auto` degrades silently when orthography2ipa is absent, and the
             # two bases can pick different pivots - so two hosts in one fleet
@@ -190,6 +192,12 @@ class Translator:
         return self.graph.count_cached_as_free
 
     @property
+    def oversize_fallback(self) -> bool:
+        """Whether a pair no model under :attr:`max_model_mb` covers may fall
+        back to the smallest oversized model that does."""
+        return self.graph.oversize_fallback
+
+    @property
     def pivot_ranking(self) -> str:
         """The pivot ranking in force, ``"phonological"`` or ``"table"``."""
         return self.graph.pivot_ranking
@@ -197,29 +205,35 @@ class Translator:
     def route(self, src: str, tgt: str, max_hops: Optional[int] = None,
               prefer: Optional[str] = None,
               max_model_mb: Union[int, None, _Unset] = UNSET,
-              count_cached_as_free: Optional[bool] = None) -> Route:
+              count_cached_as_free: Optional[bool] = None,
+              oversize_fallback: Optional[bool] = None) -> Route:
         """The best route, without translating. Raises :class:`NoRouteError`."""
         return self.graph.route(src, tgt, max_hops=max_hops, prefer=prefer,
                                 max_model_mb=max_model_mb,
-                                count_cached_as_free=count_cached_as_free)
+                                count_cached_as_free=count_cached_as_free,
+                                oversize_fallback=oversize_fallback)
 
     def routes(self, src: str, tgt: str, max_hops: Optional[int] = None,
                prefer: Optional[str] = None,
                limit: Optional[int] = None,
                max_model_mb: Union[int, None, _Unset] = UNSET,
-               count_cached_as_free: Optional[bool] = None) -> List[Route]:
+               count_cached_as_free: Optional[bool] = None,
+               oversize_fallback: Optional[bool] = None) -> List[Route]:
         """Every viable route, ranked best-first. Bounded; see the graph docstring."""
         return self.graph.routes(src, tgt, max_hops=max_hops, prefer=prefer,
                                  limit=limit, max_model_mb=max_model_mb,
-                                 count_cached_as_free=count_cached_as_free)
+                                 count_cached_as_free=count_cached_as_free,
+                                 oversize_fallback=oversize_fallback)
 
     def can_translate(self, src: str, tgt: str,
                       max_hops: Optional[int] = None,
                       max_model_mb: Union[int, None, _Unset] = UNSET,
-                      count_cached_as_free: Optional[bool] = None) -> bool:
+                      count_cached_as_free: Optional[bool] = None,
+                      oversize_fallback: Optional[bool] = None) -> bool:
         return self.graph.can_translate(
             src, tgt, max_hops=max_hops, max_model_mb=max_model_mb,
-            count_cached_as_free=count_cached_as_free)
+            count_cached_as_free=count_cached_as_free,
+            oversize_fallback=oversize_fallback)
 
     # -- models -----------------------------------------------------------
 
@@ -312,6 +326,7 @@ class Translator:
                   prefer: Optional[str] = None,
                   max_model_mb: Union[int, None, _Unset] = UNSET,
                   count_cached_as_free: Optional[bool] = None,
+                  oversize_fallback: Optional[bool] = None,
                   num_beams: Optional[int] = None,
                   max_new_tokens: Optional[int] = None,
                   target_token: Optional[str] = None
@@ -364,7 +379,8 @@ class Translator:
                 raise ValueError("give src= and tgt=, or a route=, or a model=")
             chosen = self.route(src, tgt, max_hops=max_hops, prefer=prefer,
                                 max_model_mb=max_model_mb,
-                                count_cached_as_free=count_cached_as_free)
+                                count_cached_as_free=count_cached_as_free,
+                                oversize_fallback=oversize_fallback)
 
         # The route is the single thing an operator needs to explain a bad
         # translation: which models ran, in which order, and through which
@@ -413,7 +429,8 @@ def load_translator(models: Optional[Sequence[str]] = None,
                     max_routes: int = 10,
                     pivot_ranking: str = "auto",
                     max_model_mb: Union[int, None, _Unset] = UNSET,
-                    count_cached_as_free: bool = True,
+                    count_cached_as_free: Union[bool, _Unset] = UNSET,
+                    oversize_fallback: bool = False,
                     num_beams: int = 4,
                     max_new_tokens: int = 128,
                     length_penalty: float = 1.0,
@@ -460,10 +477,20 @@ def load_translator(models: Optional[Sequence[str]] = None,
         big multilingual model served in one hop is then served by a chain of
         small ones, so coverage survives a budget that latency does not.
     :param count_cached_as_free: whether a model already in the local cache is
-        exempt from ``max_model_mb``. True (default) reads the budget as "do
-        not **download** more than this", which is the metered-connection
-        reading; False reads it as "do not **use** a model bigger than this",
-        which is the small-disk one.
+        exempt from ``max_model_mb``. True reads the budget as "do not
+        **download** more than this", which is the metered-connection reading;
+        False reads it as "do not **use** a model bigger than this", which is
+        the small-disk and the load-latency one. Unset picks False when
+        ``oversize_fallback`` is on and True otherwise, because on a warm
+        cache the exemption waives the budget for every model there is.
+    :param oversize_fallback: whether ``max_model_mb`` is a preference rather
+        than a filter. False (default) drops an oversized model from routing
+        outright. True keeps the cap for every pair a smaller model can serve,
+        and falls back to the *smallest* oversized model that covers a pair
+        nothing under the cap does - so a cap tuned for latency does not also
+        delete the long tail of languages that lives only inside MADLAD, NLLB
+        and M2M100. ``Route.waived_size_cap`` says when the exception was
+        used. See ``linguonnx.translate.graph`` for the full semantics.
     :param num_beams: 4 by default; 1 is greedy and about 4x faster.
     :param model_cache_size: how many loaded models to keep alive at once,
         least-recently-used evicted first. The whole default graph is ~25 GB,
@@ -500,6 +527,7 @@ def load_translator(models: Optional[Sequence[str]] = None,
                       pivot_preference=pivot_preference, max_routes=max_routes,
                       pivot_ranking=pivot_ranking, max_model_mb=max_model_mb,
                       count_cached_as_free=count_cached_as_free,
+                      oversize_fallback=oversize_fallback,
                       num_beams=num_beams, max_new_tokens=max_new_tokens,
                       length_penalty=length_penalty,
                       no_repeat_ngram_size=no_repeat_ngram_size,
