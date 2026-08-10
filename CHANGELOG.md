@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.0a1](https://github.com/TigreGotico/linguonnx/tree/0.11.0a1) (2026-08-10)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.10.0a1...0.11.0a1)
+
+**Merged pull requests:**
+
+- feat: per-language quality flags \(phase 1: schema, API, preservation\) [\#77](https://github.com/TigreGotico/linguonnx/pull/77) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.10.0a1](https://github.com/TigreGotico/linguonnx/tree/0.10.0a1) (2026-08-10)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.9.4a1...0.10.0a1)
