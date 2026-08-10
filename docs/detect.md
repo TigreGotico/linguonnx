@@ -11,7 +11,7 @@ det = load_detector()                 # glotlid-int8, the default
 print(det.detect("Egun on, zer moduz?"))          # 'eu' — best-guess BCP-47 tag
 print(det.detect_probs("Bon dia a tothom", 3))    # {'ca': 0.998, ...}
 print(det.detect_raw("Bon dia a tothom"))         # ('cat_Latn', 0.998)
-print(len(det.available_languages))               # 2100 BCP-47 tags
+print(len(det.available_languages))               # 2099 BCP-47 tags
 print(det.loss)                                   # 'softmax'
 ```
 

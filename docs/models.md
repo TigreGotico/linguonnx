@@ -1,8 +1,8 @@
 # The model registry
 
 Two JSON files under `linguonnx/model_index/` say what exists: `lid.json` for
-language identification and `translate.json` for translation. They hold 8 and
-150 entries. Every entry names a HuggingFace repo, the exact files to fetch,
+language identification and `translate.json` for translation. They hold 10 and
+369 entries. Every entry names a HuggingFace repo, the exact files to fetch,
 the languages covered, the licence and the size.
 
 Both files are **generated**, not edited by hand. See
@@ -11,7 +11,7 @@ it sounds.
 
 ## What is in the translation registry
 
-150 entries is fp32 and int8 of 75 models. `load_translator()` defaults to
+369 entries is 184 int8 and 185 fp32 entries across 185 models. `load_translator()` defaults to
 `precision="int8"`; pass `precision="fp32"` or `precision=None` for both.
 
 | model | arch | coverage | size (int8) | licence |
@@ -27,21 +27,31 @@ it sounds.
 | `indictrans2-indic-indic-dist-320M` | IndicTrans2 | 25 Indic tags, any-to-any | 532 MB | MIT |
 | `aina-es-oc` | NLLB fine-tune | Spanish → Aranese, **one-way** | 1.9 GB | **CC-BY-NC-4.0** |
 | `nos-coda_iacobus-*` (6) | OpenNMT | one pair each; en/es/pt → gl, es↔pt, en↔es | 499 MB – 814 MB | MIT |
-| `mt-hitz-*` (3) | Marian | `ca-eu`, `es-eu`, `eu-es` | 153 MB each | Apache-2.0 |
-| `opus-mt-*` (56) | Marian | one pair each | 78 MB – 448 MB | Apache-2.0 or CC-BY-4.0 |
+| `mt-hitz-*` (6) | Marian | `ca-eu`, `en-eu`, `es-eu`, `eu-en`, `eu-es`, `gl-eu` | 90 MB – 153 MB | Apache-2.0 |
+| `opus-mt-*` (124) | Marian | one pair each | 78 MB – 716 MB | Apache-2.0 or CC-BY-4.0 |
 
 The opus-mt pairs published as int8:
 
 ```
-ar-en  ca-en  ca-es  ca-fr  ca-it  de-en  en-ar  en-bg  en-ca  en-cs
-en-da  en-de  en-el  en-es  en-eu  en-fi  en-fr  en-gl  en-he  en-hi
-en-hu  en-id  en-it  en-nl  en-pl  en-pt  en-ro  en-ru  en-sv
-en-tr  en-uk  en-vi  en-zh  es-ca  es-en  es-eu  es-gl  eu-en  eu-es
-fr-ca  fr-en  gl-en  gl-es  gl-pt  it-en  itc-itc  nl-en  pl-en  pt-ca
-pt-en  pt-gl  ru-en  tr-en  uk-en  zh-en
+af-en  ar-en  az-en  bg-en  bn-en  ca-en  ca-es  ca-fr
+ca-it  ceb-en  cs-en  cy-en  da-en  de-en  en-af  en-ar
+en-az  en-bg  en-ca  en-cs  en-cy  en-da  en-de  en-el
+en-es  en-et  en-eu  en-fi  en-fr  en-ga  en-gl  en-gmq
+en-he  en-hi  en-hu  en-hy  en-id  en-is  en-it  en-jap
+en-ml  en-mr  en-nl  en-pl  en-pt  en-ro  en-ru  en-sk
+en-sq  en-sv  en-ti  en-tr  en-uk  en-ur  en-vi  en-xh
+en-zh  es-ca  es-en  es-eu  es-gl  et-en  eu-en  eu-es
+fi-en  fr-ca  fr-en  ga-en  gl-en  gl-es  gl-pt  gmq-en
+hi-en  hu-en  hy-en  id-en  is-en  it-en  itc-itc  ja-en
+ka-en  ko-en  lv-en  mg-en  mk-en  ml-en  mr-en  mt-en
+nl-en  pa-en  pl-en  pt-ca  pt-en  pt-gl  ru-en  sk-en
+sm-en  sn-en  sq-en  st-en  sv-en  tc-base-en-sh  tc-big-cat_oci_spa-en  tc-big-el-en
+tc-big-en-cat_oci_spa  tc-big-en-el  tc-big-en-ro  tc-big-en-zle  tc-big-gmw-gmw  tc-big-he-en  tc-big-itc-itc  tc-big-sh-en
+tc-big-zle-en  th-en  tl-en  tn-en  tr-az  tr-en  ts-en  uk-en
+ur-en  vi-en  xh-en  zh-en
 ```
 
-Together they reach 459 languages over the default graph. MADLAD supplies most
+Together they reach 586 languages over the default graph. MADLAD supplies most
 of the tail, including the ones no other model here has: Mirandese, Aragonese,
 Occitan and several hundred more.
 
@@ -76,6 +86,7 @@ claimed.
 |---|---|---|---|
 | `glotlid` / `glotlid-int8` | 2102 | 1.68 GB / 425 MB | Apache-2.0 |
 | `lid176` / `lid176-int8` | 176 | 131 MB / 33 MB | CC-BY-SA-3.0 |
+| `lid218e` / `lid218e-int8` | 218 | 1 MB / 295 MB | **CC-BY-NC-4.0** |
 | `openlid` / `openlid-int8` | 201 | 1.23 GB / 310 MB | GPL-3.0 |
 | `openlid-v2` / `openlid-v2-int8` | 200 | 1.22 GB / 305 MB | GPL-3.0 |
 
@@ -93,7 +104,7 @@ print(entry["arch"], entry["pair"], entry["license"], entry["size_mb"])
 # marian ['pt', 'en'] Apache-2.0 172
 
 print(len(list_models(kind="translate")), len(list_models(kind="lid")))
-# 150 8
+# 369 10
 ```
 
 ## The download cache

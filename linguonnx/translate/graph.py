@@ -61,7 +61,7 @@ of languages exists only inside a few very large multilingual models - MADLAD
 excludes them outright drops routable languages from 586 to 249 on the
 default registry with an empty cache (``test_translate_registry_numbers.py``
 pins both numbers). Lifting the cap instead lets those same models win pairs
-that a 165 MB ``opus-mt`` pair already served, because "one multilingual hop"
+that a 157 MB ``opus-mt`` pair already served, because "one multilingual hop"
 outranks "two dedicated hops" under ``prefer="fewest_hops"`` and a 1.8 GB
 bilingual model outranks nothing at all under ``prefer="dedicated"``. Neither
 knob position is right, because the cap was never really about
