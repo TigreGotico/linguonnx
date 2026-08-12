@@ -7945,11 +7945,21 @@
     "license": "Apache-2.0",
     "license_tier": "permissive",
     "model_id": "opus-mt-en-jap",
+    "notes": "Helsinki-NLP's en->jap model, and the only dedicated English->Japanese model in the registry. It does not translate the input: on FLORES-200 devtest it answers in an archaic biblical register with hallucinated proper names, scoring chrF 6.1 against the reference (n=100, beam4). 'I live in Lisbon.' comes back as 'わたし は 争い に よ っ て 生き る '. M2M100-418M answers the same input with '私はリスボンに住んでいます。'. The output is also whitespace-segmented, which Japanese does not use. This is a defect of the underlying base checkpoint, not the int8 quantization, so it affects fp32 identically.",
     "pair": [
       "en",
       "jap"
     ],
     "precision": "fp32",
+    "quality": {
+      "corpus": "flores200-devtest",
+      "metric": "chrf",
+      "mode": "beam4",
+      "length_penalty": 1.0,
+      "max_new_tokens": 512,
+      "n": 100,
+      "chrf_vs_ref": 6.1
+    },
     "side_files": {
       "source_spm": "source.spm",
       "target_spm": "target.spm",
@@ -7973,11 +7983,21 @@
     "license": "Apache-2.0",
     "license_tier": "permissive",
     "model_id": "opus-mt-en-jap-int8",
+    "notes": "Helsinki-NLP's en->jap model, and the only dedicated English->Japanese model in the registry. It does not translate the input: on FLORES-200 devtest it answers in an archaic biblical register with hallucinated proper names, scoring chrF 6.1 against the reference (n=100, beam4). 'I live in Lisbon.' comes back as 'わたし は 争い に よ っ て 生き る '. M2M100-418M answers the same input with '私はリスボンに住んでいます。'. The output is also whitespace-segmented, which Japanese does not use.",
     "pair": [
       "en",
       "jap"
     ],
     "precision": "int8",
+    "quality": {
+      "corpus": "flores200-devtest",
+      "metric": "chrf",
+      "mode": "beam4",
+      "length_penalty": 1.0,
+      "max_new_tokens": 512,
+      "n": 100,
+      "chrf_vs_ref": 6.1
+    },
     "side_files": {
       "source_spm": "int8/source.spm",
       "target_spm": "int8/target.spm",
