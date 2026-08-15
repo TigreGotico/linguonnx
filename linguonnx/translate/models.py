@@ -42,6 +42,7 @@ from typing import Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 from linguonnx.limits import MAX_ENCODER_TOKENS, DecodeError, has_visible_content
 from linguonnx.model_manager import ensure_model_files, registry_entry
+from linguonnx.providers import ProviderSpec, make_session
 from linguonnx.translate.decode import GenerationConfig, Seq2SeqDecoder
 from linguonnx.translate.graph import Capability, normalize_tag
 from linguonnx.translate.preprocess import Pipeline, pipeline_for
@@ -52,13 +53,12 @@ LOG = logging.getLogger(__name__)
 __all__ = ["TranslationModel", "capability_from_entry"]
 
 
-def _session(path: Path):
+def _session(path: Path, providers: Optional[Sequence[ProviderSpec]] = None):
     import onnxruntime as ort
 
     options = ort.SessionOptions()
     options.log_severity_level = 3
-    return ort.InferenceSession(str(path), options,
-                                providers=["CPUExecutionProvider"])
+    return make_session(path, providers=providers, sess_options=options)
 
 
 def capability_from_entry(entry: Dict) -> Capability:
@@ -104,16 +104,22 @@ class TranslationModel:
     """A single loaded translation model. Graphs load lazily, on first use."""
 
     def __init__(self, model_id: str, entry: Optional[Dict] = None,
-                 enforce_download_budget: bool = True):
+                 enforce_download_budget: bool = True,
+                 providers: Optional[Sequence[ProviderSpec]] = None):
         """``enforce_download_budget=False`` is for a model the caller named
         by hand under no operator budget: :func:`load_translator` waives the
         *router's* size cap there, and the download check has to be waived
         with it or the route it plans cannot be executed. It never overrides
         ``LINGUONNX_MAX_DOWNLOAD_MB`` - see
         :func:`linguonnx.limits.operator_budget_is_set`.
+
+        ``providers`` selects the ONNX Runtime execution providers for the
+        encoder/decoder/decoder-with-past sessions; see
+        :mod:`linguonnx.providers`.
         """
         self.model_id = model_id
         self._enforce_download_budget = enforce_download_budget
+        self._providers = providers
         self.entry = entry or registry_entry(model_id, kind="translate")
         self.arch = self.entry["arch"]
         self.capability = capability_from_entry(self.entry)
@@ -251,9 +257,9 @@ class TranslationModel:
         if self._decoder is None:
             config = self.config
             self._decoder = Seq2SeqDecoder(
-                _session(self.files["encoder"]),
-                _session(self.files["decoder"]),
-                _session(self.files["decoder_with_past"]),
+                _session(self.files["encoder"], self._providers),
+                _session(self.files["decoder"], self._providers),
+                _session(self.files["decoder_with_past"], self._providers),
                 eos_id=int(config["eos_token_id"]),
                 pad_id=int(config["pad_token_id"]),
                 decoder_start_id=int(config["decoder_start_token_id"]),

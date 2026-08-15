@@ -28,7 +28,7 @@ def _entry(model_id, size_mb):
 class LazyFake:
     """A double with the real model's lazy-build shape."""
 
-    def __init__(self, model_id, entry=None, enforce_download_budget=True):
+    def __init__(self, model_id, entry=None, enforce_download_budget=True, providers=None):
         self.model_id = model_id
         self.entry = entry
         self.capability = capability_from_entry(entry)
@@ -55,7 +55,7 @@ def make(monkeypatch):
         registry = {model_id: _entry(model_id, size_mb)
                     for model_id, size_mb in sizes.items()}
 
-        def factory(model_id, entry=None, enforce_download_budget=True):
+        def factory(model_id, entry=None, enforce_download_budget=True, providers=None):
             # `hold` is attached here, not after `model()` returns, so it
             # survives an eviction and rebuild - otherwise a concurrency
             # test would silently stop blocking and measure nothing.
@@ -196,7 +196,7 @@ class TestConcurrencyIsWhatBoundsPeak:
         loading = []
         lock = threading.Lock()
 
-        def watch_load(model_id, entry=None, enforce_download_budget=True):
+        def watch_load(model_id, entry=None, enforce_download_budget=True, providers=None):
             with lock:
                 loading.append(model_id)
             model = LazyFake(model_id, entry)
@@ -205,7 +205,7 @@ class TestConcurrencyIsWhatBoundsPeak:
 
         registry = {f"m{i}": _entry(f"m{i}", 441) for i in range(8)}
 
-        def factory(model_id, entry=None, enforce_download_budget=True):
+        def factory(model_id, entry=None, enforce_download_budget=True, providers=None):
             return watch_load(model_id, entry or registry[model_id])
 
         import linguonnx.translate as module
@@ -235,7 +235,7 @@ class TestConcurrencyIsWhatBoundsPeak:
                     "en-eu": _entry("en-eu", 350)}
         registry["en-eu"]["pair"] = ["en", "eu"]
 
-        def factory(model_id, entry=None, enforce_download_budget=True):
+        def factory(model_id, entry=None, enforce_download_budget=True, providers=None):
             return LazyFake(model_id, entry or registry[model_id])
 
         monkeypatch.setattr("linguonnx.translate.TranslationModel", factory)
