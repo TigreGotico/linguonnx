@@ -187,6 +187,25 @@ def test_every_multi_target_model_has_a_way_to_name_its_target(model_id, entry):
             f"{model_id} is a multi-target {arch} model and selects its "
             f"target with a token on the input, but neither the entry nor "
             f"the pipeline supplies one")
+    elif arch == "t5-prefix":
+        # The instruction is the whole mechanism, and it is per direction
+        # rather than per target: the card spells "Akkadian simple
+        # transliteration to English" and "English to simple Akkadian
+        # transliteration" differently, so one template cannot serve both.
+        templates = entry.get("prefix_templates")
+        assert templates, (
+            f"{model_id} is a multi-target {arch} model and selects its task "
+            f"with an instruction on the input, but the entry registers none")
+        assert all(instruction.strip() for instruction in templates.values()), \
+            f"{model_id} has an empty instruction, which is no instruction"
+        # Every routable edge must have one. `Capability.directions` is built
+        # from these keys, so a language named in `languages` with no
+        # instruction reaching it is a node the router can enter and the
+        # pipeline cannot serve.
+        reachable = {code for key in templates for code in key.split(">", 1)}
+        assert reachable == set(entry["languages"]), (
+            f"{model_id} lists {sorted(entry['languages'])} but its "
+            f"instructions only reach {sorted(reachable)}")
     elif arch in ("m2m100", "nllb"):
         assert pipeline_for(arch).forced_bos.__qualname__.startswith(
             "SpmLangTokenPipeline"), \

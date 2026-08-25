@@ -2,7 +2,7 @@
 
 Two JSON files under `linguonnx/model_index/` say what exists: `lid.json` for
 language identification and `translate.json` for translation. They hold 10 and
-369 entries. Every entry names a HuggingFace repo, the exact files to fetch,
+375 entries. Every entry names a HuggingFace repo, the exact files to fetch,
 the languages covered, the licence and the size.
 
 Both files are **generated**, not edited by hand. See
@@ -11,12 +11,15 @@ it sounds.
 
 ## What is in the translation registry
 
-369 entries is 184 int8 and 185 fp32 entries across 185 models. `load_translator()` defaults to
+375 entries is 187 int8 and 188 fp32 entries across 188 models. `load_translator()` defaults to
 `precision="int8"`; pass `precision="fp32"` or `precision=None` for both.
 
 | model | arch | coverage | size (int8) | licence |
 |---|---|---|---|---|
 | `madlad400-3b-mt` | T5 (MADLAD) | 450, any-to-any | 4.9 GB | Apache-2.0 |
+| `AKK-60m` | T5, instruction-prefixed | Akkadian (cuneiform and transliteration) ↔ English | 151 MB | Apache-2.0 |
+| `AKK_300m` | UMT5, instruction-prefixed | Akkadian (cuneiform and transliteration) ↔ English | 731 MB | Apache-2.0 |
+| `cuneiformBase-400m` | UMT5, instruction-prefixed | Akkadian, Sumerian, Hittite, Linear B (signs and transliteration) ↔ English; Hittite ↔ German | 1.3 GB | Apache-2.0 |
 | `nllb-600M` | NLLB-200 | 202, any-to-any | 1.9 GB | **CC-BY-NC-4.0** |
 | `m2m100-418M` | M2M100 | 100, any-to-any | 1.2 GB | MIT |
 | `m2m100-1.2B` | M2M100 | 100, any-to-any | 2.3 GB | MIT |
@@ -55,7 +58,7 @@ tc-big-zle-en  th-en  tl-en  tn-en  tr-az  tr-en  ts-en  uk-en
 ur-en  vi-en  xh-en  zh-en
 ```
 
-Together they reach 586 languages over the default graph. MADLAD supplies most
+Together they reach 593 languages over the default graph. MADLAD supplies most
 of the tail, including the ones no other model here has: Mirandese, Aragonese,
 Occitan and several hundred more.
 
@@ -118,7 +121,7 @@ print(entry["arch"], entry["pair"], entry["license"], entry["size_mb"])
 # marian ['pt', 'en'] Apache-2.0 172
 
 print(len(list_models(kind="translate")), len(list_models(kind="lid")))
-# 369 10
+# 373 10
 ```
 
 ## The download cache
@@ -399,12 +402,41 @@ Everything the Hub can answer is read from the Hub, never typed out:
 | `languages` | `additional_special_tokens` in the model's own `special_tokens_map.json`. |
 | `pair` | The repo name, cross-checked against the base model named in the card. Never a language *family*: `itc`, `sla`, `mul` and the other ISO 639-5 collection codes are refused as pair sides, and the repo takes the group-model path below. |
 | `target_token_template` + `native_codes` | For a model that picks its target with a prefix token. The token set is read from the model's own vocabulary — `<2xx>` for MADLAD and `liv4ever-mt`, `>>xxx<<` for the opus-mt group models — and `native_codes` maps the BCP-47 tag the graph uses back to the model's own spelling, so the graph sees `it` and the model still gets `>>ita<<`. |
+| `prefix_templates` | **Not** derived — hand-transcribed from the model card into `T5_PREFIX_MODELS`, for an instruction-prefixed T5/UMT5. The instruction that selects a direction is prose in the card's own "Instructions" list; nothing in the artifacts records it, and the wording is not symmetric between directions. The script refuses a `umt5` repo it has no transcription for rather than guessing one. |
 | `size_mb` | Summed blob sizes of the files the entry actually references. Load-bearing twice over: it breaks ties in the route ranking, and it is what `max_model_mb` compares against, so an entry that under-reports its size gets routed onto hosts that cannot afford it. See [routing](routing.md#size-budget). |
 | `runnable` | Written as `false`, with an `unrunnable_reason`, for an architecture whose inference pipeline this library does not implement. The router excludes those models. Delete the architecture from `UNRUNNABLE_ARCHS` in the script when its pipeline lands. |
 
 There is no third fallback for the licence. A repo whose licence cannot be read
 is skipped, because "probably Apache" is not a licence claim this library is
 willing to publish on someone else's behalf.
+
+**Two tokenizer shapes under one architecture.** An instruction-prefixed T5
+usually ships a `spiece.model`, and its `added_tokens.json` is not optional:
+the cuneiform signs are not SentencePiece pieces, so an export read without
+that file turns every sign in the input into `<unk>` and the model answers the
+result fluently. `cuneiformBase-400m` ships no SentencePiece model at all and
+keeps its whole vocabulary in a `tokenizer.json`, which linguonnx reads with
+its own Unigram implementation rather than by taking the `tokenizers`
+dependency. An export with neither shape complete is skipped rather than
+registered half-readable.
+
+That reader implements a Unigram lattice and nothing else. An export whose
+`tokenizer.json` declares a normaliser is refused, not approximated — a
+normaliser rewrites the text before segmentation, and ignoring one produces a
+plausible tokenisation of a string the model was never given.
+
+**Instruction prefixes.** A model that picks its task with a sentence rather
+than a token can only do what it has an instruction for, and those do not have
+to be symmetric — Thalesian's Akkadian models translate and transliterate
+cuneiform into Latin transliteration, but were given no instruction for the
+reverse. So the registered instructions *are* the coverage claim: the router
+builds its edges from `prefix_templates` and offers nothing else, which is why
+a missing transcription is a skip rather than a default. Declared as a plain
+any-to-any `languages` list, the router would offer the one direction the
+model cannot do, and the model would answer it anyway.
+
+Neural transliteration between `akk` and `akk-Latn` is a translation route
+here, not a substitute for a deterministic sign mapping.
 
 ### Two things the script refuses to guess
 

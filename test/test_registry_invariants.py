@@ -552,3 +552,36 @@ def test_masakhane_reused_tokens_are_declared_in_native_codes(model_id):
             f"{iso!r} raises. Needs a native_codes override, keyed on the "
             f"*normalised* tag (see the export's Hub card for which existing "
             f"token it reuses).")
+
+
+def test_akkadian_script_tags_normalise_the_way_the_registry_spells_them():
+    """`Xsux` is Akkadian's default script and `langcodes` suppresses it, so
+    cuneiform Akkadian *is* plain `akk` - while the Latin transliteration
+    survives as its own node. The registry must therefore store `akk`, never
+    `akk_Xsux`, or `test_every_code_is_already_normalised` fails.
+
+    The same suppression does not apply to Sumerian, whose `Xsux` is kept.
+    That asymmetry is pinned here because it is not guessable, and a model
+    claiming Sumerian would have to spell it `sux-Xsux`.
+    """
+    from linguonnx.translate.graph import normalize_tag
+    assert normalize_tag("akk_Xsux") == "akk"
+    assert normalize_tag("akk-Xsux") == "akk"
+    assert normalize_tag("akk_Latn") == "akk-Latn"
+    assert normalize_tag("sux_Xsux") == "sux-Xsux"
+
+
+def test_every_declared_direction_names_registered_languages():
+    """A `prefix_templates` key that names a language the entry does not
+    list would route into a node `available_languages` never reports."""
+    from linguonnx.translate.graph import normalize_tag
+    for model_id, entry in TRANSLATE.items():
+        templates = entry.get("prefix_templates")
+        if not templates:
+            continue
+        declared = {normalize_tag(c) for c in entry.get("languages", ())}
+        for key in templates:
+            src, tgt = (normalize_tag(c) for c in key.split(">", 1))
+            assert src in declared, f"{model_id}: {key} source not in languages"
+            assert tgt in declared, f"{model_id}: {key} target not in languages"
+            assert src != tgt, f"{model_id}: {key} is a self-edge"

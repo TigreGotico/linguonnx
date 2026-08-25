@@ -39,9 +39,9 @@ from linguonnx.translate import load_translator
 
 # Recount with:
 #   load_translator(max_model_mb=CAP, count_cached_as_free=False)
-LANGUAGES_UNCAPPED = 586
-LANGUAGES_UNDER_500 = 249
-FALLBACK_STEPS_UNDER_500 = 34
+LANGUAGES_UNCAPPED = 593
+LANGUAGES_UNDER_500 = 251
+FALLBACK_STEPS_UNDER_500 = 36
 
 # README.md's "What ships" table and docs/models.md's opening paragraph quote
 # these directly off `linguonnx/model_index/translate.json` and `lid.json`.
@@ -49,10 +49,10 @@ FALLBACK_STEPS_UNDER_500 = 34
 #   len(list_models(kind="translate"))                        -> entries
 #   {v["hf_repo"] for v in translate.json.values()}            -> models
 #   Counter(v["precision"] for v in translate.json.values())   -> int8/fp32 split
-TRANSLATE_ENTRIES = 369
-TRANSLATE_INT8_ENTRIES = 184
-TRANSLATE_FP32_ENTRIES = 185
-TRANSLATE_MODELS = 185
+TRANSLATE_ENTRIES = 375
+TRANSLATE_INT8_ENTRIES = 187
+TRANSLATE_FP32_ENTRIES = 188
+TRANSLATE_MODELS = 188
 LID_ENTRIES = 10
 LID_MODELS = 5
 
@@ -233,6 +233,8 @@ DOCUMENTED_TRANSLATE_FAMILIES = [
     r"^TigreGotico/m2m100-1\.2B-onnx$",
     r"^TigreGotico/m2m100-418M-smugri-onnx$",
     r"^TigreGotico/liv4ever-mt-onnx$",
+    r"^TigreGotico/AKK[-_].+-onnx$",
+    r"^TigreGotico/cuneiformBase-.+-onnx$",
     r"^TigreGotico/indictrans2-en-indic-dist-200M-onnx$",
     r"^TigreGotico/indictrans2-indic-en-dist-200M-onnx$",
     r"^TigreGotico/indictrans2-indic-indic-dist-320M-onnx$",

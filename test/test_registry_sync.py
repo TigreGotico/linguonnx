@@ -68,7 +68,8 @@ def test_translate_entry_is_complete(model_id):
     assert entry["model_id"] == model_id
     assert entry["hf_repo"].startswith("TigreGotico/")
     assert entry["arch"] in (
-        "marian", "m2m100", "nllb", "madlad", "indictrans2", "opennmt-bpe",
+        "marian", "m2m100", "nllb", "madlad", "t5-prefix", "indictrans2",
+        "opennmt-bpe",
         "pegasus-fast")
     assert entry["precision"] in ("fp32", "int8")
     assert entry["size_mb"] > 0
@@ -107,12 +108,23 @@ def test_translate_entry_carries_side_files_its_tokenizer_needs(model_id):
         "m2m100": {"spm", "config", "special_tokens_map", "vocab"},
         "nllb": {"spm", "config", "special_tokens_map"},
         "madlad": {"spm", "config"},
+        "t5-prefix": {"config", "tokenizer_config"},
         "indictrans2": {"spm_src", "spm_tgt", "dict_src", "dict_tgt", "config"},
         "opennmt-bpe": {"vocab", "config", "bpe_code"},
         "pegasus-fast": {"tokenizer_json", "config"},
     }[entry["arch"]]
     assert required <= set(side), \
         f"{model_id} ({entry['arch']}) is missing {required - set(side)}"
+
+    if entry["arch"] == "t5-prefix":
+        # Two shapes, and neither half is optional. `added_tokens` goes with
+        # the SentencePiece model because the model does not hold the
+        # cuneiform signs: reading one without the other turns every sign in
+        # the input into <unk> and nothing raises. A `tokenizer.json` carries
+        # both, and is the only vocabulary some exports have.
+        assert "tokenizer_json" in side or {"spm", "added_tokens"} <= set(side), \
+            (f"{model_id} has neither a tokenizer.json nor a complete "
+             f"spiece.model + added_tokens.json pair: {sorted(side)}")
 
 
 @pytest.mark.parametrize("model_id", sorted(LID))
@@ -550,8 +562,8 @@ def test_hi_to_ta_resolves_direct(translator):
 #: Every architecture `linguonnx.translate.preprocess` registers a pipeline
 #: for. Kept as a literal set rather than read from the registry, so that
 #: adding an entry for an architecture nobody wrote a pipeline for fails here.
-RUNNABLE_ARCHS = {"marian", "m2m100", "nllb", "madlad", "indictrans2",
-                  "opennmt-bpe", "pegasus-fast"}
+RUNNABLE_ARCHS = {"marian", "m2m100", "nllb", "madlad", "t5-prefix",
+                  "indictrans2", "opennmt-bpe", "pegasus-fast"}
 
 
 @pytest.mark.parametrize("model_id", sorted(TRANSLATE))
@@ -1310,3 +1322,34 @@ class TestAnUpstreamCardRewriteStillReachesAReviewer:
         before = (sync._index / "translate_overruled.json").read_text()
         sync.main([])
         assert (sync._index / "translate_overruled.json").read_text() == before
+
+
+def test_arch_reads_t5_prefix_for_a_known_instruct_model():
+    """A `model_type: t5` repo listed in `T5_PREFIX_MODELS` is an
+    instruction-prefixed T5, not MADLAD.
+
+    MADLAD and Thalesian's Akkadian models share `model_type: t5` and a lone
+    `spiece.model`, so the file shape alone cannot tell them apart. Falling
+    through to MADLAD gives the model `<2en>` - a piece absent from a 32k
+    Akkadian vocabulary - instead of the sentence-shaped instruction it was
+    trained on.
+    """
+    detail = {"config": {"model_type": "t5"}}
+    files = {"spiece.model": 1}
+    assert sync_registry._arch(detail, files, "AKK-60m") == "t5-prefix"
+
+
+def test_arch_reads_t5_prefix_for_umt5():
+    """UMT5 is a T5 variant nothing else in the registry maps; its per-layer
+    relative bias is internal to the graph, so it tokenizes and decodes
+    exactly like the `t5` checkpoints and shares their arch name."""
+    detail = {"config": {"model_type": "umt5"}}
+    assert sync_registry._arch(detail, {"spiece.model": 1}, "AKK_300m") == "t5-prefix"
+
+
+def test_arch_still_reads_madlad_for_an_unknown_t5():
+    """The t5 fan-out must not strand MADLAD: a `t5` repo that is not a known
+    instruct model keeps its existing classification."""
+    detail = {"config": {"model_type": "t5"}}
+    assert sync_registry._arch(detail, {"spiece.model": 1}, "madlad400-3b-mt") == "madlad"
+    assert sync_registry._arch(detail, {"spiece.model": 1}) == "madlad"
