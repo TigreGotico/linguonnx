@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.0a1](https://github.com/TigreGotico/linguonnx/tree/0.14.0a1) (2026-09-01)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.13.0a2...0.14.0a1)
+
+**Merged pull requests:**
+
+- feat: export and register IndicTrans2 en-indic-1B \(fp32 + int8\) [\#55](https://github.com/TigreGotico/linguonnx/pull/55) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.13.0a2](https://github.com/TigreGotico/linguonnx/tree/0.13.0a2) (2026-09-01)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.13.0a1...0.13.0a2)
@@ -257,20 +265,20 @@
 
 ## [0.5.1a1](https://github.com/TigreGotico/linguonnx/tree/0.5.1a1) (2026-08-02)
 
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0a1...0.5.1a1)
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0...0.5.1a1)
 
 **Merged pull requests:**
 
 - Release 0.5.1a1 [\#18](https://github.com/TigreGotico/linguonnx/pull/18) ([github-actions[bot]](https://github.com/apps/github-actions))
 - docs: split README into docs/, add examples, record short-text caveat [\#17](https://github.com/TigreGotico/linguonnx/pull/17) ([JarbasAl](https://github.com/JarbasAl))
 
-## [0.5.0a1](https://github.com/TigreGotico/linguonnx/tree/0.5.0a1) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0...0.5.0a1)
-
 ## [0.5.0](https://github.com/TigreGotico/linguonnx/tree/0.5.0) (2026-08-02)
 
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.4.0a1...0.5.0)
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0a1...0.5.0)
+
+## [0.5.0a1](https://github.com/TigreGotico/linguonnx/tree/0.5.0a1) (2026-08-02)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.4.0a1...0.5.0a1)
 
 **Merged pull requests:**
 
