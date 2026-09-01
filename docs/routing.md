@@ -543,6 +543,48 @@ translator that reordered its routes as models were downloaded would give two
 hosts in one fleet different answers with nothing to explain it. The number is
 reported so the caller can decide; it is not decided for them.
 
+## Fetching on the request path
+
+Downloading an absent model while a caller waits is a trade, not a fact, so it
+is a setting: `fetch_on_demand`.
+
+`True`, the default, is the long-standing behaviour — the first request for an
+uncached pair pays the download, and the whole registry stays reachable. That
+is right on a well-provisioned server, and it is why the default did not
+change: a deployment that upgrades must not silently lose coverage.
+
+`False` is the embedded, metered-link, small-disk stance. Routing is built over
+the models that are already cached, so:
+
+- a pair a **cached chain** covers is still served by that chain, even when the
+  direct model for it is absent — falling back to a cached route beats an
+  error;
+- a pair **nothing cached** covers raises `NoRouteError`, and the message says
+  the model is not cached and names it, so the fix is a prefetch rather than a
+  guess about an unsupported language.
+
+<!-- doc-check: norun the answer depends on what this host has cached -->
+```python
+tx = load_translator(fetch_on_demand=False)
+tx.route("en", "eu")
+# NoRouteError: no route from 'en' to 'eu' within 2 hop(s) -- model(s) cover
+# this pair but are not cached and fetch_on_demand is off: mt-hitz-en-eu-int8
+# (90 MB); prefetch them (linguonnx.model_manager.prefetch) or pass
+# fetch_on_demand=True to download on the request path
+```
+
+It composes with the size budget rather than duplicating it. `max_model_mb`
+bounds a model's **size**; `fetch_on_demand` bounds its **presence**. With
+`fetch_on_demand=False` an absent model is unavailable however small it is, and
+`count_cached_as_free` stops mattering for it, because every model left in the
+graph is cached. `LINGUONNX_MAX_DOWNLOAD_MB` is the last line of the same
+defence — under `fetch_on_demand=False` there is nothing left for it to refuse,
+because no download is attempted on the request path at all.
+
+The cache is read when the `Translator` is built, not per request: a model
+prefetched into a running server is picked up on the next build, so a prefetch
+and a restart go together.
+
 ## Measured quality
 
 The registry's old parity numbers — the ones on some model cards claiming
