@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Sequence
 
 import numpy as np
 import onnxruntime as ort
@@ -23,6 +23,7 @@ from linguonnx.detect.hs import HSCombiner
 from linguonnx.detect.labels import LABEL_PREFIX, LabelMapper, collapse_variety
 from linguonnx.limits import (MAX_DETECT_CHARS, MAX_LINE_TOKENS,
                               EmptyInputError, has_visible_content)
+from linguonnx.providers import ProviderSpec, make_session
 
 # GlotLID is the default on purpose: it is the only Apache-2.0 model in the
 # registry. OpenLID v1/v2 are GPL-3.0 and lid.176 is CC-BY-SA-3.0, so a user
@@ -36,11 +37,17 @@ class LanguageDetector:
     def __init__(self, model_id: str = DEFAULT_MODEL_ID,
                  session_options: Optional[ort.SessionOptions] = None,
                  max_chars: int = MAX_DETECT_CHARS,
-                 max_tokens: int = MAX_LINE_TOKENS):
+                 max_tokens: int = MAX_LINE_TOKENS,
+                 providers: Optional[Sequence[ProviderSpec]] = None):
         """``max_chars``/``max_tokens`` bound the input; see
         :mod:`linguonnx.limits` for the defaults and their environment
         variables. Text over either bound raises
-        :class:`~linguonnx.limits.InputTooLongError`."""
+        :class:`~linguonnx.limits.InputTooLongError`.
+
+        ``providers`` selects the ONNX Runtime execution providers; see
+        :mod:`linguonnx.providers`. Left unset, it resolves from
+        ``LINGUONNX_ONNX_PROVIDERS`` and then auto-detection, which is
+        CPU-only on the default ``onnxruntime`` install."""
         self.model_id = model_id
         entry = model_manager.registry_entry(model_id)
         self.num_labels = entry["num_labels"]
@@ -73,9 +80,8 @@ class LanguageDetector:
             self._featurizer.words.pop()
             self._featurizer.word2id = {w: i for i, w in enumerate(self._featurizer.words)}
 
-        self._session = ort.InferenceSession(
-            str(paths["onnx_file"]), sess_options=session_options,
-            providers=["CPUExecutionProvider"],
+        self._session = make_session(
+            paths["onnx_file"], providers=providers, sess_options=session_options,
         )
         self._input_name = self._session.get_inputs()[0].name
         self._output_name = self._session.get_outputs()[0].name

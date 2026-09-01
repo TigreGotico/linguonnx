@@ -50,6 +50,17 @@ opennmt = ["sacremoses>=0.0.53", "subword-nmt>=0.3.8"]
 # `tokenizers`-library tokenizer.json (Unigram model), not a raw SentencePiece
 # `.model` - `sentencepiece` cannot read it.
 fast-tokenizers = ["tokenizers>=0.15.0"]
+# `onnxruntime` and `onnxruntime-gpu` both provide the `onnxruntime` import
+# namespace and must never be installed together, so `gpu` cannot declare
+# `onnxruntime-gpu` as a dependency here - `onnxruntime` is already a hard
+# base dependency above and pip/uv would install both side by side.
+# `cpu` is a no-op alias that names the default explicitly next to `gpu`.
+# To run on a CUDA host: `pip uninstall onnxruntime && pip install
+# onnxruntime-gpu`, in that order, in the same environment linguonnx is
+# installed in - see `linguonnx.providers` for provider selection at
+# runtime, which warns if a configured provider is not actually available.
+cpu = []
+gpu = []
 # `onnx` is only used by the tests, but the floor is a security floor, not a
 # feature one: CVE-2022-25882 (<1.13.0) is directory traversal through the
 # external-data `location` field, and CVE-2024-5187 (<1.16.0) is a second path

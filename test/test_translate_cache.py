@@ -67,7 +67,7 @@ def counting_factory(monkeypatch):
     lock = threading.Lock()
 
     def factory(model_id, entry=None, delay=0.0,
-                enforce_download_budget=True):
+                enforce_download_budget=True, providers=None):
         # `enforce_download_budget` is accepted because `Translator` passes
         # it to every `TranslationModel` it builds; this double stands in
         # for that constructor and has to have its shape.
@@ -166,7 +166,7 @@ def test_two_threads_racing_one_cold_model_build_it_once(monkeypatch):
     start = threading.Barrier(2)
 
     def slow_factory(model_id, entry=None,
-                     enforce_download_budget=True):
+                     enforce_download_budget=True, providers=None):
         # `Translator` passes `enforce_download_budget` to every
         # `TranslationModel` it builds; this double stands in for that
         # constructor and has to have its shape.
@@ -200,7 +200,7 @@ def test_loading_one_model_does_not_block_another(monkeypatch):
     inside = threading.Event()
 
     def blocking_factory(model_id, entry=None,
-                         enforce_download_budget=True):
+                         enforce_download_budget=True, providers=None):
         # `Translator` passes `enforce_download_budget` to every
         # `TranslationModel` it builds; this double stands in for that
         # constructor and has to have its shape.
@@ -257,7 +257,7 @@ def test_a_selected_noncommercial_model_still_loads(monkeypatch):
 
     monkeypatch.setattr(
         "linguonnx.translate.TranslationModel",
-        lambda model_id, entry=None, enforce_download_budget=True:
+        lambda model_id, entry=None, enforce_download_budget=True, providers=None:
         FakeModel(model_id, entry or entries[model_id]))
     tx = Translator(entries)
     assert tx.model("nllb-600M").model_id == "nllb-600M"

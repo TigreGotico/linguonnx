@@ -26,6 +26,31 @@ pip install linguonnx
 pip install linguonnx[distance]   # adds orthography2ipa, for pivot ranking
 ```
 
+By default every session runs on `CPUExecutionProvider`. `onnxruntime` and
+`onnxruntime-gpu` provide the same `onnxruntime` import namespace and must
+never both be installed, so the `gpu` extra cannot pull `onnxruntime-gpu` in
+automatically without breaking that constraint - it is a no-op label. A GPU
+host swaps the runtime itself, in the same environment linguonnx is already
+installed in:
+
+```bash
+pip uninstall onnxruntime
+pip install onnxruntime-gpu
+export LINGUONNX_ONNX_PROVIDERS=auto   # or a CSV list, e.g. CUDAExecutionProvider
+```
+
+`auto` picks the best provider the installed ONNX Runtime build actually
+offers, always falling back to CPU. A requested provider that fails to
+initialize - a CUDA build with no CUDA device, say - is something ONNX Runtime
+does not raise on; it silently runs the next provider in the list instead.
+`linguonnx` checks this after building each session and logs a warning when
+the active provider is not the one that was asked for, so a misconfigured GPU
+deployment does not run on CPU indefinitely without anyone noticing. See
+`linguonnx/providers.py`. Whether a given model architecture actually runs on
+a non-CPU provider depends on the ops in its exported ONNX graph and has to be
+verified per architecture on real hardware; provider selection here is honest
+about what got selected, not a claim that every export runs on it.
+
 Models download from HuggingFace on first use and are cached under
 `~/.cache/linguonnx/models/<model_id>/`. Set `LINGUONNX_CACHE` to put that
 somewhere else — on a server the weights are tens of gigabytes and `$HOME` is

@@ -27,6 +27,7 @@ from typing import (Dict, Iterable, Iterator, List, Optional, Sequence, Tuple,
 from linguonnx.limits import operator_budget_is_set
 from linguonnx import model_manager
 from linguonnx.model_manager import list_models
+from linguonnx.providers import ProviderSpec
 from linguonnx.translate.decode import GenerationConfig
 from linguonnx.translate.graph import (DEFAULT_PIVOT_PREFERENCE, UNSET,
                                        Capability, Hop, NoRouteError, Route,
@@ -123,7 +124,8 @@ class Translator:
                  max_concurrent_translations: Optional[int] =
                  DEFAULT_MAX_CONCURRENT_TRANSLATIONS,
                  enforce_download_budget: bool = True,
-                 fetch_on_demand: bool = True):
+                 fetch_on_demand: bool = True,
+                 providers: Optional[Sequence[ProviderSpec]] = None):
         # Whether an absent model may be downloaded on the request path.
         # `False` is the embedded/metered stance: routing sees only what is
         # already on disk, so latency is bounded by decode instead of by a
@@ -145,6 +147,7 @@ class Translator:
                     "or pass fetch_on_demand=True")
             entries = cached
         self._entries = entries
+        self._providers = providers
         # Routing and downloading have to agree. `max_model_mb` keeps the
         # router from proposing a model the download path would refuse; when
         # the router's budget is waived for models the caller named by hand,
@@ -502,7 +505,8 @@ class Translator:
                      entry["arch"], entry["size_mb"])
             model = TranslationModel(
                 model_id, entry,
-                enforce_download_budget=self._enforce_download_budget)
+                enforce_download_budget=self._enforce_download_budget,
+                providers=self._providers)
             with self._cache_lock:
                 self._loaded[model_id] = model
                 self._loaded.move_to_end(model_id)
@@ -659,7 +663,8 @@ def load_translator(models: Optional[Sequence[str]] = None,
                     max_loaded_mb: Optional[int] = DEFAULT_MAX_LOADED_MB,
                     max_concurrent_translations: Optional[int] =
                     DEFAULT_MAX_CONCURRENT_TRANSLATIONS,
-                    fetch_on_demand: bool = True) -> Translator:
+                    fetch_on_demand: bool = True,
+                    providers: Optional[Sequence[ProviderSpec]] = None) -> Translator:
     """Build a :class:`Translator` over the registry.
 
     The default graph is **every permissive-licensed int8 model**: M2M100-418M
@@ -741,6 +746,10 @@ def load_translator(models: Optional[Sequence[str]] = None,
         least-recently-used evicted first. The whole default graph is ~25 GB,
         so an unbounded cache is an OOM kill in any long-lived server that
         routes over many language pairs.
+    :param providers: ONNX Runtime execution providers for every model this
+        translator loads; see :mod:`linguonnx.providers`. Left unset, it
+        resolves from ``LINGUONNX_ONNX_PROVIDERS`` and then auto-detection,
+        which is CPU-only on the default ``onnxruntime`` install.
     """
     if model is not None:
         models = [model] if models is None else list(models) + [model]
@@ -779,4 +788,5 @@ def load_translator(models: Optional[Sequence[str]] = None,
                       model_cache_size=model_cache_size,
                       max_loaded_mb=max_loaded_mb,
                       max_concurrent_translations=max_concurrent_translations,
-                      fetch_on_demand=fetch_on_demand)
+                      fetch_on_demand=fetch_on_demand,
+                      providers=providers)

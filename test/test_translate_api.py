@@ -59,9 +59,9 @@ def tx(monkeypatch):
     made = {}
 
     def factory(model_id, entry=None,
-                enforce_download_budget=True):
-        # `Translator` passes `enforce_download_budget` to every
-        # `TranslationModel` it builds; this double stands in for that
+                enforce_download_budget=True, providers=None):
+        # `Translator` passes `enforce_download_budget` and `providers` to
+        # every `TranslationModel` it builds; this double stands in for that
         # constructor and has to have its shape.
         made.setdefault(model_id, FakeModel(model_id, entry or REGISTRY[model_id]))
         return made[model_id]

@@ -1,7 +1,7 @@
 from linguonnx.version import __version__
 
 
-def load_detector(model_id: str = "glotlid-int8"):
+def load_detector(model_id: str = "glotlid-int8", **kwargs):
     """Load a language-identification model, downloading it on first use.
 
     ``model_id`` is one of the entries in ``linguonnx/model_index/lid.json``:
@@ -9,9 +9,12 @@ def load_detector(model_id: str = "glotlid-int8"):
     (CC-BY-SA-3.0), "openlid"/"openlid-int8" and "openlid-v2"/"openlid-v2-int8"
     (both GPL-3.0). The default is GlotLID because it is the only
     Apache-2.0-licensed option; the others must be asked for by name.
+
+    ``providers`` selects the ONNX Runtime execution providers; see
+    :mod:`linguonnx.providers`.
     """
     from linguonnx.detect import LanguageDetector
-    return LanguageDetector(model_id=model_id)
+    return LanguageDetector(model_id=model_id, **kwargs)
 
 
 def load_translator(*args, **kwargs):
@@ -20,6 +23,9 @@ def load_translator(*args, **kwargs):
     See :func:`linguonnx.translate.load_translator` for the full signature. The
     default graph is every permissive-licensed int8 model - M2M100-418M plus
     the opus-mt bilingual pairs - routed by fewest hops, capped at two.
+
+    ``providers`` selects the ONNX Runtime execution providers; see
+    :mod:`linguonnx.providers`.
     """
     from linguonnx.translate import load_translator as _load
     return _load(*args, **kwargs)
