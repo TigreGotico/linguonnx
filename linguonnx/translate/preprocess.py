@@ -182,6 +182,46 @@ class MadladPipeline(Pipeline):
         return model.tokenizer.decode(ids)
 
 
+@register("t5-prefix")
+class T5TextPrefixPipeline(Pipeline):
+    """An instruction-prefixed T5/UMT5. The task is a sentence on the input.
+
+    Like MADLAD this architecture has no forced decoder token, so the prefix
+    is the only thing that says which direction to translate in - but here it
+    is a whole instruction ("Translate Akkadian cuneiform to English"), not a
+    code, and the wording differs per direction rather than following from a
+    template. The instructions are prose on the model card, so they are read
+    from the registry entry's ``prefix_templates`` rather than derived.
+
+    An unregistered direction raises. The failure it prevents is MADLAD's:
+    the model does not refuse an input it was given no instruction for, it
+    translates it whichever way it likes and returns something fluent.
+    """
+
+    #: The window every card in this family states. T5 has no
+    #: `max_position_embeddings` to read it from - its attention is relative -
+    #: so without this the library-wide bound would apply and a longer input
+    #: would be embedded silently.
+    max_source_tokens = 512
+
+    def encode(self, model, text, src, tgt, target_token=None):
+        templates = model.entry.get("prefix_templates") or {}
+        prefix = templates.get(f"{src}>{tgt}")
+        if not prefix:
+            raise ValueError(
+                f"{model.model_id} selects its task with an instruction "
+                f"prefix on the input, and none is registered for "
+                f"{src!r} -> {tgt!r}; it knows "
+                f"{', '.join(sorted(templates)) or 'no directions'}. Without "
+                f"the instruction the model still answers, in a direction of "
+                f"its own choosing, and nothing else would report it.")
+        return self.check_length(
+            model.tokenizer.encode(text, prefix=prefix), model)
+
+    def decode(self, model, ids, src, tgt):
+        return model.tokenizer.decode(ids)
+
+
 # --------------------------------------------------------------------------
 # IndicTrans2
 # --------------------------------------------------------------------------

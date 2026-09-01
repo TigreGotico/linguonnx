@@ -527,6 +527,18 @@ class Capability:
                   reverse, and ``indic-indic`` is symmetric (both sets equal).
                   Treating a one-directional model as any-to-any would let the
                   router propose an impossible hop that fails at runtime.
+    ``directions`` set
+                  -> the model states its supported edges one by one, and
+                  neither a clique nor a source/target split can describe
+                  them. An instruction-prefixed model is the case: what it
+                  can do is exactly the set of instructions it was trained
+                  on, and those do not have to be symmetric. Thalesian's
+                  Akkadian models translate and transliterate cuneiform into
+                  Latin transliteration but were given no instruction for the
+                  reverse, so 5 of the 6 edges over
+                  ``{akk, akk-Latn, en}`` exist. Declared as a clique, the
+                  router would offer the sixth and `T5TextPrefixPipeline`
+                  would raise on it.
 
     A capability also says whether it can be **run**, not only what it covers.
     Coverage is what the weights know; runnability is whether this library can
@@ -546,6 +558,9 @@ class Capability:
     pair: Optional[Tuple[str, str]] = None
     src_languages: Optional[FrozenSet[str]] = None
     tgt_languages: Optional[FrozenSet[str]] = None
+    #: Exact ``(src, tgt)`` edges, when the model's coverage is neither a
+    #: clique nor a source/target split. Takes precedence over both.
+    directions: Optional[FrozenSet[Tuple[str, str]]] = None
     #: ``None`` = not stated, ask the registry. ``True``/``False`` = stated.
     runnable: Optional[bool] = None
     #: Why it cannot run, for the error the caller finally sees.
@@ -652,6 +667,8 @@ class Capability:
         # the decoder preferred.
         if src == tgt:
             return False
+        if self.directions is not None:
+            return (src, tgt) in self.directions
         if self.pair is not None:
             return self.pair == (src, tgt)
         if self.directional:
@@ -659,6 +676,11 @@ class Capability:
         return src in self.languages and tgt in self.languages
 
     def endpoints(self) -> FrozenSet[str]:
+        if self.directions is not None:
+            # Both sides of every declared edge, so `available_languages`
+            # cannot disagree with `route` - the same reason the directional
+            # branch below unions its two sets.
+            return frozenset(lang for edge in self.directions for lang in edge)
         if self.pair is not None:
             return frozenset(self.pair)
         if self.directional:
@@ -1172,7 +1194,7 @@ class TranslationGraph:
         oversized model can never outrank a small model that already works.
 
         The escalation is bounded twice over. It is bounded *by construction*
-        at one search per distinct oversized model size - 34 of them on the
+        at one search per distinct oversized model size - 36 of them on the
         default registry under a 500 MB cap, and fewer once the pair's own
         endpoint filter applies - never more than the model count. It is
         bounded again, and much more tightly, by probing the **widest** step

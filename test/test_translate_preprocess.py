@@ -18,6 +18,7 @@ import pytest
 from linguonnx.limits import InputTooLongError
 from linguonnx.translate.preprocess import (IndicTrans2Pipeline,
                                             MarianPipeline, Pipeline,
+                                            T5TextPrefixPipeline,
                                             pipeline_for)
 
 
@@ -28,7 +29,8 @@ from linguonnx.translate.preprocess import (IndicTrans2Pipeline,
 class TestPipelineRegistry:
 
     @pytest.mark.parametrize("arch", ["marian", "m2m100", "nllb", "madlad",
-                                      "indictrans2", "opennmt-bpe"])
+                                      "indictrans2", "opennmt-bpe",
+                                      "t5-prefix"])
     def test_every_registered_architecture_has_a_pipeline(self, arch):
         assert isinstance(pipeline_for(arch), Pipeline)
 
@@ -41,8 +43,11 @@ class TestPipelineRegistry:
         """The pairing is what stops one half being changed without the other."""
         assert pipeline_for("indictrans2") is pipeline_for("indictrans2")
 
-    def test_only_indictrans2_declares_a_source_ceiling(self):
+    def test_the_architectures_that_declare_a_source_ceiling(self):
+        """A ceiling is declared only where the export's position table is
+        frozen at a length the library-wide bound would not catch."""
         assert IndicTrans2Pipeline.max_source_tokens == 256
+        assert T5TextPrefixPipeline.max_source_tokens == 512
         assert MarianPipeline.max_source_tokens is None
 
 
@@ -598,3 +603,88 @@ class TestAnUnnameableDecoderIdIsVisible:
     def test_specials_are_still_dropped(self, tokenizer):
         assert tokenizer.decode([tokenizer.bos_id, 4, 5,
                                  tokenizer.eos_id]) == "gato dorme"
+
+
+# --------------------------------------------------------------------------
+# The instruction-prefixed T5 pipeline. No downloads.
+# --------------------------------------------------------------------------
+
+class _FakeTokenizer:
+    """Records what it was asked to encode. The ids are not the point."""
+
+    def __init__(self):
+        self.calls = []
+
+    def encode(self, text, prefix=None):
+        self.calls.append((text, prefix))
+        return [1, 2, 3]
+
+    def decode(self, ids):
+        return "decoded"
+
+
+class _FakeModel:
+    def __init__(self, entry):
+        self.model_id = "AKK-60m-int8"
+        self.entry = entry
+        self.tokenizer = _FakeTokenizer()
+
+
+_PREFIXES = {
+    "akk>en": "Translate Akkadian cuneiform to English",
+    "en>akk": "Translate English to Akkadian cuneiform",
+    "akk-Latn>en": "Translate Akkadian simple transliteration to English",
+    "en>akk-Latn": "Translate English to simple Akkadian transliteration",
+    "akk>akk-Latn": "Transliterate Akkadian cuneiform to simple Latin Characters",
+}
+
+
+class TestT5TextPrefixPipeline:
+    """The instruction is the only thing that says which way to translate.
+
+    Every failure here is silent at runtime: the model answers a missing or
+    wrong instruction just as fluently as a right one, in whatever direction
+    it prefers. So these assert on *which instruction reached the tokenizer*,
+    not on output looking plausible.
+    """
+
+    def test_the_registered_instruction_reaches_the_tokenizer(self):
+        model = _FakeModel({"prefix_templates": _PREFIXES})
+        pipeline_for("t5-prefix").encode(model, "text", "akk", "en")
+        assert model.tokenizer.calls == [
+            ("text", "Translate Akkadian cuneiform to English")]
+
+    def test_each_direction_gets_its_own_instruction(self):
+        """The card spells the two transliteration directions differently
+        ("Akkadian simple transliteration to English" one way, "English to
+        simple Akkadian transliteration" the other). A template built from
+        src/tgt would produce one of them for both."""
+        model = _FakeModel({"prefix_templates": _PREFIXES})
+        pipeline = pipeline_for("t5-prefix")
+        pipeline.encode(model, "text", "akk-Latn", "en")
+        pipeline.encode(model, "text", "en", "akk-Latn")
+        forward, backward = (call[1] for call in model.tokenizer.calls)
+        assert forward != backward
+        assert forward == "Translate Akkadian simple transliteration to English"
+        assert backward == "Translate English to simple Akkadian transliteration"
+
+    def test_an_unregistered_direction_raises_rather_than_guessing(self):
+        """`akk-Latn -> akk` has no instruction on either card. Encoding it
+        unprefixed would return fluent output in a direction of the model's
+        choosing, and nothing else would report it."""
+        model = _FakeModel({"prefix_templates": _PREFIXES})
+        with pytest.raises(ValueError) as err:
+            pipeline_for("t5-prefix").encode(model, "text", "akk-Latn", "akk")
+        assert "akk-Latn" in str(err.value)
+        assert model.tokenizer.calls == []
+
+    def test_an_entry_with_no_templates_at_all_raises(self):
+        model = _FakeModel({})
+        with pytest.raises(ValueError):
+            pipeline_for("t5-prefix").encode(model, "text", "akk", "en")
+
+    def test_the_ceiling_is_enforced(self):
+        model = _FakeModel({"prefix_templates": _PREFIXES})
+        model.tokenizer.encode = lambda text, prefix=None: list(range(513))
+        with pytest.raises(InputTooLongError):
+            pipeline_for("t5-prefix").encode(model, "text", "akk", "en")

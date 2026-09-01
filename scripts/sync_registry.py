@@ -576,6 +576,27 @@ SIDE_FILES: Dict[str, Dict[str, str]] = {
         "generation_config": "generation_config.json",
         "tokenizer_config": "tokenizer_config.json",
     },
+    # T5/UMT5 instruct models: the same single-SentencePiece shape as MADLAD.
+    # The instruction that selects the direction is prose on the model card,
+    # not a file, so there is nothing extra to record here - see
+    # `T5_PREFIX_MODELS`.
+    "t5-prefix": {
+        "spm": "spiece.model",
+        "config": "config.json",
+        "generation_config": "generation_config.json",
+        "tokenizer_config": "tokenizer_config.json",
+        # Not optional. The SentencePiece model holds 32000 of these exports'
+        # 32518 pieces, and the 518 it does not hold are the cuneiform signs
+        # and the transliteration diacritics. Without this file every sign in
+        # the input encodes to <unk> and the model answers the resulting
+        # nonsense fluently - see `T5TextPrefixTokenizer`.
+        "added_tokens": "added_tokens.json",
+        "special_tokens_map": "special_tokens_map.json",
+        # cuneiformBase-400m ships no SentencePiece model at all; its whole
+        # vocabulary is here, and linguonnx reads it with its own Unigram
+        # implementation rather than the `tokenizers` package.
+        "tokenizer_json": "tokenizer.json",
+    },
     # IndicTrans2: a custom HF architecture with separate source/target
     # SentencePiece models and BPE merge dictionaries - see `_arch`.
     "indictrans2": {
@@ -623,6 +644,7 @@ REQUIRED_SIDE_FILES: Dict[str, Tuple[str, ...]] = {
     "m2m100": ("spm", "config", "special_tokens_map", "vocab"),
     "nllb": ("spm", "config", "special_tokens_map"),
     "madlad": ("spm", "config"),
+    "t5-prefix": ("config", "tokenizer_config"),
     "indictrans2": ("spm_src", "spm_tgt", "dict_src", "dict_tgt", "config"),
     "opennmt-bpe": ("vocab", "config", "bpe_code"),
     "pegasus-fast": ("tokenizer_json", "config"),
@@ -678,6 +700,9 @@ GENERATED_KEYS: FrozenSet[str] = frozenset({
     # language coverage, read out of each export's own tokenizer files
     "languages", "native_codes", "pair", "src_languages", "tgt_languages",
     "target_token", "target_token_template",
+    # the per-direction instruction strings of an instruction-prefixed T5,
+    # emitted from `T5_PREFIX_MODELS` and read by `T5TextPrefixPipeline`
+    "prefix_templates",
     # LID
     "engine", "loss", "num_labels", "onnx_file",
     # emitted together whenever `arch in UNRUNNABLE_ARCHS`, and consumed as a
@@ -936,7 +961,121 @@ _RETIRED_SUBTAGS: Tuple[str, ...] = ("mol",)
 _REGION_ONLY_TOKEN_RE = re.compile(r"^[A-Z]{2}$")
 
 
-def _arch(detail: dict, files: Dict[str, int]) -> str:
+#: Instruction-prefixed T5 models: the target is chosen by a natural-language
+#: sentence prepended to the input, not by a `<2xx>` piece. MADLAD and these
+#: models both tag their graph `t5` and both ship a lone `spiece.model`, so no
+#: file-shape test can separate them - the instruction strings are prose on the
+#: model card, not anything crawlable. Hence a hand-maintained table, keyed by
+#: model id, in the same spirit as `BILINGUAL_FINETUNES`.
+#:
+#: The instruction is quoted verbatim from each card's own "Instructions"
+#: list, and the card's usage snippet joins it to the text as
+#: ``prompt + input_text`` with ``prompt`` ending in ``": "``. A prefix the
+#: model was not trained on does not raise - it translates in whatever
+#: direction the model guesses - so these strings are copied, never derived.
+#:
+#: Note the deliberate asymmetry: the transliteration directions are spelled
+#: "Akkadian simple transliteration to English" one way and "English to simple
+#: Akkadian transliteration" the other. That is the card's wording, not a
+#: typo, and it is why each direction is stored rather than generated from a
+#: `{src}`/`{tgt}` template.
+#:
+#: The cuneiform -> transliteration instruction is registered alongside the
+#: translation ones, because `akk` and `akk-Latn` are separate nodes and a
+#: route between them that the model can actually serve is better than one the
+#: router offers and the pipeline refuses. The reverse edge is *not*
+#: registered: these two cards define no instruction for it (the author's
+#: later cuneiformBase-400m does), so `akk-Latn -> akk` is genuinely absent
+#: and `Capability.directions` keeps the router from claiming it. The
+#: missing-sign task is infilling, not translation, and is not registered at
+#: all.
+#:
+#: This is neural transliteration, and it is not a substitute for a
+#: deterministic sign mapping - which is scriptconv's job, not a registry
+#: entry's.
+#: `akk` is the cuneiform node - `langcodes` suppresses `Xsux` as Akkadian's
+#: default script, so `normalize_tag("akk_Xsux") == "akk"` - and `akk-Latn` is
+#: the Latin transliteration, which survives normalisation as its own node.
+T5_PREFIX_MODELS: Dict[str, dict] = {
+    "AKK-60m": {
+        "languages": ["akk", "akk-Latn", "en"],
+        "prefix_templates": {
+            "akk>en": "Translate Akkadian cuneiform to English",
+            "en>akk": "Translate English to Akkadian cuneiform",
+            "akk-Latn>en": "Translate Akkadian simple transliteration to English",
+            "en>akk-Latn": "Translate English to simple Akkadian transliteration",
+            "akk>akk-Latn": "Transliterate Akkadian cuneiform to simple Latin Characters",
+        },
+        "notes": ("Instruction-prefixed t5-small finetune (Thalesian), trained "
+                  "on the Akkademia project's Akkadian corpus plus CDLI "
+                  "Akkadian. `akk` is cuneiform signs, `akk-Latn` is the "
+                  "'simple' transliteration - the card also defines 'grouped' "
+                  "and 'complex' transliteration notations, which are the same "
+                  "language in a different convention and are not separate "
+                  "registry nodes."),
+    },
+    "cuneiformBase-400m": {
+        # Two written forms per ancient language, and the spellings are not
+        # parallel: `langcodes` suppresses Xsux for Akkadian but Latn for
+        # Sumerian, Hittite and Linear B, so the cuneiform node is bare `akk`
+        # but `sux-Xsux`, and the transliteration node is `akk-Latn` but bare
+        # `sux`. Spelling them any other way either collapses two nodes into
+        # one or fails `test_every_code_is_already_normalised`.
+        "languages": ["akk", "akk-Latn", "sux", "sux-Xsux", "hit",
+                      "gmy", "gmy-Linb", "en", "de"],
+        "prefix_templates": {
+            "akk>en": "Translate Akkadian cuneiform to English",
+            "akk-Latn>en": "Translate Akkadian transliteration to English",
+            "en>akk": "Translate English to Akkadian cuneiform",
+            "en>akk-Latn": "Translate English to Akkadian transliteration",
+            "akk>akk-Latn": "Transliterate Akkadian cuneiform to Latin characters",
+            "akk-Latn>akk": "Convert transliterated Latin characters to Akkadian cuneiform",
+            "sux-Xsux>en": "Translate Sumerian cuneiform to English",
+            "sux>en": "Translate Sumerian transliteration to English",
+            "en>sux-Xsux": "Translate English to Sumerian cuneiform",
+            "en>sux": "Translate English to Sumerian transliteration",
+            "sux-Xsux>sux": "Transliterate Sumerian cuneiform to Latin characters",
+            "sux>sux-Xsux": "Convert transliterated Latin characters to Sumerian cuneiform",
+            "hit>en": "Translate Hittite transliteration to English",
+            "hit>de": "Translate Hittite transliteration to German",
+            "en>hit": "Translate English to Hittite transliteration",
+            "de>hit": "Translate German to Hittite transliteration",
+            "gmy-Linb>en": "Translate Linear B cuneiform to English",
+            "gmy>en": "Translate Linear B transliteration to English",
+            "en>gmy-Linb": "Translate English to Linear B cuneiform",
+            "en>gmy": "Translate English to Linear B transliteration",
+            "gmy-Linb>gmy": "Transliterate Linear B cuneiform to Latin characters",
+            "gmy>gmy-Linb": "Convert transliterated Latin characters to Linear B cuneiform",
+        },
+        "notes": ("Instruction-prefixed umt5-base finetune (Thalesian) over "
+                  "CDLI, the Akkademia project, HPM and published Linear B "
+                  "resources. Hittite is carried in transliteration only - "
+                  "the card defines no instruction for Hittite cuneiform. "
+                  "The card's 'simple' and 'complex' transliteration "
+                  "notations are the same languages in different conventions "
+                  "and are not separate nodes. Elamite is in the training "
+                  "data but has no published evaluation and no documented "
+                  "instruction, so it is not claimed. Scores lower on "
+                  "Akkadian than the author's Akkadian-only AKK_300m."),
+    },
+    "AKK_300m": {
+        "languages": ["akk", "akk-Latn", "en"],
+        "prefix_templates": {
+            "akk>en": "Translate Akkadian cuneiform to English",
+            "en>akk": "Translate English to Akkadian cuneiform",
+            "akk-Latn>en": "Translate Akkadian simple transliteration to English",
+            "en>akk-Latn": "Translate English to simple Akkadian transliteration",
+            "akk>akk-Latn": "Transliterate Akkadian cuneiform to simple Latin Characters",
+        },
+        "notes": ("Instruction-prefixed umt5 finetune (Thalesian) over the same "
+                  "corpora as AKK-60m. Scores higher on Akkadian than the "
+                  "author's later multi-script cuneiformBase-400m."),
+    },
+}
+
+
+def _arch(detail: dict, files: Dict[str, int],
+          model_id: Optional[str] = None) -> str:
     """``config.model_type`` proposes an architecture; the tokenizer files
     actually shipped confirm or override it.
 
@@ -955,7 +1094,24 @@ def _arch(detail: dict, files: Dict[str, int]) -> str:
     model_type = (detail.get("config") or {}).get("model_type", "")
     if model_type == "marian":
         return "marian"
-    if model_type == "t5":
+    if model_type in ("t5", "umt5"):
+        # `t5` fans out. MADLAD selects its target with a `<2xx>` piece from
+        # its own vocabulary; the instruction-prefixed models in
+        # `T5_PREFIX_MODELS` select it with a sentence. Both ship a lone
+        # `spiece.model`, so the artifacts cannot tell them apart and the
+        # model id has to. `umt5` is only ever the instruction-prefixed shape
+        # today - nothing else in the registry maps it - and it tokenizes and
+        # decodes exactly like `t5`, its per-layer relative attention bias
+        # being internal to the exported graph.
+        if model_id in T5_PREFIX_MODELS:
+            return "t5-prefix"
+        if model_type == "umt5":
+            raise SkipRepo(
+                "model_type=umt5 but the repo is not in T5_PREFIX_MODELS: the "
+                "instruction strings that select a translation direction are "
+                "prose on the model card, not anything readable from the "
+                "artifacts, and guessing one silently translates in whatever "
+                "direction the model prefers")
         return "madlad"
     if model_type == "IndicTrans":
         return "indictrans2"
@@ -1623,7 +1779,7 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
     model_id = MODEL_ID_OVERRIDES.get(
         name, name[:-len("-onnx")] if name.endswith("-onnx") else name)
     files = _files_of(detail)
-    arch = _arch(detail, files)
+    arch = _arch(detail, files, model_id)
     license_id = _license_of(detail, readme)
 
     shared: Dict[str, object] = {"arch": arch}
@@ -1690,6 +1846,16 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
                 shared["target_token"] = token
     elif arch == "madlad":
         shared["languages"] = _madlad_languages(repo_id, files)
+    elif arch == "t5-prefix":
+        # Coverage cannot be read off the artifacts here. The SentencePiece
+        # model is a general subword vocabulary and carries no language
+        # tokens to enumerate, so what this model translates is only stated on
+        # its card - hand-transcribed into `T5_PREFIX_MODELS`, and refused
+        # rather than guessed for a repo that is not in it.
+        spec = T5_PREFIX_MODELS[model_id]
+        shared["languages"] = list(spec["languages"])
+        shared["prefix_templates"] = dict(spec["prefix_templates"])
+        shared["notes"] = spec["notes"]
     elif arch == "indictrans2":
         directions = None
         for suffix, dirs in INDICTRANS2_DIRECTIONS.items():
@@ -1770,6 +1936,16 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
                     bpe_path = _resolve(files, prefix, "source.bpe")
                 if bpe_path is not None:
                     side["bpe_code"] = bpe_path
+        if arch == "t5-prefix" and "tokenizer_json" not in side \
+                and not {"spm", "added_tokens"} <= set(side):
+            # Two tokenizer shapes, and neither half is optional. A
+            # SentencePiece export needs its added tokens too - the cuneiform
+            # signs are not pieces, and without them every sign in the input
+            # encodes to <unk> silently. A tokenizer.json carries both.
+            raise SkipRepo(
+                f"an instruction-prefixed T5 needs either spiece.model *and* "
+                f"added_tokens.json, or a tokenizer.json carrying both; this "
+                f"export has {sorted(side)}")
         missing = [k for k in REQUIRED_SIDE_FILES[arch] if k not in side]
         if missing:
             raise SkipRepo(f"missing required side files: {', '.join(missing)}")
@@ -2003,10 +2179,18 @@ def build() -> Tuple[Dict[str, dict], Dict[str, dict], List[Tuple[str, str]],
         # at all (MADLAD's does not) - `None` there is itself the fact the
         # invariant tests need: "the card says nothing", not "not looked up
         # yet". Only a real list becomes a list of codes.
-        declared = (detail.get("cardData") or {}).get("language")
-        card_languages[repo_id] = ([str(code) for code in declared]
-                                   if isinstance(declared, list) and declared
-                                   else None)
+        card = detail.get("cardData") or {}
+        declared = card.get("language")
+        # The Hub refuses anything but a bare ISO code in `language`, so a
+        # card that distinguishes scripts has to put the full tags in
+        # `language_bcp47` - `akk` in one, `akk-Latn` in the other. Reading
+        # only the first would make the card look like it claims less than it
+        # does, and the subset test would then reject a correct entry.
+        bcp47 = card.get("language_bcp47")
+        codes = [str(code) for code in declared] if isinstance(declared, list) else []
+        if isinstance(bcp47, list):
+            codes += [str(code) for code in bcp47 if str(code) not in codes]
+        card_languages[repo_id] = codes or None
         files = _files_of(detail)
         kind = classify(files)
         if kind is None:

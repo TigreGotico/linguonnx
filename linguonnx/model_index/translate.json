@@ -1,4 +1,148 @@
 {
+  "AKK-60m": {
+    "arch": "t5-prefix",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/AKK-60m-onnx",
+    "languages": [
+      "akk",
+      "akk-Latn",
+      "en"
+    ],
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "AKK-60m",
+    "notes": "Instruction-prefixed t5-small finetune (Thalesian), trained on the Akkademia project's Akkadian corpus plus CDLI Akkadian. `akk` is cuneiform signs, `akk-Latn` is the 'simple' transliteration - the card also defines 'grouped' and 'complex' transliteration notations, which are the same language in a different convention and are not separate registry nodes.",
+    "precision": "fp32",
+    "prefix_templates": {
+      "akk>en": "Translate Akkadian cuneiform to English",
+      "en>akk": "Translate English to Akkadian cuneiform",
+      "akk-Latn>en": "Translate Akkadian simple transliteration to English",
+      "en>akk-Latn": "Translate English to simple Akkadian transliteration",
+      "akk>akk-Latn": "Transliterate Akkadian cuneiform to simple Latin Characters"
+    },
+    "side_files": {
+      "spm": "spiece.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "tokenizer_config": "tokenizer_config.json",
+      "added_tokens": "added_tokens.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 599
+  },
+  "AKK-60m-int8": {
+    "arch": "t5-prefix",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/AKK-60m-onnx",
+    "languages": [
+      "akk",
+      "akk-Latn",
+      "en"
+    ],
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "AKK-60m-int8",
+    "notes": "Instruction-prefixed t5-small finetune (Thalesian), trained on the Akkademia project's Akkadian corpus plus CDLI Akkadian. `akk` is cuneiform signs, `akk-Latn` is the 'simple' transliteration - the card also defines 'grouped' and 'complex' transliteration notations, which are the same language in a different convention and are not separate registry nodes.",
+    "precision": "int8",
+    "prefix_templates": {
+      "akk>en": "Translate Akkadian cuneiform to English",
+      "en>akk": "Translate English to Akkadian cuneiform",
+      "akk-Latn>en": "Translate Akkadian simple transliteration to English",
+      "en>akk-Latn": "Translate English to simple Akkadian transliteration",
+      "akk>akk-Latn": "Transliterate Akkadian cuneiform to simple Latin Characters"
+    },
+    "side_files": {
+      "spm": "int8/spiece.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "tokenizer_config": "int8/tokenizer_config.json",
+      "added_tokens": "int8/added_tokens.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 151
+  },
+  "AKK_300m": {
+    "arch": "t5-prefix",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/AKK_300m-onnx",
+    "languages": [
+      "akk",
+      "akk-Latn",
+      "en"
+    ],
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "AKK_300m",
+    "notes": "Instruction-prefixed umt5 finetune (Thalesian) over the same corpora as AKK-60m. Scores higher on Akkadian than the author's later multi-script cuneiformBase-400m.",
+    "precision": "fp32",
+    "prefix_templates": {
+      "akk>en": "Translate Akkadian cuneiform to English",
+      "en>akk": "Translate English to Akkadian cuneiform",
+      "akk-Latn>en": "Translate Akkadian simple transliteration to English",
+      "en>akk-Latn": "Translate English to simple Akkadian transliteration",
+      "akk>akk-Latn": "Transliterate Akkadian cuneiform to simple Latin Characters"
+    },
+    "side_files": {
+      "spm": "spiece.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "tokenizer_config": "tokenizer_config.json",
+      "added_tokens": "added_tokens.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 2903
+  },
+  "AKK_300m-int8": {
+    "arch": "t5-prefix",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/AKK_300m-onnx",
+    "languages": [
+      "akk",
+      "akk-Latn",
+      "en"
+    ],
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "AKK_300m-int8",
+    "notes": "Instruction-prefixed umt5 finetune (Thalesian) over the same corpora as AKK-60m. Scores higher on Akkadian than the author's later multi-script cuneiformBase-400m.",
+    "precision": "int8",
+    "prefix_templates": {
+      "akk>en": "Translate Akkadian cuneiform to English",
+      "en>akk": "Translate English to Akkadian cuneiform",
+      "akk-Latn>en": "Translate Akkadian simple transliteration to English",
+      "en>akk-Latn": "Translate English to simple Akkadian transliteration",
+      "akk>akk-Latn": "Transliterate Akkadian cuneiform to simple Latin Characters"
+    },
+    "side_files": {
+      "spm": "int8/spiece.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "tokenizer_config": "int8/tokenizer_config.json",
+      "added_tokens": "int8/added_tokens.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 731
+  },
   "aina-es-oc": {
     "arch": "nllb",
     "extra_files": [
@@ -1121,6 +1265,120 @@
       "added_tokens": "int8/added_tokens.json"
     },
     "size_mb": 2345
+  },
+  "cuneiformBase-400m": {
+    "arch": "t5-prefix",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/cuneiformBase-400m-onnx",
+    "languages": [
+      "akk",
+      "akk-Latn",
+      "sux",
+      "sux-Xsux",
+      "hit",
+      "gmy",
+      "gmy-Linb",
+      "en",
+      "de"
+    ],
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "cuneiformBase-400m",
+    "notes": "Instruction-prefixed umt5-base finetune (Thalesian) over CDLI, the Akkademia project, HPM and published Linear B resources. Hittite is carried in transliteration only - the card defines no instruction for Hittite cuneiform. The card's 'simple' and 'complex' transliteration notations are the same languages in different conventions and are not separate nodes. Elamite is in the training data but has no published evaluation and no documented instruction, so it is not claimed. Scores lower on Akkadian than the author's Akkadian-only AKK_300m.",
+    "precision": "fp32",
+    "prefix_templates": {
+      "akk>en": "Translate Akkadian cuneiform to English",
+      "akk-Latn>en": "Translate Akkadian transliteration to English",
+      "en>akk": "Translate English to Akkadian cuneiform",
+      "en>akk-Latn": "Translate English to Akkadian transliteration",
+      "akk>akk-Latn": "Transliterate Akkadian cuneiform to Latin characters",
+      "akk-Latn>akk": "Convert transliterated Latin characters to Akkadian cuneiform",
+      "sux-Xsux>en": "Translate Sumerian cuneiform to English",
+      "sux>en": "Translate Sumerian transliteration to English",
+      "en>sux-Xsux": "Translate English to Sumerian cuneiform",
+      "en>sux": "Translate English to Sumerian transliteration",
+      "sux-Xsux>sux": "Transliterate Sumerian cuneiform to Latin characters",
+      "sux>sux-Xsux": "Convert transliterated Latin characters to Sumerian cuneiform",
+      "hit>en": "Translate Hittite transliteration to English",
+      "hit>de": "Translate Hittite transliteration to German",
+      "en>hit": "Translate English to Hittite transliteration",
+      "de>hit": "Translate German to Hittite transliteration",
+      "gmy-Linb>en": "Translate Linear B cuneiform to English",
+      "gmy>en": "Translate Linear B transliteration to English",
+      "en>gmy-Linb": "Translate English to Linear B cuneiform",
+      "en>gmy": "Translate English to Linear B transliteration",
+      "gmy-Linb>gmy": "Transliterate Linear B cuneiform to Latin characters",
+      "gmy>gmy-Linb": "Convert transliterated Latin characters to Linear B cuneiform"
+    },
+    "side_files": {
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "tokenizer_config": "tokenizer_config.json",
+      "tokenizer_json": "tokenizer.json"
+    },
+    "size_mb": 5157
+  },
+  "cuneiformBase-400m-int8": {
+    "arch": "t5-prefix",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/cuneiformBase-400m-onnx",
+    "languages": [
+      "akk",
+      "akk-Latn",
+      "sux",
+      "sux-Xsux",
+      "hit",
+      "gmy",
+      "gmy-Linb",
+      "en",
+      "de"
+    ],
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "cuneiformBase-400m-int8",
+    "notes": "Instruction-prefixed umt5-base finetune (Thalesian) over CDLI, the Akkademia project, HPM and published Linear B resources. Hittite is carried in transliteration only - the card defines no instruction for Hittite cuneiform. The card's 'simple' and 'complex' transliteration notations are the same languages in different conventions and are not separate nodes. Elamite is in the training data but has no published evaluation and no documented instruction, so it is not claimed. Scores lower on Akkadian than the author's Akkadian-only AKK_300m.",
+    "precision": "int8",
+    "prefix_templates": {
+      "akk>en": "Translate Akkadian cuneiform to English",
+      "akk-Latn>en": "Translate Akkadian transliteration to English",
+      "en>akk": "Translate English to Akkadian cuneiform",
+      "en>akk-Latn": "Translate English to Akkadian transliteration",
+      "akk>akk-Latn": "Transliterate Akkadian cuneiform to Latin characters",
+      "akk-Latn>akk": "Convert transliterated Latin characters to Akkadian cuneiform",
+      "sux-Xsux>en": "Translate Sumerian cuneiform to English",
+      "sux>en": "Translate Sumerian transliteration to English",
+      "en>sux-Xsux": "Translate English to Sumerian cuneiform",
+      "en>sux": "Translate English to Sumerian transliteration",
+      "sux-Xsux>sux": "Transliterate Sumerian cuneiform to Latin characters",
+      "sux>sux-Xsux": "Convert transliterated Latin characters to Sumerian cuneiform",
+      "hit>en": "Translate Hittite transliteration to English",
+      "hit>de": "Translate Hittite transliteration to German",
+      "en>hit": "Translate English to Hittite transliteration",
+      "de>hit": "Translate German to Hittite transliteration",
+      "gmy-Linb>en": "Translate Linear B cuneiform to English",
+      "gmy>en": "Translate Linear B transliteration to English",
+      "en>gmy-Linb": "Translate English to Linear B cuneiform",
+      "en>gmy": "Translate English to Linear B transliteration",
+      "gmy-Linb>gmy": "Transliterate Linear B cuneiform to Latin characters",
+      "gmy>gmy-Linb": "Convert transliterated Latin characters to Linear B cuneiform"
+    },
+    "side_files": {
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "tokenizer_config": "int8/tokenizer_config.json",
+      "tokenizer_json": "int8/tokenizer.json"
+    },
+    "size_mb": 1304
   },
   "indictrans2-en-indic-dist-200M": {
     "arch": "indictrans2",

@@ -324,26 +324,26 @@ model already on disk costs quality and saves nothing.
 
 ### What a budget costs in coverage
 
-Over the default selection — permissive, int8, 180 models — with an empty
+Over the default selection — permissive, int8, 183 models — with an empty
 cache:
 
 | `max_model_mb` | models kept | languages routable |
 |---|---|---|
-| none | 180 | 586 |
-| 2000 | 173 | 295 |
-| 1000 | 149 | 252 |
-| 500 | 124 | 249 |
-| 300 | 114 | 72 |
+| none | 183 | 593 |
+| 2000 | 176 | 302 |
+| 1000 | 151 | 254 |
+| 500 | 125 | 251 |
+| 300 | 115 | 74 |
 
 The model column and the language column tell different stories, and the second
-one is the one to plan against. A 500 MB budget drops 56 of 180 models, but
-those 56 include `madlad400-3b-mt-int8` (4945 MB), `m2m100-1.2B-int8` (2344 MB)
+one is the one to plan against. A 500 MB budget drops 58 of 183 models, but
+those 58 include `madlad400-3b-mt-int8` (4945 MB), `m2m100-1.2B-int8` (2344 MB)
 and `m2m100-418M-int8` (1207 MB), and the big multilingual models are where the
 long tail of languages lives. MADLAD is the only model in the registry with
 Chuvash at all; no chain of small models replaces it, because there is no small
 model on either side of it.
 
-What survives is what has bilingual models: the 249 languages opus-mt,
+What survives is what has bilingual models: the 251 languages opus-mt,
 mt-hitz, NLLB-200-distilled and the Iberian pairs cover between them.
 `pt -> ru`, `nl -> fi`, `pt -> eu` all still route under 500 MB, as chains.
 `en -> cv` does not, because MADLAD is the only model with Chuvash.
@@ -354,7 +354,7 @@ which:
 
 ```python
 tx = load_translator(max_model_mb=500, count_cached_as_free=False)
-print(len(tx.available_languages))       # 249
+print(len(tx.available_languages))       # 251
 print(tx.can_translate("pt", "ru"))      # True — via a chain
 print(tx.can_translate("en", "cv"))      # False — only MADLAD has Chuvash
 ```
@@ -382,7 +382,7 @@ tx = load_translator(max_model_mb=500, oversize_fallback=True)
 print(tx.route("en", "ca").model_ids)      # ('opus-mt-en-ca-int8',)   157 MB
 print(tx.route("en", "cv").model_ids)      # ('madlad400-3b-mt-int8',) 4945 MB
 print(tx.route("en", "cv").waived_size_cap)  # 500
-print(len(tx.available_languages))         # 586, not 249
+print(len(tx.available_languages))         # 593, not 251
 ```
 
 `en -> ca` stays on the small model, because one exists. Chuvash routes at

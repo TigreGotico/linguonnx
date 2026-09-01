@@ -1,4 +1,14 @@
 {
+  "TigreGotico/AKK-60m-onnx": [
+    "akk",
+    "en",
+    "akk-Latn"
+  ],
+  "TigreGotico/AKK_300m-onnx": [
+    "akk",
+    "en",
+    "akk-Latn"
+  ],
   "TigreGotico/Plume128k-onnx": [
     "ca",
     "es",
@@ -132,6 +142,17 @@
     "it",
     "nl",
     "pt"
+  ],
+  "TigreGotico/cuneiformBase-400m-onnx": [
+    "akk",
+    "sux",
+    "hit",
+    "gmy",
+    "en",
+    "de",
+    "akk-Latn",
+    "sux-Xsux",
+    "gmy-Linb"
   ],
   "TigreGotico/deepmoji-onnx": null,
   "TigreGotico/delta-mfcc-onnx": null,

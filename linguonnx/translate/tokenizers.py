@@ -1,8 +1,11 @@
 """Tokenizers for the translation models, with no `transformers` dependency.
 
-Everything here is `sentencepiece` plus a JSON vocabulary. The three
+Most of this is `sentencepiece` plus a JSON vocabulary, and those
 architectures differ in exactly two places - how a SentencePiece piece becomes
-an id, and what wraps the sentence - so both live in one class per family:
+an id, and what wraps the sentence - so both live in one class per family.
+One export ships no SentencePiece model at all and keeps its whole vocabulary
+in a `tokenizers` JSON file; :class:`UnigramTextPrefixTokenizer` reads that
+directly rather than taking the dependency.
 
 `SpmSeq2SeqTokenizer`
     M2M100 and NLLB. Encodes ``[src_lang] + pieces + [</s>]``. The target
@@ -27,12 +30,13 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import sentencepiece as spm
 
 __all__ = ["normalize_punctuation", "SpmSeq2SeqTokenizer", "MarianTokenizer",
-           "FastUnigramTokenizer", "T5SpmTokenizer", "IndicTransTokenizer",
+           "FastUnigramTokenizer", "T5SpmTokenizer", "T5TextPrefixTokenizer",
+           "UnigramTextPrefixTokenizer", "IndicTransTokenizer",
            "OpenNmtBpeTokenizer", "load_tokenizer", "artifact_lang_codes",
            "bare_lang_code"]
 
@@ -104,6 +108,35 @@ def normalize_punctuation(text: str) -> str:
 def _load_json(path) -> dict:
     with open(path, encoding="utf-8") as handle:
         return json.load(handle)
+
+
+#: SentencePiece's word marker. Both instruction-prefixed readers put one in
+#: front of every span they segment, which is what "prepend_scheme: always"
+#: means in a `tokenizers` Metaspace pre-tokenizer.
+_WORD_MARK = "\u2581"
+
+#: Runs of spaces left by a vocabulary that carries the separator twice.
+_SPACE_RUN = re.compile(" {2,}")
+
+
+def _reject_unusable_instruction(prefix: str, ids: Sequence[int],
+                                 unk_id: int) -> None:
+    """An instruction the vocabulary cannot spell is not an instruction.
+
+    It does not raise on its own: it reaches the encoder as noise, and the
+    model answers in whatever direction it settles on. Both readers check it
+    the same way, because the failure is the same in both.
+    """
+    if not ids:
+        raise ValueError(
+            f"{prefix!r} tokenises to nothing in this model's vocabulary, so "
+            f"the encoder would receive no instruction and the model would "
+            f"pick a direction of its own")
+    if unk_id in ids:
+        raise ValueError(
+            f"{prefix!r} contains characters this model's vocabulary cannot "
+            f"represent; the instruction would reach the encoder as <unk> and "
+            f"the model would pick a direction of its own")
 
 
 def _load_spm(path) -> "spm.SentencePieceProcessor":
@@ -436,6 +469,305 @@ class T5SpmTokenizer:
         return self.sp.DecodePieces(pieces)
 
 
+class T5TextPrefixTokenizer:
+    """An instruction-prefixed T5/UMT5. One SentencePiece model, and the task
+    is chosen by a natural-language sentence prepended to the input.
+
+    This is deliberately *not* a subclass of :class:`T5SpmTokenizer`. MADLAD's
+    prefix is a single `<2xx>` piece and its checks assert exactly that - the
+    piece must exist in the vocabulary, and it must survive tokenisation
+    whole. Here the prefix is a sentence that tokenises to many ordinary
+    pieces, so both assertions are false by construction. Inheriting and then
+    switching them off is how the switched-off version becomes the default for
+    the next architecture that borrows this class.
+
+    The guard that *does* transfer is the reason MADLAD has one at all: a
+    prefix the SentencePiece model cannot represent does not raise, it just
+    reaches the encoder as noise, and the model answers fluently in whatever
+    direction it prefers. So the prefix is required to tokenise to at least
+    one piece and to contain no `<unk>`.
+
+    The defaults are T5's own (``pad=0``, ``eos=1``), which are *not*
+    MADLAD's (``eos=2``, ``pad=1``); they are passed in from the export's
+    `config.json` rather than trusted from here. ``unk_id`` defaults to
+    whatever the SentencePiece model itself declares, which is the only
+    authority on it - `config.json` does not carry one.
+
+    Added tokens are not optional here
+    ----------------------------------
+    The SentencePiece model does not hold the whole vocabulary. Thalesian's
+    Akkadian exports carry 32000 pieces against a vocabulary of 32518, and
+    the 518 that are missing are the cuneiform signs themselves, plus the
+    diacritics transliteration is written with - they live in
+    ``added_tokens.json``.
+
+    So ``sp.encode`` alone turns every cuneiform sign in the input into
+    ``<unk>``. It does not raise: the encoder receives a sentence of unknown
+    tokens and the decoder answers it fluently, which is why this is a file
+    the loader refuses to run without rather than one it treats as absent.
+    Decoding is the louder half - an added-token id is simply out of the
+    SentencePiece model's range and ``IdToPiece`` raises ``IndexError`` - but
+    it is the quiet encoding half that would corrupt the translation.
+
+    Text is therefore split on the added-token literals, longest first, and
+    only the spans between them reach ``sp.encode``.
+
+    ``legacy``
+    ----------
+    SentencePiece prepends a dummy ``\u2581`` to everything it encodes.
+    `transformers` stopped doing that for T5 when ``legacy`` is false, which
+    changes the *first* piece of every span - "Translate" tokenises as
+    ``Trans``/``late`` rather than ``\u2581Translat``/``e``. It is one piece
+    in a sentence and it never raises, so the model just receives a slightly
+    different input than it was trained on, on every single call. The flag is
+    read from the export's ``tokenizer_config.json``; it is not guessed.
+    """
+
+    def __init__(self, spm_path, added_tokens_path, eos_id: int = 1,
+                 pad_id: int = 0, unk_id: Optional[int] = None,
+                 legacy: bool = True, unk_piece: str = "<unk>"):
+        self.sp = _load_spm(spm_path)
+        self.legacy = legacy
+        # How many pieces the unk spelling costs, so the dummy prefix that
+        # attaches to it can be dropped with it. See the class docstring.
+        self._unk_piece = unk_piece
+        self._unk_prefix_len = len(self.sp.encode(unk_piece, out_type=int))
+        self.eos_id, self.pad_id = eos_id, pad_id
+        self.unk_id = self.sp.unk_id() if unk_id is None else unk_id
+        self._specials = {self.eos_id, self.pad_id, self.unk_id}
+
+        self.added: Dict[str, int] = {
+            piece: int(token_id)
+            for piece, token_id in _load_json(added_tokens_path).items()}
+        self._from_id = {token_id: piece for piece, token_id in self.added.items()}
+        # Longest first, so a literal that starts with another one is matched
+        # whole rather than split across its own prefix.
+        self._added_re = re.compile("|".join(
+            re.escape(piece) for piece in
+            sorted(self.added, key=len, reverse=True))) if self.added else None
+
+    def encode(self, text: str, prefix: Optional[str] = None) -> List[int]:
+        if prefix:
+            _reject_unusable_instruction(prefix,
+                                         self._encode_with_added(prefix),
+                                         self.unk_id)
+        # The card's own usage snippet joins the two as ``prompt + text`` with
+        # the prompt ending in ": ", so the separator is part of the trained
+        # surface form and is applied here rather than left to the caller.
+        full = f"{prefix}: {text}" if prefix else text
+        return self._encode_with_added(full) + [self.eos_id]
+
+    def _encode_with_added(self, text: str) -> List[int]:
+        # No `max(i, unk_id)` clamp on the spans, unlike `T5SpmTokenizer`.
+        # That clamp is harmless only because MADLAD's unk is 0; T5 numbers
+        # its unk 2, above both pad and eos, so the same line would rewrite
+        # those two ids into <unk> rather than floor anything.
+        if self._added_re is None:
+            return self._sp_encode(text)
+        ids: List[int] = []
+        position = 0
+        for match in self._added_re.finditer(text):
+            span = text[position:match.start()]
+            if span:
+                ids.extend(self._sp_encode(span))
+            ids.append(self.added[match.group()])
+            position = match.end()
+        if text[position:]:
+            ids.extend(self._sp_encode(text[position:]))
+        return ids
+
+    def _sp_encode(self, text: str) -> List[int]:
+        if self.legacy:
+            return self.sp.encode(text, out_type=int)
+        # Encode the unk spelling in front so SentencePiece's dummy prefix
+        # lands on that instead, then drop both.
+        return self.sp.encode(self._unk_piece + text,
+                              out_type=int)[self._unk_prefix_len:]
+
+    def decode(self, ids: Sequence[int]) -> str:
+        """Decoded runs and added tokens, joined with a single space.
+
+        The space is the reference tokenizer's rule and is kept for parity
+        rather than for looking right. Nothing in the ids says whether two
+        cuneiform signs were written apart, because a space between two added
+        tokens is not itself a token - so the separator has to be supplied on
+        the way out, and the reference supplies one.
+
+        It is not always what a reader wants: transliteration brackets are
+        added tokens too, so ``a-na ⌈ma⌉-ri`` comes back as
+        ``a-na ⌈ ma ⌉ -ri``. Spacing it any other way would make this
+        library's output differ from every other consumer of the same
+        weights, which is the worse of the two.
+        """
+        out: List[str] = []
+        run: List[str] = []
+        for token_id in ids:
+            if token_id in self._specials:
+                continue
+            piece = self._from_id.get(token_id)
+            if piece is None:
+                run.append(self.sp.IdToPiece(token_id))
+                continue
+            if run:
+                out.append(self.sp.DecodePieces(run))
+                run = []
+            out.append(piece)
+        if run:
+            out.append(self.sp.DecodePieces(run))
+        return " ".join(part for part in out if part)
+
+
+class UnigramTextPrefixTokenizer:
+    """The same instruction-prefixed T5, where the export ships a
+    ``tokenizer.json`` instead of a SentencePiece model.
+
+    `cuneiformBase-400m` has no ``spiece.model`` at all: its vocabulary is a
+    Unigram model serialised in the `tokenizers` library's JSON format. That
+    file is the one thing the export has, so the choice is to read it or to
+    drop the model.
+
+    Reading it does not need the `tokenizers` package. A Unigram model is a
+    vocabulary of pieces with log probabilities, and segmenting with it is a
+    Viterbi pass picking the highest-scoring path over the piece lattice -
+    thirty lines, no build step, and it holds the tokenizer to the same
+    "no torch, no transformers" rule as the rest of the library.
+
+    What it does **not** implement is the rest of a `tokenizers` pipeline.
+    A ``normalizer`` - Unicode NFKC folding compiled into a
+    ``precompiled_charsmap`` - would change the text before the lattice ever
+    saw it, and quietly ignoring one produces a plausible tokenisation of the
+    wrong string. Anything this class cannot honour is a refusal at load
+    time, not a silent approximation, so the two Softcatalà exports that do
+    carry a normaliser keep going to :class:`FastUnigramTokenizer`.
+    """
+
+    def __init__(self, tokenizer_json, eos_id: int = 1, pad_id: int = 0,
+                 unk_id: Optional[int] = None):
+        spec = _load_json(tokenizer_json)
+        model = spec.get("model") or {}
+        if model.get("type") != "Unigram":
+            raise ValueError(
+                f"{tokenizer_json} is a {model.get('type')!r} tokenizer; this "
+                f"reader implements Unigram only")
+        if spec.get("normalizer") is not None:
+            raise ValueError(
+                f"{tokenizer_json} declares a normaliser, which this reader "
+                f"does not implement. Ignoring it would tokenise a string the "
+                f"model was never given; install the 'fast-tokenizers' extra "
+                f"for exports that carry one")
+        if model.get("byte_fallback"):
+            raise ValueError(
+                f"{tokenizer_json} uses byte fallback, so an out-of-vocabulary "
+                f"character becomes byte pieces rather than <unk>; this reader "
+                f"does not implement that")
+
+        self.pieces = [piece for piece, _ in model["vocab"]]
+        self._score = {piece: (index, score)
+                       for index, (piece, score) in enumerate(model["vocab"])}
+        self._longest = max(len(piece) for piece in self.pieces)
+        self.eos_id, self.pad_id = eos_id, pad_id
+        self.unk_id = model["unk_id"] if unk_id is None else unk_id
+
+        # Added tokens are matched before the lattice and are never scored.
+        # In this export the space is one of them, which is why a span handed
+        # to the lattice never contains one and gets exactly one word marker.
+        self.added = {entry["content"]: int(entry["id"])
+                      for entry in spec.get("added_tokens", ())}
+        self._from_id = {token_id: piece for piece, token_id in self.added.items()}
+        self._added_re = re.compile("|".join(
+            re.escape(piece) for piece in
+            sorted(self.added, key=len, reverse=True))) if self.added else None
+        self._specials = {self.eos_id, self.pad_id, self.unk_id}
+
+    def encode(self, text: str, prefix: Optional[str] = None) -> List[int]:
+        if prefix:
+            # Through the added-token path, not the bare lattice: the space
+            # is an added token here, and a lattice given one on its own
+            # would report the whole instruction as unrepresentable.
+            _reject_unusable_instruction(prefix,
+                                         self._encode_with_added(prefix),
+                                         self.unk_id)
+        full = f"{prefix}: {text}" if prefix else text
+        return self._encode_with_added(full) + [self.eos_id]
+
+    def _encode_with_added(self, text: str) -> List[int]:
+        if self._added_re is None:
+            return self._words(text)
+        ids: List[int] = []
+        position = 0
+        for match in self._added_re.finditer(text):
+            if match.start() > position:
+                ids.extend(self._words(text[position:match.start()]))
+            ids.append(self.added[match.group()])
+            position = match.end()
+        if text[position:]:
+            ids.extend(self._words(text[position:]))
+        return ids
+
+    def _words(self, span: str) -> List[int]:
+        """One marked word per run of non-space, the rest dropped.
+
+        The pre-tokenizer splits on whitespace and throws it away. That the
+        plain space survives at all is not this step's doing - it is an added
+        token, matched before any of this - so a tab or a newline leaves no
+        token behind, while a space leaves its own.
+        """
+        ids: List[int] = []
+        for word in span.split():
+            ids.extend(self._segment(_WORD_MARK + word))
+        return ids
+
+    def _segment(self, span: str) -> List[int]:
+        """Viterbi over the piece lattice: the best-scoring path wins."""
+        length = len(span)
+        best: List[Optional[Tuple[float, int, int]]] = [None] * (length + 1)
+        best[0] = (0.0, -1, -1)
+        for end in range(1, length + 1):
+            for start in range(max(0, end - self._longest), end):
+                if best[start] is None:
+                    continue
+                hit = self._score.get(span[start:end])
+                if hit is None:
+                    continue
+                index, score = hit
+                candidate = (best[start][0] + score, start, index)
+                if best[end] is None or candidate[0] > best[end][0]:
+                    best[end] = candidate
+            if best[end] is None and best[end - 1] is not None:
+                # A character no piece covers costs nothing and becomes <unk>,
+                # which is what the reference implementation does rather than
+                # failing the whole segmentation.
+                best[end] = (best[end - 1][0], end - 1, self.unk_id)
+        ids: List[int] = []
+        position = length
+        while position > 0:
+            _, start, index = best[position]
+            ids.append(index)
+            position = start
+        return ids[::-1]
+
+    def decode(self, ids: Sequence[int]) -> str:
+        """Pieces joined, word marks turned back into spaces, runs collapsed.
+
+        A space between two words is carried twice in this vocabulary - once
+        as the added token for `" "`, and again as the next word's mark - so
+        decoding both gives `"the  king"`. The reference implementation
+        returns exactly that, and it is the one place here where matching it
+        is the worse choice: re-encoding its output yields an extra space
+        token, so text that goes out and comes back drifts a token per space
+        per cycle. Collapsing the run keeps the round trip stable and cannot
+        change meaning, since a run of spaces was never more than a
+        separator. Cuneiform is unaffected - signs are single-spaced already.
+        """
+        out: List[str] = []
+        for token_id in ids:
+            if token_id in self._specials:
+                continue
+            piece = self._from_id.get(token_id)
+            out.append(piece if piece is not None else self.pieces[token_id])
+        return _SPACE_RUN.sub(" ", "".join(out).replace(_WORD_MARK, " ")).strip(" ")
+
+
 class IndicTransTokenizer:
     """IndicTrans2. Two SentencePiece models and two plain JSON dictionaries.
 
@@ -646,6 +978,20 @@ def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str],
         return SpmSeq2SeqTokenizer(files["spm"], codes, fairseq_offset=1)
     if arch == "madlad":
         return T5SpmTokenizer(files["spm"])
+    if arch == "t5-prefix":
+        config = _load_json(files["config"])
+        if "spm" not in files:
+            # No SentencePiece model in the export at all - the vocabulary is
+            # only in `tokenizer.json`. See `UnigramTextPrefixTokenizer`.
+            return UnigramTextPrefixTokenizer(
+                files["tokenizer_json"],
+                eos_id=config["eos_token_id"], pad_id=config["pad_token_id"])
+        tokenizer_config = _load_json(files["tokenizer_config"])
+        return T5TextPrefixTokenizer(
+            files["spm"], files["added_tokens"],
+            eos_id=config["eos_token_id"], pad_id=config["pad_token_id"],
+            legacy=tokenizer_config.get("legacy", True),
+            unk_piece=tokenizer_config.get("unk_token") or "<unk>")
     if arch == "indictrans2":
         return IndicTransTokenizer(files["spm_src"], files["spm_tgt"],
                                    files["dict_src"], files["dict_tgt"])

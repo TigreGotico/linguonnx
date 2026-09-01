@@ -69,6 +69,14 @@ def capability_from_entry(entry: Dict) -> Capability:
     so the graph never sees ``por_Latn`` and the model never sees ``pt``.
     """
     langs = frozenset(normalize_tag(code) for code in entry.get("languages", ()))
+    # An instruction-prefixed model can only do what it has an instruction
+    # for, so its registered prefixes *are* its coverage. Deriving the edges
+    # from them rather than restating them keeps the two from drifting: a
+    # route the graph offers is a prefix the pipeline can find.
+    templates = entry.get("prefix_templates")
+    directions = frozenset(
+        tuple(normalize_tag(code) for code in key.split(">", 1))
+        for key in templates) if templates else None
     pair = entry.get("pair")
     src_langs = entry.get("src_languages")
     tgt_langs = entry.get("tgt_languages")
@@ -80,6 +88,7 @@ def capability_from_entry(entry: Dict) -> Capability:
         size_mb=int(entry["size_mb"]),
         languages=langs,
         pair=(normalize_tag(pair[0]), normalize_tag(pair[1])) if pair else None,
+        directions=directions,
         src_languages=frozenset(normalize_tag(c) for c in src_langs)
             if src_langs is not None else None,
         tgt_languages=frozenset(normalize_tag(c) for c in tgt_langs)

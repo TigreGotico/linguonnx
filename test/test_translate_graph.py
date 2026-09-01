@@ -947,3 +947,66 @@ def test_the_real_registry_advertises_only_what_it_can_route_under_a_cap():
     for lang in sorted(dropped)[:40]:
         assert not small.can_translate("en", lang)
         assert not small.can_translate(lang, "en")
+
+
+# --------------------------------------------------------------------------
+# Per-edge coverage: a model that states its directions one by one
+# --------------------------------------------------------------------------
+
+def _akkadian_entry():
+    """Thalesian's Akkadian shape: three nodes, five of the six edges.
+
+    The cards define no instruction for `akk-Latn -> akk`, so that edge does
+    not exist even though both its languages do.
+    """
+    return {
+        "model_id": "AKK-60m-int8", "arch": "t5-prefix",
+        "license": "Apache-2.0", "license_tier": "permissive", "size_mb": 232,
+        "languages": ["akk", "akk-Latn", "en"],
+        "prefix_templates": {
+            "akk>en": "Translate Akkadian cuneiform to English",
+            "en>akk": "Translate English to Akkadian cuneiform",
+            "akk-Latn>en": "Translate Akkadian simple transliteration to English",
+            "en>akk-Latn": "Translate English to simple Akkadian transliteration",
+            "akk>akk-Latn": "Transliterate Akkadian cuneiform to simple Latin Characters",
+        },
+    }
+
+
+def _akkadian_capability(entry=None):
+    from linguonnx.translate.models import capability_from_entry
+    return capability_from_entry(entry or _akkadian_entry())
+
+
+def test_declared_directions_are_not_a_clique():
+    """`languages` alone would make all six edges routable. The router would
+    then offer `akk-Latn -> akk`, and the pipeline would raise on it - a
+    route advertised and then refused."""
+    capability = _akkadian_capability()
+    assert capability.covers("akk", "en")
+    assert capability.covers("en", "akk")
+    assert capability.covers("akk-Latn", "en")
+    assert capability.covers("en", "akk-Latn")
+    assert capability.covers("akk", "akk-Latn")
+    assert not capability.covers("akk-Latn", "akk")
+
+
+def test_declared_directions_still_refuse_a_self_edge():
+    assert not _akkadian_capability().covers("akk", "akk")
+
+
+def test_endpoints_agree_with_the_declared_directions():
+    """`available_languages` is built from `endpoints`; if it disagreed with
+    `covers`, the graph would list a language it cannot route."""
+    capability = _akkadian_capability()
+    assert capability.endpoints() == {"akk", "akk-Latn", "en"}
+
+
+def test_a_clique_entry_is_unaffected_by_the_directions_branch():
+    """No `prefix_templates` means no declared edges, and the existing
+    any-to-any reading has to survive untouched."""
+    entry = _akkadian_entry()
+    del entry["prefix_templates"]
+    capability = _akkadian_capability(entry)
+    assert capability.directions is None
+    assert capability.covers("akk-Latn", "akk")
