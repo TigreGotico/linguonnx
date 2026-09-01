@@ -2,7 +2,7 @@
 
 Two JSON files under `linguonnx/model_index/` say what exists: `lid.json` for
 language identification and `translate.json` for translation. They hold 10 and
-375 entries. Every entry names a HuggingFace repo, the exact files to fetch,
+377 entries. Every entry names a HuggingFace repo, the exact files to fetch,
 the languages covered, the licence and the size.
 
 Both files are **generated**, not edited by hand. See
@@ -11,7 +11,7 @@ it sounds.
 
 ## What is in the translation registry
 
-375 entries is 187 int8 and 188 fp32 entries across 188 models. `load_translator()` defaults to
+377 entries is 188 int8 and 189 fp32 entries across 189 models. `load_translator()` defaults to
 `precision="int8"`; pass `precision="fp32"` or `precision=None` for both.
 
 | model | arch | coverage | size (int8) | licence |
@@ -25,6 +25,7 @@ it sounds.
 | `m2m100-1.2B` | M2M100 | 100, any-to-any | 2.3 GB | MIT |
 | `m2m100-418M-smugri` | M2M100 | 104, any-to-any; adds Livonian, Võro, Sami | 1.2 GB | MIT |
 | `liv4ever-mt` | Marian, multi-target | 4, any-to-any (en, et, lv, Livonian) | 569 MB | Apache-2.0 |
+| `indictrans2-en-indic-1B` | IndicTrans2 | English → 25 Indic tags, **one-way** | 1.77 GB | MIT |
 | `indictrans2-en-indic-dist-200M` | IndicTrans2 | English → 25 Indic tags, **one-way** | 480 MB | MIT |
 | `indictrans2-indic-en-dist-200M` | IndicTrans2 | 25 Indic tags → English, **one-way** | 342 MB | MIT |
 | `indictrans2-indic-indic-dist-320M` | IndicTrans2 | 25 Indic tags, any-to-any | 532 MB | MIT |

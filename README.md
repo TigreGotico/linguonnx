@@ -115,7 +115,7 @@ See [docs/translate.md](docs/translate.md) for the API and
 | | |
 |---|---|
 | Language identification | 5 models, 176 to 2102 labels, 33 MB to 1.7 GB |
-| Translation | 375 registry entries — 187 int8 and 188 fp32 across 188 models |
+| Translation | 377 registry entries — 188 int8 and 189 fp32 across 189 models |
 | Reachable languages | 593, over the default graph |
 | Default LID model | `glotlid-int8` — Apache-2.0, the only permissive LID option |
 | Default translation graph | every permissive int8 model, fewest hops, capped at 2 |
