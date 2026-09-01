@@ -133,6 +133,14 @@ def test_quality_flag_reasons_for_missing_model_is_empty():
     "m2m100_418M_bbj_fr_rel_news_ft-int8",
     "m2m100_418M_mos_fr_rel_news_ft",
     "m2m100_418M_mos_fr_rel_news_ft-int8",
+    # chrF 6.1 on 100 FLORES-200 devtest sentences: the model answers in an
+    # archaic biblical register with hallucinated proper names instead of
+    # translating. It is the only dedicated en->ja model in the registry, so
+    # prefer="dedicated" picks it unless a caller filters on this flag. This
+    # is a base-checkpoint defect, not a quantization artifact, so both
+    # precisions carry the measurement and both must flag.
+    "opus-mt-en-jap-int8",
+    "opus-mt-en-jap",
 ])
 def test_known_weak_models_are_flagged(model_id):
     assert is_quality_flagged(model_id, REGISTRY), (
@@ -205,6 +213,16 @@ def test_exclude_flagged_drops_the_weak_models_in_both_precisions():
     # Strong pairs stay too.
     assert "opus-mt-en-es" in entries
     assert "opus-mt-en-es-int8" in entries
+
+
+def test_exclude_flagged_drops_both_precisions_of_opus_mt_en_jap():
+    # The en->jap checkpoint's scripture-answering defect lives in the base
+    # model, not the int8 export, so exclude_flagged=True must remove both
+    # registry entries, leaving the caller with no en->jap model at all
+    # rather than silently falling back onto the equally-broken fp32 side.
+    entries = _select_entries(None, False, None, exclude_flagged=True)
+    assert "opus-mt-en-jap-int8" not in entries
+    assert "opus-mt-en-jap" not in entries
 
 
 def test_exclude_flagged_can_leave_fp32_as_the_only_survivor_of_a_pair():
