@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Sequence
 
 import numpy as np
 import onnxruntime as ort
@@ -21,6 +21,9 @@ from linguonnx import model_manager
 from linguonnx.detect.hashing import GlotLIDFeaturizer
 from linguonnx.detect.hs import HSCombiner
 from linguonnx.detect.labels import LABEL_PREFIX, LabelMapper, collapse_variety
+from linguonnx.limits import (MAX_DETECT_CHARS, MAX_LINE_TOKENS,
+                              EmptyInputError, has_visible_content)
+from linguonnx.providers import ProviderSpec, make_session
 
 # GlotLID is the default on purpose: it is the only Apache-2.0 model in the
 # registry. OpenLID v1/v2 are GPL-3.0 and lid.176 is CC-BY-SA-3.0, so a user
@@ -32,7 +35,19 @@ class LanguageDetector:
     """Loads one fastText-ONNX LID model + its side files and runs detection."""
 
     def __init__(self, model_id: str = DEFAULT_MODEL_ID,
-                 session_options: Optional[ort.SessionOptions] = None):
+                 session_options: Optional[ort.SessionOptions] = None,
+                 max_chars: int = MAX_DETECT_CHARS,
+                 max_tokens: int = MAX_LINE_TOKENS,
+                 providers: Optional[Sequence[ProviderSpec]] = None):
+        """``max_chars``/``max_tokens`` bound the input; see
+        :mod:`linguonnx.limits` for the defaults and their environment
+        variables. Text over either bound raises
+        :class:`~linguonnx.limits.InputTooLongError`.
+
+        ``providers`` selects the ONNX Runtime execution providers; see
+        :mod:`linguonnx.providers`. Left unset, it resolves from
+        ``LINGUONNX_ONNX_PROVIDERS`` and then auto-detection, which is
+        CPU-only on the default ``onnxruntime`` install."""
         self.model_id = model_id
         entry = model_manager.registry_entry(model_id)
         self.num_labels = entry["num_labels"]
@@ -56,6 +71,8 @@ class LanguageDetector:
             minn=self._config["minn"],
             maxn=self._config["maxn"],
             bucket=self._config["bucket"],
+            max_chars=max_chars,
+            max_tokens=max_tokens,
         )
         # from_files() trims a trailing blank line from vocab.txt; do the same
         # here since we read the file ourselves to avoid a second disk read.
@@ -63,9 +80,8 @@ class LanguageDetector:
             self._featurizer.words.pop()
             self._featurizer.word2id = {w: i for i, w in enumerate(self._featurizer.words)}
 
-        self._session = ort.InferenceSession(
-            str(paths["onnx_file"]), sess_options=session_options,
-            providers=["CPUExecutionProvider"],
+        self._session = make_session(
+            paths["onnx_file"], providers=providers, sess_options=session_options,
         )
         self._input_name = self._session.get_inputs()[0].name
         self._output_name = self._session.get_outputs()[0].name
@@ -83,13 +99,22 @@ class LanguageDetector:
                     f"model {model_id!r} declares loss=hs but its registry "
                     "entry has no 'hs_tree' side file"
                 )
-            self._hs_combiner = HSCombiner.from_file(paths["hs_tree"])
+            self._hs_combiner = HSCombiner.from_file(
+                paths["hs_tree"], num_labels=self.num_labels)
 
     @property
     def available_languages(self) -> set:
         return self._label_mapper.available_languages
 
     def _probs(self, text: str) -> np.ndarray:
+        # An input with no visible content still hashes to the lone EOS
+        # feature and still gets a confident-looking label out of the graph.
+        # str.strip() does not catch it on its own: zero-width and bidi
+        # format characters survive it, and text pasted out of HTML or a PDF
+        # carries them routinely.
+        if not has_visible_content(text):
+            raise EmptyInputError(
+                "cannot detect the language of text with no visible content")
         feature_ids = self._featurizer(text)
         (raw,) = self._session.run(
             [self._output_name], {self._input_name: feature_ids}

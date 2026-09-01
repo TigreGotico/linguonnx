@@ -6,8 +6,10 @@ import time
 
 import pytest
 
-from linguonnx.translate.graph import (Capability, Hop, NoRouteError, Route,
-                                       TranslationGraph, normalize_tag)
+from linguonnx.translate.graph import (Capability, Hop, InvalidRouteError,
+                                       MalformedTagError, NoRouteError, Route,
+                                       TranslationGraph, entry_runnability,
+                                       normalize_tag)
 
 # --- fixtures: a miniature registry ---------------------------------------
 
@@ -293,3 +295,718 @@ def test_listing_routes_stays_fast_on_the_real_registry():
         graph.routes("gl", "ca", prefer="dedicated")
     elapsed = time.perf_counter() - start
     assert elapsed < 3.0, f"listing routes took {elapsed:.2f}s"
+
+
+# --- runnability -----------------------------------------------------------
+
+def _unrunnable(model_id="broken", **kwargs):
+    return Capability(model_id=model_id, arch="indictrans2", license="MIT",
+                      license_tier="permissive", size_mb=100,
+                      runnable=False,
+                      unrunnable_reason="no preprocessing pipeline", **kwargs)
+
+
+def test_a_capability_is_runnable_unless_it_says_otherwise():
+    assert marian("en", "pt").is_runnable is True
+    assert marian("en", "pt").unrunnable_because is None
+    assert _unrunnable(pair=("en", "kn")).is_runnable is False
+
+
+def test_an_unrunnable_capability_is_not_a_language_in_the_graph():
+    graph = TranslationGraph([marian("en", "pt"), _unrunnable(pair=("en", "kn"))])
+    assert "kn" not in graph.languages
+    assert "pt" in graph.languages
+
+
+def test_can_translate_is_false_when_only_an_unrunnable_model_covers_the_pair():
+    """The whole point of `can_translate`: it must not promise what fails later."""
+    graph = TranslationGraph([marian("en", "pt"), _unrunnable(pair=("en", "kn"))])
+    assert graph.can_translate("en", "kn") is False
+    with pytest.raises(NoRouteError):
+        graph.route("en", "kn")
+    assert graph.routes("en", "kn") == []
+
+
+def test_no_route_names_the_model_that_covers_the_pair_but_cannot_run():
+    """"Unsupported" and "not implemented here" are different things to fix."""
+    graph = TranslationGraph([marian("en", "pt"), _unrunnable(pair=("en", "kn"))])
+    with pytest.raises(NoRouteError) as err:
+        graph.route("en", "kn")
+    assert "broken" in str(err.value)
+    assert "no preprocessing pipeline" in str(err.value)
+
+
+def test_an_unrunnable_model_is_never_a_leg_of_a_multi_hop_route():
+    graph = TranslationGraph([marian("en", "pt"),
+                              _unrunnable(model_id="broken", pair=("pt", "kn"))],
+                             pivot_preference=("pt",))
+    assert graph.can_translate("en", "kn") is False
+
+
+def test_runnability_comes_from_the_registry_when_the_capability_is_silent():
+    """`capability_from_entry` states nothing, so the entry decides.
+
+    This is what keeps `route` and `translate` in agreement without every
+    caller having to read the registry, and it is why a pipeline landing later
+    only has to clear the flag in the registry.
+
+    Every registry entry is runnable today - the IndicTrans2 and OpenNMT-BPE
+    pipelines landed - so the flag is exercised through a synthetic entry
+    rather than a real one. The wiring is what matters, not which model
+    happens to be waiting for a pipeline this month.
+    """
+    from linguonnx.translate.models import capability_from_entry
+    from linguonnx.translate.graph import entry_runnability
+
+    entry = {"model_id": "future-arch-model", "arch": "someday",
+             "license": "MIT", "license_tier": "permissive", "size_mb": 1,
+             "pair": ["en", "pt"], "runnable": False,
+             "unrunnable_reason": "no pipeline for this architecture yet"}
+    assert entry_runnability(entry) == (False, "no pipeline for this architecture yet")
+    cap = capability_from_entry(entry)
+    assert cap.runnable is None, "the entry, not the capability, states it"
+
+
+def test_entry_runnability_defaults_to_runnable():
+    assert entry_runnability(
+        {"model_id": "x", "arch": "m2m100", "languages": ["en", "pt"]}) == (True, None)
+
+
+def test_entry_runnability_refuses_a_multi_target_marian_with_no_token(caplog):
+    """No prefix token means the decoder picks a target language on its own."""
+    entry = {"model_id": "opus-mt-en-sla-int8", "arch": "marian",
+             "languages": ["pl", "cs", "ru"]}
+    runnable, reason = entry_runnability(entry)
+    assert runnable is False
+    assert "target token" in reason
+    assert "opus-mt-en-sla-int8" in caplog.text
+
+
+def test_entry_runnability_accepts_a_multi_target_marian_with_a_token():
+    assert entry_runnability({"model_id": "x", "arch": "marian",
+                              "languages": ["pl", "cs"],
+                              "target_token": ">>pol<<"})[0] is True
+    assert entry_runnability({"model_id": "x", "arch": "marian",
+                              "languages": ["liv", "et"],
+                              "target_token_template": "<2{code}>"})[0] is True
+
+
+def test_a_dedicated_marian_needs_no_target_token():
+    assert entry_runnability({"model_id": "x", "arch": "marian",
+                              "pair": ["en", "pt"]})[0] is True
+
+
+# --- max_hops is validated everywhere, not only in the constructor ---------
+
+@pytest.mark.parametrize("max_hops", [0, -1])
+def test_constructor_rejects_max_hops_below_one(max_hops):
+    with pytest.raises(ValueError):
+        TranslationGraph([marian("en", "pt")], max_hops=max_hops)
+
+
+@pytest.mark.parametrize("max_hops", [0, -1])
+def test_route_rejects_max_hops_below_one(graph, max_hops):
+    """It used to behave as `max_hops=1`, contradicting the constructor."""
+    with pytest.raises(ValueError):
+        graph.route("en", "pt", max_hops=max_hops)
+
+
+@pytest.mark.parametrize("max_hops", [0, -1])
+def test_routes_rejects_max_hops_below_one(graph, max_hops):
+    with pytest.raises(ValueError):
+        graph.routes("en", "pt", max_hops=max_hops)
+
+
+@pytest.mark.parametrize("max_hops", [0, -1])
+def test_can_translate_rejects_max_hops_below_one(graph, max_hops):
+    with pytest.raises(ValueError):
+        graph.can_translate("en", "pt", max_hops=max_hops)
+
+
+# --- validating a caller-supplied route ------------------------------------
+
+DIRECTIONAL = Capability(
+    model_id="en-indic", arch="indictrans2", license="MIT",
+    license_tier="permissive", size_mb=480, runnable=True,
+    src_languages=frozenset({"en"}), tgt_languages=frozenset({"hi", "ta"}))
+
+
+def _hop(cap, src, tgt):
+    return Hop(model_id=cap.model_id, src=src, tgt=tgt, arch=cap.arch,
+               license=cap.license, license_tier=cap.license_tier,
+               size_mb=cap.size_mb, dedicated=cap.dedicated)
+
+
+def test_validate_route_accepts_a_route_the_graph_itself_produced(graph):
+    route = graph.route("en", "ru")
+    assert graph.validate_route(route) is route
+
+
+def test_validate_route_refuses_a_backwards_hop_on_a_directional_model():
+    """Both tags are in the model's code map, so nothing else would catch it."""
+    graph = TranslationGraph([DIRECTIONAL])
+    backwards = Route("hi", "en", (_hop(DIRECTIONAL, "hi", "en"),))
+    with pytest.raises(InvalidRouteError) as err:
+        graph.validate_route(backwards)
+    assert "en-indic" in str(err.value)
+
+
+def test_validate_route_refuses_a_reversed_dedicated_pair(graph):
+    cap = marian("en", "pt")
+    backwards = Route("pt", "en", (_hop(cap, "pt", "en"),))
+    with pytest.raises(InvalidRouteError):
+        graph.validate_route(backwards)
+
+
+def test_validate_route_accepts_the_supported_direction():
+    graph = TranslationGraph([DIRECTIONAL])
+    forwards = Route("en", "hi", (_hop(DIRECTIONAL, "en", "hi"),))
+    assert graph.validate_route(forwards) is forwards
+
+
+def test_validate_route_refuses_an_unknown_model(graph):
+    stranger = marian("en", "pt")
+    route = Route("en", "pt", (Hop("not-registered", "en", "pt", "marian",
+                                   "MIT", "permissive", 1, True),))
+    with pytest.raises(InvalidRouteError):
+        graph.validate_route(route)
+    assert stranger.model_id in {c.model_id for c in graph.capabilities}
+
+
+def test_validate_route_refuses_an_unrunnable_model():
+    cap = _unrunnable(pair=("en", "kn"))
+    graph = TranslationGraph([marian("en", "pt"), cap])
+    route = Route("en", "kn", (_hop(cap, "en", "kn"),))
+    with pytest.raises(InvalidRouteError) as err:
+        graph.validate_route(route)
+    assert "no preprocessing pipeline" in str(err.value)
+
+
+def test_validate_route_refuses_a_broken_chain(graph):
+    hops = (_hop(marian("en", "pt"), "en", "pt"),
+            _hop(marian("es", "ca"), "es", "ca"))
+    with pytest.raises(InvalidRouteError):
+        graph.validate_route(Route("en", "ca", hops))
+
+
+def test_validate_route_refuses_hops_that_do_not_match_the_endpoints(graph):
+    route = Route("en", "ru", (_hop(marian("en", "pt"), "en", "pt"),))
+    with pytest.raises(InvalidRouteError):
+        graph.validate_route(route)
+
+
+def test_validate_route_refuses_an_empty_route(graph):
+    with pytest.raises(InvalidRouteError):
+        graph.validate_route(Route("en", "pt", ()))
+
+
+# --- malformed caller input vs unsupported language ------------------------
+
+def test_normalize_tag_is_lenient_and_says_so(caplog):
+    assert normalize_tag("!!!") == "!!!"
+    assert "not a parseable language tag" in caplog.text
+
+
+def test_normalize_tag_strict_refuses_junk():
+    with pytest.raises(MalformedTagError):
+        normalize_tag("!!!", strict=True)
+
+
+def test_normalize_tag_refuses_an_empty_tag():
+    with pytest.raises(MalformedTagError):
+        normalize_tag("   ")
+
+
+def test_routing_a_malformed_tag_is_not_reported_as_an_unsupported_language(graph):
+    """`NoRouteError` would read as "no model for your language". It is not that."""
+    with pytest.raises(MalformedTagError):
+        graph.route("<script>", "pt")
+    with pytest.raises(MalformedTagError):
+        graph.routes("en", "en--")
+
+
+def test_an_unsupported_but_well_formed_tag_is_still_a_no_route(graph):
+    with pytest.raises(NoRouteError):
+        graph.route("en", "kea")
+
+
+def test_a_node_the_registry_minted_stays_addressable():
+    """Lenient normalisation at build time must not make a model unreachable."""
+    graph = TranslationGraph([marian("!!!", "pt")])
+    assert graph.route("!!!", "pt").n_hops == 1
+
+
+def test_a_region_subtag_routes_as_its_language(graph):
+    """No model distinguishes pt-BR from pt; refusing the region helps nobody."""
+    assert graph.route("pt-BR", "en").hops[0].model_id == "opus-pt-en"
+
+
+# --- separator/script normalisation (redundant-spelling collapse) ---------
+
+@pytest.mark.parametrize("underscore, hyphen", [
+    ("ace_Arab", "ace-Arab"),
+    ("bjn_Arab", "bjn-Arab"),
+    ("crh_Latn", "crh-Latn"),
+    ("ko_Hang", "ko-Hang"),
+    ("zh_Hant", "zh-Hant"),
+])
+def test_underscore_and_hyphen_script_suffixes_are_the_same_node(underscore, hyphen):
+    """FLORES `xxx_Yyyy` and a hand-written `xxx-Yyyy` name the same node.
+
+    Only the separator differs; a caller (or a registry entry) spelling it
+    either way must land on one graph node, not two.
+    """
+    assert normalize_tag(underscore) == normalize_tag(hyphen)
+
+
+def test_a_region_subtag_is_not_mistaken_for_a_script_suffix():
+    """`fr-CA`/`az-RU`/`fa-AF` are region subtags, not script suffixes.
+
+    Unifying the separator must not touch these: a 2-letter region code does
+    not have the shape of an ISO 15924 script (4 letters, titlecase), so they
+    are routed through `langcodes` exactly as before.
+    """
+    assert normalize_tag("fr-CA") == "fr-CA"
+    assert normalize_tag("az-RU") == "az-RU"
+    assert normalize_tag("fa-AF") == "fa-AF"
+
+
+@pytest.mark.parametrize("tag, expected", [
+    ("crh", "crh"), ("crh_Latn", "crh"), ("crh-Latn", "crh"),
+    ("ko", "ko"), ("ko_Hang", "ko"), ("ko-Hang", "ko"),
+    ("pbt_Arab", "ps"), ("pbt-Arab", "ps"),
+    ("pes_Arab", "fa"), ("swh_Latn", "sw"), ("uzn_Latn", "uz"),
+    ("khk_Cyrl", "mn"), ("azj_Latn", "az"), ("zsm_Latn", "ms"),
+])
+def test_known_script_default_and_macro_overrides_collapse(tag, expected):
+    """Codes where CLDR has no/stale script data, and NLLB-only individual
+    codes for a macrolanguage every other model calls by its 2-letter code,
+    collapse onto the node the rest of the graph already uses."""
+    assert normalize_tag(tag) == expected
+
+
+@pytest.mark.parametrize("bare, latn", [
+    ("bg", "bg-Latn"), ("el", "el-Latn"), ("bn", "bn-Latn"), ("gom", "gom-Latn"),
+])
+def test_romanised_variants_of_non_latin_languages_stay_distinct(bare, latn):
+    """`bg_Latn`/`el_Latn`/`bn_Latn`/`gom_Latn` are MADLAD's genuine romanised
+    transliteration targets, not a spelling variant of the native-script
+    language. A caller asking for `bg` wants Cyrillic; collapsing these two
+    nodes would silently reroute them to the wrong model output."""
+    assert normalize_tag(bare) != normalize_tag(latn)
+    assert normalize_tag(bare) != normalize_tag(latn.replace("-Latn", "_Latn"))
+
+
+def test_nb_and_nn_stay_distinct_written_standards():
+    """Bokmal and Nynorsk are two actively maintained standards, not a
+    macrolanguage/dialect split - kept apart like zh-Hans/zh-Hant, not
+    collapsed onto `no` the way NLLB's other individual-language codes are."""
+    assert normalize_tag("nob_Latn") != normalize_tag("nno_Latn")
+    assert normalize_tag("nob_Latn") == "nb"
+    assert normalize_tag("nno_Latn") == "nn"
+
+
+def test_ks_arab_and_ks_deva_stay_distinct():
+    """Kashmiri is genuinely biscriptal (Perso-Arabic and Devanagari, both in
+    active use) - the script subtag is informative and must survive."""
+    assert normalize_tag("kas_Arab") == "ks"
+    assert normalize_tag("kas_Deva") == "ks-Deva"
+    assert normalize_tag("kas_Arab") != normalize_tag("kas_Deva")
+
+
+def test_registry_has_no_undeclared_duplicate_language_spellings():
+    """No two raw values committed to translate.json normalise to the same
+    tag inside the same capability's language set - that would mean the
+    registry itself, not just ad-hoc caller input, still carries a redundant
+    spelling `normalize_tag` was supposed to collapse before it was written.
+    """
+    from linguonnx.model_manager import list_models
+
+    for model_id, entry in list_models(kind="translate").items():
+        for key in ("languages", "src_languages", "tgt_languages"):
+            values = entry.get(key)
+            if not values:
+                continue
+            normalized = [normalize_tag(v) for v in values]
+            assert len(normalized) == len(set(normalized)), (
+                f"{model_id}.{key} has redundant spellings: {values}")
+        pair = entry.get("pair")
+        if pair:
+            assert normalize_tag(pair[0]) != normalize_tag(pair[1]) or pair[0] == pair[1]
+
+
+# --- asymmetric capabilities ----------------------------------------------
+
+SRC_ONLY = Capability(model_id="src-only", arch="m2m100", license="MIT",
+                      license_tier="permissive", size_mb=10,
+                      languages=frozenset({"en", "hi", "ta"}),
+                      src_languages=frozenset({"en"}))
+TGT_ONLY = Capability(model_id="tgt-only", arch="m2m100", license="MIT",
+                      license_tier="permissive", size_mb=10,
+                      languages=frozenset({"en", "hi", "ta"}),
+                      tgt_languages=frozenset({"en"}))
+
+
+def test_a_capability_with_only_src_languages_is_directional():
+    """`languages` fills the side that is not declared, and only that side."""
+    assert SRC_ONLY.directional is True
+    assert SRC_ONLY.covers("en", "hi") is True
+    assert SRC_ONLY.covers("hi", "en") is False
+    assert SRC_ONLY.covers("hi", "ta") is False
+    assert SRC_ONLY.endpoints() == frozenset({"en", "hi", "ta"})
+
+
+def test_a_capability_with_only_tgt_languages_is_directional():
+    assert TGT_ONLY.directional is True
+    assert TGT_ONLY.covers("hi", "en") is True
+    assert TGT_ONLY.covers("en", "hi") is False
+    assert TGT_ONLY.covers("ta", "en") is True
+
+
+@pytest.mark.parametrize("cap", [SRC_ONLY, TGT_ONLY])
+def test_an_asymmetric_capability_never_covers_a_language_with_itself(cap):
+    assert cap.covers("en", "en") is False
+
+
+def test_routing_over_an_asymmetric_capability_respects_its_direction():
+    graph = TranslationGraph([SRC_ONLY])
+    assert graph.route("en", "hi").hops[0].model_id == "src-only"
+    with pytest.raises(NoRouteError):
+        graph.route("hi", "en")
+
+
+# --- per-model size budget -------------------------------------------------
+#
+# `count_cached_as_free` defaults to True, and the fixtures below are models
+# that no registry knows, so `is_cached` answers False for all of them and the
+# cap applies. The cached path gets its own tests, with the cache stubbed.
+
+BIG_MULTI = Capability(model_id="big-multi", arch="madlad", license="Apache-2.0",
+                       license_tier="permissive", size_mb=4945,
+                       languages=frozenset({"pt", "en", "ru", "ja"}))
+SMALL_PT_EN = marian("pt", "en", size=80)
+SMALL_EN_RU = marian("en", "ru", size=80)
+
+
+@pytest.fixture
+def capped():
+    """One 4.9 GB model that does pt->ru directly, plus two 80 MB models."""
+    return [BIG_MULTI, SMALL_PT_EN, SMALL_EN_RU]
+
+
+def test_without_a_cap_the_big_model_wins_in_one_hop(capped):
+    route = TranslationGraph(capped).route("pt", "ru")
+    assert route.model_ids == ("big-multi",)
+
+
+def test_a_cap_forces_a_chain_of_small_models(capped):
+    route = TranslationGraph(capped, max_model_mb=500).route("pt", "ru")
+    assert route.model_ids == ("opus-pt-en", "opus-en-ru")
+    assert route.pivots == ("en",)
+
+
+def test_every_hop_of_the_chain_fits_the_cap(capped):
+    route = TranslationGraph(capped, max_model_mb=500).route("pt", "ru")
+    assert all(hop.size_mb <= 500 for hop in route.hops)
+
+
+def test_the_cap_applies_to_routes_as_well_as_route(capped):
+    graph = TranslationGraph(capped, max_model_mb=500)
+    assert all("big-multi" not in r.model_ids for r in graph.routes("pt", "ru"))
+
+
+def test_available_languages_agrees_with_what_the_cap_can_serve(capped):
+    """A language only the excluded model reaches is not advertised."""
+    graph = TranslationGraph(capped, max_model_mb=500)
+    assert "ja" not in graph.languages
+    assert graph.can_translate("pt", "ja") is False
+    with pytest.raises(NoRouteError):
+        graph.route("pt", "ja")
+
+
+def test_every_advertised_language_is_actually_routable_under_a_cap(capped):
+    """`languages` and `route` must not disagree, in either direction."""
+    graph = TranslationGraph(capped, max_model_mb=500)
+    for src in graph.languages:
+        assert any(graph.can_translate(src, tgt)
+                   or graph.can_translate(tgt, src)
+                   for tgt in graph.languages if tgt != src)
+
+
+def test_the_cap_is_a_per_call_override_like_max_hops(capped):
+    graph = TranslationGraph(capped)
+    assert graph.route("pt", "ru", max_model_mb=500).n_hops == 2
+    assert graph.route("pt", "ru").n_hops == 1
+
+
+def test_a_per_call_none_lifts_a_cap_the_graph_was_built_with(capped):
+    """`None` is "no cap", so it cannot also mean "inherit"; omitting does that."""
+    graph = TranslationGraph(capped, max_model_mb=500)
+    assert graph.route("pt", "ru", max_model_mb=None).model_ids == ("big-multi",)
+    assert graph.route("pt", "ru").model_ids != ("big-multi",)
+
+
+def test_languages_under_answers_for_a_per_call_cap(capped):
+    graph = TranslationGraph(capped)
+    assert "ja" in graph.languages
+    assert "ja" not in graph.languages_under(500)
+
+
+def test_can_translate_honours_a_per_call_cap(capped):
+    graph = TranslationGraph(capped)
+    assert graph.can_translate("pt", "ja") is True
+    assert graph.can_translate("pt", "ja", max_model_mb=500) is False
+
+
+@pytest.mark.parametrize("cap", [0, -1])
+def test_a_cap_below_one_is_rejected(capped, cap):
+    with pytest.raises(ValueError):
+        TranslationGraph(capped, max_model_mb=cap)
+    with pytest.raises(ValueError):
+        TranslationGraph(capped).route("pt", "ru", max_model_mb=cap)
+
+
+def test_the_environment_supplies_the_default_cap(monkeypatch, capped):
+    monkeypatch.setattr("linguonnx.translate.graph.MAX_MODEL_MB", 500)
+    assert TranslationGraph(capped).route("pt", "ru").n_hops == 2
+    # An explicit None still overrules the environment.
+    assert TranslationGraph(capped, max_model_mb=None).route("pt", "ru").n_hops == 1
+
+
+def test_the_excluded_model_is_remembered_not_dropped(capped):
+    graph = TranslationGraph(capped, max_model_mb=500)
+    assert [c.model_id for c in graph.oversized_capabilities] == ["big-multi"]
+
+
+# --- what the cap does to the error ---------------------------------------
+
+def test_no_route_names_the_size_cap_when_that_is_what_bound(capped):
+    graph = TranslationGraph(capped, max_model_mb=500)
+    with pytest.raises(NoRouteError) as err:
+        graph.route("pt", "ja")
+    assert "size cap" in str(err.value)
+    assert "big-multi" in str(err.value)
+    assert "4945 MB" in str(err.value)
+
+
+def test_no_route_does_not_blame_the_cap_for_a_pair_nothing_covers(capped):
+    graph = TranslationGraph(capped, max_model_mb=500)
+    with pytest.raises(NoRouteError) as err:
+        graph.route("pt", "kab")
+    assert "size cap" not in str(err.value)
+
+
+def test_no_route_does_not_mention_the_cap_when_there_is_none(capped):
+    with pytest.raises(NoRouteError) as err:
+        TranslationGraph(capped).route("pt", "kab")
+    assert "size cap" not in str(err.value)
+
+
+def test_the_hop_cap_is_named_when_it_is_the_binding_one(capped):
+    """A cap that costs a hop must not silently buy the hop back."""
+    graph = TranslationGraph(capped, max_model_mb=500, max_hops=1)
+    with pytest.raises(NoRouteError) as err:
+        graph.route("pt", "ru")
+    message = str(err.value)
+    assert "max_hops=1" in message
+    assert "2-hop route exists" in message
+
+
+# --- download cost, not memory cost ---------------------------------------
+
+def _stub_cache(monkeypatch, *cached_ids):
+    monkeypatch.setattr("linguonnx.model_manager.is_cached",
+                        lambda model_id, kind="lid": model_id in cached_ids)
+
+
+def test_a_cached_model_is_exempt_from_the_cap_by_default(monkeypatch, capped):
+    """The budget is on the download, and a cached model costs no download."""
+    _stub_cache(monkeypatch, "big-multi")
+    graph = TranslationGraph(capped, max_model_mb=500)
+    assert graph.route("pt", "ru").model_ids == ("big-multi",)
+    assert graph.can_translate("pt", "ja") is True
+
+
+def test_count_cached_as_free_false_applies_the_cap_regardless(monkeypatch, capped):
+    """The other reading of the same number: a small disk, not a slow link."""
+    _stub_cache(monkeypatch, "big-multi")
+    graph = TranslationGraph(capped, max_model_mb=500,
+                             count_cached_as_free=False)
+    assert graph.route("pt", "ru").model_ids == ("opus-pt-en", "opus-en-ru")
+    assert graph.can_translate("pt", "ja") is False
+
+
+def test_count_cached_as_free_is_a_per_call_override(monkeypatch, capped):
+    _stub_cache(monkeypatch, "big-multi")
+    graph = TranslationGraph(capped, max_model_mb=500)
+    assert graph.route("pt", "ru", count_cached_as_free=False).n_hops == 2
+    assert graph.route("pt", "ru").n_hops == 1
+
+
+def test_an_uncached_oversized_model_is_excluded_either_way(monkeypatch, capped):
+    _stub_cache(monkeypatch)   # nothing is cached
+    for free in (True, False):
+        graph = TranslationGraph(capped, max_model_mb=500,
+                                 count_cached_as_free=free)
+        assert graph.route("pt", "ru").n_hops == 2
+
+
+def test_a_capability_outside_the_registry_is_never_cached():
+    """`is_cached` cannot invent the file list of a model it does not know."""
+    assert BIG_MULTI.is_cached is False
+
+
+# --- what a route costs to fetch ------------------------------------------
+
+def test_a_route_reports_its_download_size(monkeypatch, capped):
+    _stub_cache(monkeypatch)
+    route = TranslationGraph(capped).route("pt", "ru")
+    assert route.download_size_mb == 4945
+    assert route.cached_size_mb == 0
+
+
+def test_a_cached_route_costs_no_download(monkeypatch, capped):
+    _stub_cache(monkeypatch, "big-multi")
+    route = TranslationGraph(capped).route("pt", "ru")
+    assert route.download_size_mb == 0
+    assert route.cached_size_mb == 4945
+
+
+def test_a_partly_cached_chain_splits_its_cost(monkeypatch, capped):
+    _stub_cache(monkeypatch, "opus-pt-en")
+    route = TranslationGraph(capped, max_model_mb=500).route("pt", "ru")
+    assert route.cached_size_mb == 80
+    assert route.download_size_mb == 80
+    assert route.models_size_mb == 160
+
+
+def test_a_model_used_twice_is_downloaded_once(monkeypatch):
+    """Per-hop `total_size_mb` double-counts on purpose; the fetch cost cannot."""
+    _stub_cache(monkeypatch)
+    both = Capability(model_id="multi", arch="m2m100", license="MIT",
+                      license_tier="permissive", size_mb=1200,
+                      languages=frozenset({"pt", "xx"}))
+    graph = TranslationGraph([both, marian("xx", "ru", size=80)])
+    route = graph.routes("pt", "ru")[0]
+    assert route.model_ids == ("multi", "opus-xx-ru")
+    assert route.download_size_mb == 1280
+    assert route.models_size_mb == route.total_size_mb == 1280
+
+
+def test_download_and_cached_sizes_always_add_up(monkeypatch, capped):
+    _stub_cache(monkeypatch, "opus-en-ru")
+    route = TranslationGraph(capped, max_model_mb=500).route("pt", "ru")
+    assert route.download_size_mb + route.cached_size_mb == route.models_size_mb
+
+
+# --- the cap against the real registry ------------------------------------
+
+def test_a_cap_trades_long_tail_languages_for_short_chains():
+    """What a cap really costs on the shipped registry.
+
+    Two things are true at once and both have to be tested, because only the
+    first one is obvious. A chain of small bilingual models replaces the big
+    multilingual hop for the pairs those bilingual models exist for - and for
+    the long tail they do not exist for, nothing replaces it: MADLAD is the
+    only model in the registry that has Chuvash at all. So the cap keeps the
+    well-served pairs routable and drops the tail, rather than trimming the
+    model list evenly.
+    """
+    from linguonnx.model_manager import list_models
+    from linguonnx.translate.models import capability_from_entry
+    caps = [capability_from_entry(e) for e in list_models(kind="translate").values()
+            if e["precision"] == "int8" and e["license_tier"] != "non-commercial"]
+    # count_cached_as_free=False: whether this host happens to hold MADLAD must
+    # not decide what the test measures.
+    full = TranslationGraph(caps, count_cached_as_free=False)
+    small = TranslationGraph(caps, max_model_mb=500, count_cached_as_free=False)
+    # The ratio tightened from 1/4 once `opus-mt-tc-big-itc-itc-int8` (453 MB,
+    # under the cap) joined the registry with ~85 languages of its own via a
+    # `>>xxx<<` prefix token - a genuinely well-covered small model, not a
+    # test regression. The cap still trims the tail hard; it just does not
+    # trim it as hard as before this one model's coverage was recognised.
+    assert len(small.languages) < len(full.languages) / 2
+    assert all(cap.size_mb > 500 for cap in small.oversized_capabilities)
+    # pt->ru was one M2M100 hop; under the cap it is a chain of small models.
+    chain = small.route("pt", "ru")
+    assert chain.n_hops == 2
+    assert all(hop.size_mb <= 500 for hop in chain.hops)
+    assert chain.models_size_mb < 500
+
+
+def test_the_real_registry_advertises_only_what_it_can_route_under_a_cap():
+    """The languages/routes agreement, on the set where it is hard to hold."""
+    from linguonnx.model_manager import list_models
+    from linguonnx.translate.models import capability_from_entry
+    caps = [capability_from_entry(e) for e in list_models(kind="translate").values()
+            if e["precision"] == "int8" and e["license_tier"] != "non-commercial"]
+    small = TranslationGraph(caps, max_model_mb=500, count_cached_as_free=False)
+    dropped = TranslationGraph(caps, count_cached_as_free=False).languages \
+        - small.languages
+    assert dropped, "a 500 MB cap must drop the languages only MADLAD reaches"
+    for lang in sorted(dropped)[:40]:
+        assert not small.can_translate("en", lang)
+        assert not small.can_translate(lang, "en")
+
+
+# --------------------------------------------------------------------------
+# Per-edge coverage: a model that states its directions one by one
+# --------------------------------------------------------------------------
+
+def _akkadian_entry():
+    """Thalesian's Akkadian shape: three nodes, five of the six edges.
+
+    The cards define no instruction for `akk-Latn -> akk`, so that edge does
+    not exist even though both its languages do.
+    """
+    return {
+        "model_id": "AKK-60m-int8", "arch": "t5-prefix",
+        "license": "Apache-2.0", "license_tier": "permissive", "size_mb": 232,
+        "languages": ["akk", "akk-Latn", "en"],
+        "prefix_templates": {
+            "akk>en": "Translate Akkadian cuneiform to English",
+            "en>akk": "Translate English to Akkadian cuneiform",
+            "akk-Latn>en": "Translate Akkadian simple transliteration to English",
+            "en>akk-Latn": "Translate English to simple Akkadian transliteration",
+            "akk>akk-Latn": "Transliterate Akkadian cuneiform to simple Latin Characters",
+        },
+    }
+
+
+def _akkadian_capability(entry=None):
+    from linguonnx.translate.models import capability_from_entry
+    return capability_from_entry(entry or _akkadian_entry())
+
+
+def test_declared_directions_are_not_a_clique():
+    """`languages` alone would make all six edges routable. The router would
+    then offer `akk-Latn -> akk`, and the pipeline would raise on it - a
+    route advertised and then refused."""
+    capability = _akkadian_capability()
+    assert capability.covers("akk", "en")
+    assert capability.covers("en", "akk")
+    assert capability.covers("akk-Latn", "en")
+    assert capability.covers("en", "akk-Latn")
+    assert capability.covers("akk", "akk-Latn")
+    assert not capability.covers("akk-Latn", "akk")
+
+
+def test_declared_directions_still_refuse_a_self_edge():
+    assert not _akkadian_capability().covers("akk", "akk")
+
+
+def test_endpoints_agree_with_the_declared_directions():
+    """`available_languages` is built from `endpoints`; if it disagreed with
+    `covers`, the graph would list a language it cannot route."""
+    capability = _akkadian_capability()
+    assert capability.endpoints() == {"akk", "akk-Latn", "en"}
+
+
+def test_a_clique_entry_is_unaffected_by_the_directions_branch():
+    """No `prefix_templates` means no declared edges, and the existing
+    any-to-any reading has to survive untouched."""
+    entry = _akkadian_entry()
+    del entry["prefix_templates"]
+    capability = _akkadian_capability(entry)
+    assert capability.directions is None
+    assert capability.covers("akk-Latn", "akk")

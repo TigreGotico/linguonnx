@@ -13,11 +13,18 @@ authors = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-    "onnxruntime",
-    "numpy",
-    "huggingface_hub",
-    "langcodes",
-    "sentencepiece",
+    # Floors, not pins: the oldest release each of these is known to work on.
+    # Without them the manifest permits a resolution nobody has ever tested.
+    "onnxruntime>=1.16.0",
+    "numpy>=1.21.0",
+    "huggingface_hub>=0.20.0",  # stable `revision=` handling in hf_hub_download
+    "langcodes>=3.3.0",
+    # Already pulled in by langcodes; declared because linguonnx now reads the
+    # IANA Language Subtag Registry out of it directly, to tell a language
+    # from a language *family* (`itc`, `sla`, `ber`) - see
+    # `linguonnx.detect.labels.tag_scope`.
+    "language_data>=1.1",
+    "sentencepiece>=0.1.99",
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -29,8 +36,58 @@ classifiers = [
 [project.optional-dependencies]
 # Linguistic distance for pivot-language ranking. Optional on purpose: without
 # it the routing graph uses its curated pivot table instead.
-distance = ["orthography2ipa"]
-test = ["pytest", "onnx"]
+distance = ["orthography2ipa>=0.1.0"]
+# IndicTrans2 preprocessing. `indic-nlp-library-itt` supplies the script
+# normalisers, the Indic tokenizer and the Devanagari transliterator that
+# IndicTrans2 was trained with. AI4Bharat's own `IndicTransToolkit` is not used
+# because it declares `transformers` as a hard dependency and linguonnx keeps
+# `transformers` out of the runtime; its processing logic is vendored instead,
+# with attribution, in `linguonnx/translate/_indic_processor.py`.
+indic = ["regex>=2021.8.3", "sacremoses>=0.0.53", "indic-nlp-library-itt>=0.1.1"]
+# OpenNMT-py + subword-nmt BPE preprocessing for the Proxecto Nos models.
+opennmt = ["sacremoses>=0.0.53", "subword-nmt>=0.3.8"]
+# Softcatalà's `translate-eus-cat`/`translate-oci-cat`: their tokenizer is a
+# `tokenizers`-library tokenizer.json (Unigram model), not a raw SentencePiece
+# `.model` - `sentencepiece` cannot read it.
+fast-tokenizers = ["tokenizers>=0.15.0"]
+# `onnxruntime` and `onnxruntime-gpu` both provide the `onnxruntime` import
+# namespace and must never be installed together, so `gpu` cannot declare
+# `onnxruntime-gpu` as a dependency here - `onnxruntime` is already a hard
+# base dependency above and pip/uv would install both side by side.
+# `cpu` is a no-op alias that names the default explicitly next to `gpu`.
+# To run on a CUDA host: `pip uninstall onnxruntime && pip install
+# onnxruntime-gpu`, in that order, in the same environment linguonnx is
+# installed in - see `linguonnx.providers` for provider selection at
+# runtime, which warns if a configured provider is not actually available.
+cpu = []
+gpu = []
+# `onnx` is only used by the tests, but the floor is a security floor, not a
+# feature one: CVE-2022-25882 (<1.13.0) is directory traversal through the
+# external-data `location` field, and CVE-2024-5187 (<1.16.0) is a second path
+# traversal. This library downloads external-data models, so both are live.
+#
+# Every one of these is a *test* dependency, never a runtime one - the offline
+# suite has its own `pytest.importorskip` guard per behaviour, and every one of
+# those guards used to be satisfied by nothing at all in CI: `test` installed
+# only `pytest` and `onnx`, so `linguonnx[indic]`, `linguonnx[opennmt]`,
+# `linguonnx[distance]`, `linguonnx[fast-tokenizers]` and the tokenizer-parity
+# checks all skipped, silently, on every single run. That is how a broken
+# IndicTrans2 build (linguonnx#44's regression, see
+# `test/test_translate_native_codes.py`) shipped behind a green suite: the one
+# test written to catch it needed `optimum`+`transformers`, which were never
+# installed, so it was never collected.
+#
+# `IndicTransToolkit` pins no `transformers` version and its `collator.py`
+# imports `PreTrainedTokenizerBase` from a path `transformers>=5` removed;
+# `transformers==4.46.3` is the newest release both this and it agree on, and
+# it needs no torch/tensorflow/flax backend for tokenizer-only use.
+test = [
+    "pytest>=7.0",
+    "onnx>=1.16.0",
+    "linguonnx[distance,indic,opennmt,fast-tokenizers]",
+    "transformers==4.46.3",
+    "IndicTransToolkit>=1.1.1",
+]
 
 [project.urls]
 Homepage = "https://github.com/TigreGotico/linguonnx"

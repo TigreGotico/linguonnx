@@ -11,7 +11,7 @@ det = load_detector()                 # glotlid-int8, the default
 print(det.detect("Egun on, zer moduz?"))          # 'eu' — best-guess BCP-47 tag
 print(det.detect_probs("Bon dia a tothom", 3))    # {'ca': 0.998, ...}
 print(det.detect_raw("Bon dia a tothom"))         # ('cat_Latn', 0.998)
-print(len(det.available_languages))               # 2100 BCP-47 tags
+print(len(det.available_languages))               # 2099 BCP-47 tags
 print(det.loss)                                   # 'softmax'
 ```
 
@@ -188,3 +188,66 @@ Two practical consequences:
 
 This is a property of n-gram language identification rather than a defect in
 this export — the same behaviour is present in the original fastText models.
+
+## Input limits
+
+Detection is cheap per character but not free: feature hashing is a
+pure-Python loop that holds the GIL, and every token expands into character
+n-grams that the ONNX graph then gathers embeddings for. A 200,000-character
+string produces around 800,000 feature ids and close to a gigabyte of
+transient allocation. Behind an HTTP handler, one such request slows every
+other request in the process.
+
+Two bounds apply, and both **raise** rather than truncate. A truncated
+detection returns a plausible answer computed from part of the input, which is
+the hardest kind of wrong to notice.
+
+| limit | default | environment variable |
+|---|---|---|
+| characters per call | 10,000 | `LINGUONNX_MAX_DETECT_CHARS` |
+| whitespace tokens per call | 1,024 | `LINGUONNX_MAX_LINE_TOKENS` |
+
+```python
+from linguonnx.limits import InputTooLongError
+
+huge_text = "a" * 200_000
+try:
+    det.detect(huge_text)
+except InputTooLongError as err:
+    print(err)   # input is 200000 characters, over the limit of 10000; ...
+```
+
+Both defaults sit far above what identification needs — accuracy saturates
+after a few hundred characters (see above) — so raising them buys nothing
+except exposure. Set them per process with the environment variables, or per
+detector:
+
+```python
+from linguonnx.detect import LanguageDetector
+
+det = LanguageDetector(max_chars=2_000, max_tokens=256)
+```
+
+The 1,024-token figure is fastText's own `MAX_LINE_SIZE`. Note that fastText
+applies it only in the *unsupervised* `Dictionary::getLine` overload; the
+supervised overload these LID models use reads the whole line. So this is a
+linguonnx bound set at the reference's idea of a long line, not a parity fix,
+and it is tunable for anyone who wants byte-for-byte fastText behaviour on
+very long lines.
+
+### Empty input
+
+Text with no visible content raises `EmptyInputError`. `str.strip()` alone
+does not catch this case: zero-width spaces, joiners, the BOM and the bidi
+marks survive it, and text pasted out of HTML or a PDF carries them routinely.
+Such a string reaches the graph as the single end-of-sentence feature and gets
+a confident-looking label back.
+
+```python
+from linguonnx.limits import EmptyInputError
+
+try:
+    det.detect("​‍")   # zero-width space + zero-width joiner
+except EmptyInputError as err:
+    print(err)
+```

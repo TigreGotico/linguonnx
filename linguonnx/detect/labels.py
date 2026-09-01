@@ -41,6 +41,7 @@ Two things `standardize_tag` does not do, which this module owns:
 from __future__ import annotations
 
 import logging
+from functools import lru_cache
 from typing import Dict, Optional, Tuple
 
 import langcodes
@@ -53,10 +54,76 @@ LABEL_PREFIX = "__label__"
 # whose two-letter code is what every downstream consumer (translators, TTS
 # voice pickers, ...) actually expects. GlotLID/OpenLID label Standard Arabic
 # as "arb" and never emit a bare "ara", so "arb_Arab" must resolve to "ar".
+#
+# This map is *always* applied (unlike :func:`collapse_variety`, which is
+# opt-in for LID dialect fidelity): a translation model that emits "pes" as
+# its own vocabulary token is claiming to translate Persian, not a dialect a
+# caller would ever ask for by that spelling, because nothing else in the
+# graph offers "pes" as a distinct node. Each entry below is a case where a
+# translation model (mainly NLLB, which spells its whole vocabulary in
+# individual ISO 639-3 codes) uses the individual-language code for what is,
+# for every routing purpose, the macrolanguage every other model in the
+# registry calls by its two-letter code - so leaving it unmapped does not
+# preserve a real distinction, it just makes the language unreachable under
+# the tag every other model, and every caller, uses.
 _MACRO_OVERRIDES: Dict[str, str] = {
     "arb": "ar",   # Standard Arabic -> Arabic macrolanguage
     "cmn": "zh",   # Mandarin -> Chinese macrolanguage
     "zho": "zh",   # Chinese (langcodes already does this, kept explicit)
+    "pes": "fa",   # Iranian Persian -> Persian macrolanguage
+    "swh": "sw",   # Swahili (individual) -> Swahili macrolanguage
+    "uzn": "uz",   # Northern Uzbek -> Uzbek macrolanguage
+    "npi": "ne",   # Nepali (individual) -> Nepali macrolanguage
+    "ory": "or",   # Odia (individual) -> Odia macrolanguage
+    "zsm": "ms",   # Standard Malay -> Malay macrolanguage
+    "khk": "mn",   # Halh Mongolian -> Mongolian macrolanguage
+    "azj": "az",   # North Azerbaijani -> Azerbaijani macrolanguage. (South
+                   # Azerbaijani "azb" is NOT mapped here - different branch,
+                   # different script tradition, a genuine distinct language.)
+    "lvs": "lv",   # Standard Latvian -> Latvian macrolanguage
+    "plt": "mg",   # Plateau Malagasy -> Malagasy macrolanguage
+    "als": "sq",   # Tosk Albanian -> Albanian macrolanguage
+    "ydd": "yi",   # Eastern Yiddish -> Yiddish macrolanguage
+    "pbt": "ps",   # Southern Pashto -> Pashto macrolanguage
+    # "nob"/"nno" (-> "no") deliberately NOT collapsed here: Bokmal and
+    # Nynorsk are two actively-maintained, mutually distinct written
+    # standards, not a dialect/macrolanguage split. See VARIETY_TO_MACRO's
+    # opt-in nb/nn -> no entries for the LID-detection case, which trades
+    # away that distinction on purpose because a voice picker only wants "no".
+    # A translation model that names them separately keeps them separate
+    # nodes, the same way zh-Hans/zh-Hant are kept apart.
+}
+
+# CLDR's likely-subtags table is incomplete or, for a few codes, empirically
+# stale: it does not know what script a translation model actually uses for
+# these languages, or it names the pre-reform script instead of the one in
+# modern use. Each entry is the script every model that registers the code
+# actually ships, cited so a future editor does not "fix" it back to CLDR's
+# answer. Keyed by the *post-macro-override* base code, so mapping a variety
+# onto its macrolanguage first (e.g. "pbt" -> "ps") already gets the
+# macrolanguage's own (correct) CLDR default for free without an entry here.
+_KNOWN_SCRIPT_DEFAULTS: Dict[str, str] = {
+    # CLDR has no likely-subtag data for these three Arabic vernaculars and
+    # falls back to "Latn"; every one is written in Arabic script in the
+    # model that registers it (NLLB) and nowhere is a Latin-script variant
+    # offered, so the script subtag distinguishes nothing.
+    "acm": "Arab",  # Mesopotamian Arabic
+    "acq": "Arab",  # Ta'izzi-Adeni Arabic
+    "ajp": "Arab",  # South Levantine Arabic
+    "azb": "Arab",  # South Azerbaijani - Iranian-Arabic-script tradition,
+                    # CLDR again falls back to "Latn" for lack of data.
+    "tzm": "Tfng",  # Central Atlas Tamazight - Morocco standardised on
+                    # Neo-Tifinagh in 2003; CLDR's likely-subtag fallback is
+                    # still "Latn".
+    "crh": "Latn",  # Crimean Tatar - Cyrillic was CLDR's Soviet-era default;
+                    # the modern standard orthography, official in Ukraine
+                    # since 1997 and the only script any registered model
+                    # offers, is Latin.
+    "ko": "Hang",   # CLDR's likely script for "ko" is "Kore" (a compound
+                    # alias covering mixed Hangul+Hanja text), not the plain
+                    # "Hang" every Korean-capable model actually tokenises
+                    # with. Treated as equivalent so "ko-Hang"/"ko_Hang"
+                    # collapse onto the "ko" node the rest of the graph uses.
 }
 
 # Languages routinely written in more than one script, where the script
@@ -99,16 +166,89 @@ def parse_label(label: str) -> Tuple[str, str]:
 
 
 def _drop_redundant_script(tag: str) -> str:
-    """Drop a script subtag that ``standardize_tag`` kept for lack of data."""
+    """Drop a script subtag that ``standardize_tag`` kept for lack of data.
+
+    A subtag is redundant when it names the script the base language is
+    actually written in by default - checked against
+    :data:`_KNOWN_SCRIPT_DEFAULTS` first (languages where CLDR's likely-subtag
+    table is missing or stale) and against ``Language.maximize()`` otherwise.
+
+    This deliberately does NOT drop the script for a language whose default
+    script is something else and the tag names a genuine alternate: MADLAD
+    ships "bg_Latn", "el_Latn", "bn_Latn" and "gom_Latn" as *romanised*
+    transliteration targets alongside "bg"/"el"/"bn"/"gom" in their native
+    scripts - real, distinct model outputs a caller asking for "bg" does not
+    want silently merged into. ``maximize()`` already keeps these apart
+    (Cyrl/Grek/Beng/Deva != Latn) and no override forces them together.
+    """
     base, _, script = tag.partition("-")
     if not script or base in _ALWAYS_KEEP_SCRIPT:
         return tag
+    if _KNOWN_SCRIPT_DEFAULTS.get(base) == script:
+        return base
     try:
         if langcodes.Language.get(base).maximize().script == script:
             return base
     except Exception:
         pass
     return tag
+
+
+@lru_cache(maxsize=1)
+def _iana_scopes() -> Dict[str, str]:
+    """``subtag -> Scope`` for every IANA language subtag that declares one.
+
+    Read from the IANA Language Subtag Registry that ships inside
+    ``language_data`` (a ``langcodes`` dependency), so this is offline data,
+    not a list typed out here. Two scopes matter to this library:
+
+    ``collection``
+        A *family*, not a language: ``itc`` (Italic), ``sla`` (Slavic),
+        ``bnt`` (Bantu). No caller ever asks to translate into "Italic".
+    ``special``
+        ``mul`` (multiple languages), ``und``, ``zxx``, ``mis``.
+
+    A model whose covering set names one of these is claiming coverage that
+    cannot be requested and cannot be delivered - see
+    :func:`is_collection_or_special`.
+    """
+    return {subtag: scope for subtag, scope in _iana_languages().items()
+            if scope in ("collection", "special")}
+
+
+@lru_cache(maxsize=1)
+def _iana_languages() -> Dict[str, Optional[str]]:
+    """Every IANA language subtag -> its ``Scope``, or None when it declares none."""
+    from language_data.registry_parser import parse_registry
+
+    return {item["Subtag"]: item.get("Scope") for item in parse_registry()
+            if item.get("Type") == "language"}
+
+
+def is_registered_subtag(tag: str) -> bool:
+    """Whether the primary subtag of ``tag`` is in the IANA registry.
+
+    Retired ISO 639-3 codes are not: ``mol`` was withdrawn in favour of
+    ``ron``, and an opus-mt vocabulary that carries both ``>>mol<<`` and
+    ``>>ron<<`` must be read as offering Romanian through ``ron``.
+    """
+    base = str(tag).strip().lower().replace("_", "-").split("-")[0]
+    return base in _iana_languages()
+
+
+def tag_scope(tag: str) -> Optional[str]:
+    """``"collection"``, ``"special"`` or ``None`` for one language tag.
+
+    The tag is reduced to its primary language subtag first, so ``itc`` and
+    ``itc-Latn`` answer the same.
+    """
+    base = str(tag).strip().lower().replace("_", "-").split("-")[0]
+    return _iana_scopes().get(base)
+
+
+def is_collection_or_special(tag: str) -> bool:
+    """Whether ``tag`` names a language *family* or a placeholder, not a language."""
+    return tag_scope(tag) is not None
 
 
 def to_bcp47(label: str) -> str:
