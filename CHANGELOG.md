@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.13.0a1](https://github.com/TigreGotico/linguonnx/tree/0.13.0a1) (2026-09-01)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.12.0a1...0.13.0a1)
+
+**Merged pull requests:**
+
+- feat: Akkadian, Sumerian, Hittite and Linear B, via a new instruction-prefixed T5/UMT5 architecture [\#88](https://github.com/TigreGotico/linguonnx/pull/88) ([JarbasAl](https://github.com/JarbasAl))
+- fix: flag opus-mt-en-jap, which answers in scripture instead of translating [\#86](https://github.com/TigreGotico/linguonnx/pull/86) ([JarbasAl](https://github.com/JarbasAl))
+- feat: fetch\_on\_demand makes request-path model downloads an operator policy [\#76](https://github.com/TigreGotico/linguonnx/pull/76) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.12.0a1](https://github.com/TigreGotico/linguonnx/tree/0.12.0a1) (2026-08-10)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.11.1a2...0.12.0a1)
