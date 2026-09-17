@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.1a1](https://github.com/TigreGotico/linguonnx/tree/0.14.1a1) (2026-09-17)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.14.0a1...0.14.1a1)
+
+**Merged pull requests:**
+
+- fix: exclude orphaned onnx 1.23.0rc1 \(test dep\) [\#93](https://github.com/TigreGotico/linguonnx/pull/93) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.14.0a1](https://github.com/TigreGotico/linguonnx/tree/0.14.0a1) (2026-09-01)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.13.0a2...0.14.0a1)
