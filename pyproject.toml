@@ -83,7 +83,11 @@ gpu = []
 # it needs no torch/tensorflow/flax backend for tokenizer-only use.
 test = [
     "pytest>=7.0",
-    "onnx>=1.16.0",
+    # onnx 1.23.0rc1 is an orphaned RC: it writes IR version 14 into every
+    # model it saves, and no published onnxruntime (1.30.0 is the latest) can
+    # load it. Exclude it explicitly until 1.23.0 final lands - do not pin a
+    # ceiling that would block the real 1.23.0.
+    "onnx>=1.16.0,!=1.23.0rc1",
     "linguonnx[distance,indic,opennmt,fast-tokenizers]",
     "transformers==4.46.3",
     "IndicTransToolkit>=1.1.1",
