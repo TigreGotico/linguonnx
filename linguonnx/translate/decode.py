@@ -129,8 +129,21 @@ class GenerationConfig:
 
 
 def _log_softmax(x: np.ndarray) -> np.ndarray:
-    x = x - x.max(axis=-1, keepdims=True)
-    return x - np.log(np.exp(x).sum(axis=-1, keepdims=True))
+    """Log-softmax over the last axis, with dead rows kept dead.
+
+    A row with no finite entry (every candidate banned, or a model that
+    returns -inf everywhere) has no distribution. The plain formula turns it
+    into NaN through ``-inf - -inf`` and prints a RuntimeWarning on the way;
+    the caller then cannot tell "no survivor" from a numeric fault. Such a
+    row comes back as all -inf, which is what the beam and greedy loops test
+    for.
+    """
+    peak = x.max(axis=-1, keepdims=True)
+    dead = ~np.isfinite(peak)
+    shifted = x - np.where(dead, 0.0, peak)
+    total = np.exp(shifted).sum(axis=-1, keepdims=True)
+    log_total = np.where(dead, np.inf, np.log(np.where(dead, 1.0, total)))
+    return shifted - log_total
 
 
 def _banned_ngram_tokens(sequence: Sequence[int], ngram_size: int) -> List[int]:
