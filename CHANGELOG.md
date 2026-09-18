@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.1a2](https://github.com/TigreGotico/linguonnx/tree/0.14.1a2) (2026-09-18)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.14.1a1...0.14.1a2)
+
+**Merged pull requests:**
+
+- test: pin opset and IR in the toy models; keep dead rows dead in log-softmax [\#95](https://github.com/TigreGotico/linguonnx/pull/95) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.14.1a1](https://github.com/TigreGotico/linguonnx/tree/0.14.1a1) (2026-09-17)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.14.0a1...0.14.1a1)
