@@ -259,7 +259,9 @@ def test_matches_real_onnx_reader_on_a_real_external_data_export(tmp_path):
         [node], "g", inputs=[],
         outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, [2, 3])],
         initializer=[weight])
-    model = helper.make_model(graph)
+    # pinned like the decode toys: a default IR version follows the onnx release
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+    model.ir_version = 8
 
     onnx_path = tmp_path / "model.onnx"
     onnx.save_model(model, str(onnx_path), save_as_external_data=True,

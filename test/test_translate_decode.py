@@ -16,6 +16,8 @@ The toy model is:
 which the tests mirror in numpy to get a reference answer.
 """
 
+import warnings
+
 import numpy as np
 import onnx
 import onnxruntime as ort
@@ -62,6 +64,21 @@ def _state_to_logits(source: str, prefix: str):
     ]
 
 
+# The toy graphs pin both the opset and the IR version. Left to defaults, a
+# new onnx release moves them: onnx 1.23.0rc1 wrote IR 14, which onnxruntime
+# 1.30 refuses ("max supported IR version: 13"), and the suite went red for a
+# reason that had nothing to do with linguonnx (#93). Opset 13 and IR 8 are
+# accepted by every onnxruntime the package supports.
+TOY_OPSET = 13
+TOY_IR_VERSION = 8
+
+
+def _toy_model(graph):
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", TOY_OPSET)])
+    model.ir_version = TOY_IR_VERSION
+    return model
+
+
 def _make_encoder(path):
     nodes = [
         helper.make_node("Cast", ["input_ids"], ["f"], to=TensorProto.FLOAT),
@@ -74,7 +91,7 @@ def _make_encoder(path):
         [helper.make_tensor_value_info("last_hidden_state", TensorProto.FLOAT,
                                        ["b", "s", 1])],
         initializer=_consts())
-    onnx.save(helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)]), path)
+    onnx.save(_toy_model(graph), path)
 
 
 def _make_decoder(path):
@@ -97,7 +114,7 @@ def _make_decoder(path):
          helper.make_tensor_value_info("present.0.encoder.key", TensorProto.FLOAT, ["b", 1, 1]),
          helper.make_tensor_value_info("present.0.encoder.value", TensorProto.FLOAT, ["b", 1, 1])],
         initializer=_consts())
-    onnx.save(helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)]), path)
+    onnx.save(_toy_model(graph), path)
 
 
 def _make_decoder_with_past(path):
@@ -124,7 +141,7 @@ def _make_decoder_with_past(path):
     ]
     graph = helper.make_graph(nodes, "decoder_past", inputs, outputs,
                               initializer=_consts())
-    onnx.save(helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)]), path)
+    onnx.save(_toy_model(graph), path)
 
 
 @pytest.fixture(scope="module")
@@ -469,3 +486,31 @@ class TestDecodeFailureIsDistinguishable:
 
     def test_a_successful_decode_still_returns_tokens(self, toy):
         assert toy.generate(INPUT, config=GenerationConfig(num_beams=4))
+
+
+class TestToyModelsArePinned:
+    def test_every_toy_graph_carries_the_pinned_opset_and_ir(self, tmp_path):
+        # a default IR version follows the onnx release; onnx 1.23.0rc1 wrote
+        # IR 14 and onnxruntime 1.30 refused it (#93). The toys must not depend
+        # on the installed onnx for what they write.
+        for build in (_make_encoder, _make_decoder, _make_decoder_with_past):
+            path = tmp_path / (build.__name__ + ".onnx")
+            build(path)
+            model = onnx.load(str(path))
+            assert model.ir_version == TOY_IR_VERSION, build.__name__
+            assert [(o.domain, o.version) for o in model.opset_import] == [("", TOY_OPSET)], build.__name__
+            ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+
+
+class TestLogSoftmaxDeadRows:
+    def test_all_minus_inf_row_stays_minus_inf_without_a_warning(self):
+        from linguonnx.translate.decode import _log_softmax
+        x = np.array([[-np.inf, -np.inf, -np.inf], [0.0, np.log(3.0), -np.inf]])
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            out = _log_softmax(x)
+        assert np.all(np.isneginf(out[0]))
+        assert not np.any(np.isnan(out))
+        live = out[1]
+        assert np.isclose(np.exp(live[:2]).sum(), 1.0)
+        assert np.isneginf(live[2])
