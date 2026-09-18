@@ -1,8 +1,8 @@
 # The model registry
 
 Two JSON files under `linguonnx/model_index/` say what exists: `lid.json` for
-language identification and `translate.json` for translation. They hold 8 and
-150 entries. Every entry names a HuggingFace repo, the exact files to fetch,
+language identification and `translate.json` for translation. They hold 10 and
+377 entries. Every entry names a HuggingFace repo, the exact files to fetch,
 the languages covered, the licence and the size.
 
 Both files are **generated**, not edited by hand. See
@@ -11,46 +11,92 @@ it sounds.
 
 ## What is in the translation registry
 
-150 entries is fp32 and int8 of 75 models. `load_translator()` defaults to
+377 entries is 188 int8 and 189 fp32 entries across 189 models. `load_translator()` defaults to
 `precision="int8"`; pass `precision="fp32"` or `precision=None` for both.
 
 | model | arch | coverage | size (int8) | licence |
 |---|---|---|---|---|
 | `madlad400-3b-mt` | T5 (MADLAD) | 450, any-to-any | 4.9 GB | Apache-2.0 |
+| `AKK-60m` | T5, instruction-prefixed | Akkadian (cuneiform and transliteration) ↔ English | 151 MB | Apache-2.0 |
+| `AKK_300m` | UMT5, instruction-prefixed | Akkadian (cuneiform and transliteration) ↔ English | 731 MB | Apache-2.0 |
+| `cuneiformBase-400m` | UMT5, instruction-prefixed | Akkadian, Sumerian, Hittite, Linear B (signs and transliteration) ↔ English; Hittite ↔ German | 1.3 GB | Apache-2.0 |
 | `nllb-600M` | NLLB-200 | 202, any-to-any | 1.9 GB | **CC-BY-NC-4.0** |
 | `m2m100-418M` | M2M100 | 100, any-to-any | 1.2 GB | MIT |
 | `m2m100-1.2B` | M2M100 | 100, any-to-any | 2.3 GB | MIT |
 | `m2m100-418M-smugri` | M2M100 | 104, any-to-any; adds Livonian, Võro, Sami | 1.2 GB | MIT |
 | `liv4ever-mt` | Marian, multi-target | 4, any-to-any (en, et, lv, Livonian) | 569 MB | Apache-2.0 |
+| `indictrans2-en-indic-1B` | IndicTrans2 | English → 25 Indic tags, **one-way** | 1.77 GB | MIT |
 | `indictrans2-en-indic-dist-200M` | IndicTrans2 | English → 25 Indic tags, **one-way** | 480 MB | MIT |
 | `indictrans2-indic-en-dist-200M` | IndicTrans2 | 25 Indic tags → English, **one-way** | 342 MB | MIT |
 | `indictrans2-indic-indic-dist-320M` | IndicTrans2 | 25 Indic tags, any-to-any | 532 MB | MIT |
 | `aina-es-oc` | NLLB fine-tune | Spanish → Aranese, **one-way** | 1.9 GB | **CC-BY-NC-4.0** |
+| `aina-translator-*` (18) | Marian / M2M100 / NLLB fine-tune | one pair each; ca↔{de, en, es, fr, it, pt, zh}, eu → ca, gl → ca, es → {an, ast} | 1.58 GB – 2.35 GB | Apache-2.0; **es-an, es-ast: CC-BY-NC-4.0** |
 | `nos-coda_iacobus-*` (6) | OpenNMT | one pair each; en/es/pt → gl, es↔pt, en↔es | 499 MB – 814 MB | MIT |
-| `mt-hitz-*` (3) | Marian | `ca-eu`, `es-eu`, `eu-es` | 153 MB each | Apache-2.0 |
-| `opus-mt-*` (56) | Marian | one pair each | 78 MB – 448 MB | Apache-2.0 or CC-BY-4.0 |
+| `nos-mt-*` (7) | OpenNMT | one pair each; en↔gl, es↔gl, es → {arg, arn, ast} | 445 MB – 747 MB | MIT |
+| `mt-hitz-*` (6) | Marian | `ca-eu`, `en-eu`, `es-eu`, `eu-en`, `eu-es`, `gl-eu` | 90 MB – 153 MB | Apache-2.0 |
+| `m2m100_418M_*` African fine-tunes (12) | M2M100 | one pair each; fr↔{bam, bbj, mos}, fr → {fon, ewe}, en↔hau, en↔nso | 1.21 GB – 3.18 GB | Apache-2.0 for the `nso` pair; **AFL-3.0 for the rest** |
+| `translate-eus-cat`, `translate-oci-cat` | Pegasus (fast) | `eu-ca`, `oc-ca` | 590 MB each | MIT |
+| `opus-mt-*` (124) | Marian | one pair each | 78 MB – 716 MB | Apache-2.0 or CC-BY-4.0 |
 
 The opus-mt pairs published as int8:
 
 ```
-ar-en  ca-en  ca-es  ca-fr  ca-it  de-en  en-ar  en-bg  en-ca  en-cs
-en-da  en-de  en-el  en-es  en-eu  en-fi  en-fr  en-gl  en-he  en-hi
-en-hu  en-id  en-it  en-ko  en-nl  en-pl  en-pt  en-ro  en-ru  en-sv
-en-tr  en-uk  en-vi  en-zh  es-ca  es-en  es-eu  es-gl  eu-en  eu-es
-fr-ca  fr-en  gl-en  gl-es  gl-pt  it-en  itc-itc  nl-en  pl-en  pt-ca
-pt-en  pt-gl  ru-en  tr-en  uk-en  zh-en
+af-en  ar-en  az-en  bg-en  bn-en  ca-en  ca-es  ca-fr
+ca-it  ceb-en  cs-en  cy-en  da-en  de-en  en-af  en-ar
+en-az  en-bg  en-ca  en-cs  en-cy  en-da  en-de  en-el
+en-es  en-et  en-eu  en-fi  en-fr  en-ga  en-gl  en-gmq
+en-he  en-hi  en-hu  en-hy  en-id  en-is  en-it  en-jap
+en-ml  en-mr  en-nl  en-pl  en-pt  en-ro  en-ru  en-sk
+en-sq  en-sv  en-ti  en-tr  en-uk  en-ur  en-vi  en-xh
+en-zh  es-ca  es-en  es-eu  es-gl  et-en  eu-en  eu-es
+fi-en  fr-ca  fr-en  ga-en  gl-en  gl-es  gl-pt  gmq-en
+hi-en  hu-en  hy-en  id-en  is-en  it-en  itc-itc  ja-en
+ka-en  ko-en  lv-en  mg-en  mk-en  ml-en  mr-en  mt-en
+nl-en  pa-en  pl-en  pt-ca  pt-en  pt-gl  ru-en  sk-en
+sm-en  sn-en  sq-en  st-en  sv-en  tc-base-en-sh  tc-big-cat_oci_spa-en  tc-big-el-en
+tc-big-en-cat_oci_spa  tc-big-en-el  tc-big-en-ro  tc-big-en-zle  tc-big-gmw-gmw  tc-big-he-en  tc-big-itc-itc  tc-big-sh-en
+tc-big-zle-en  th-en  tl-en  tn-en  tr-az  tr-en  ts-en  uk-en
+ur-en  vi-en  xh-en  zh-en
 ```
 
-Together they reach 459 languages over the default graph. MADLAD supplies most
+Together they reach 593 languages over the default graph. MADLAD supplies most
 of the tail, including the ones no other model here has: Mirandese, Aragonese,
 Occitan and several hundred more.
 
-Four entries — `nllb-600M` and `aina-es-oc`, in both precisions — are
-non-commercial and out of the default graph. See [licences.md](licences.md).
+Eight entries — `nllb-600M`, `aina-es-oc`, `aina-translator-es-an` and
+`aina-translator-es-ast`, in both precisions — are non-commercial and out of
+the default graph. See [licences.md](licences.md).
+
+`aina-translator-es-ca` ships fp32 only; no int8 export is in the registry
+yet.
+
+The `m2m100_418M_*` African fine-tunes carry Apache-2.0 for the `en-nso` and
+`nso-en` pair, and AFL-3.0 for the other ten. AFL-3.0 grants use, modification
+and redistribution but adds a patent-retaliation clause and a naming
+restriction absent from Apache-2.0 and MIT, so it needs the same care as a
+non-commercial licence when a downstream project sets its own terms.
 
 Sizes are the sum of the blobs an entry actually references, not the repo
 total: these repos also carry a `decoder_model_merged.onnx` that `linguonnx`
 never downloads.
+
+`opus-mt-en-ko` is **not** in the registry. Its upstream export
+(`Helsinki-NLP/opus-mt-tc-big-en-ko`) ships a `vocab.json` that spells only
+21% of the pieces its own `source.spm` produces, so most English words reach
+the encoder as `<unk>` and the model answers fluent Korean nonsense.
+`transformers` builds the same broken input ids from the same files, so this
+is an upstream defect, not an ONNX one. English → Korean routes through
+M2M100 instead, which scores chrF 30.4 on that pair (FLORES-200 devtest,
+n=100, beam4).
+
+Three opus-mt group models translate **from English only**, into the
+languages their vocabulary carries a `>>xxx<<` token for:
+`opus-mt-tc-big-en-zle` (be, ru, rue, uk), `opus-mt-en-gmq`
+(da, fo, is, nb, nn, sv) and `opus-mt-tc-big-en-cat_oci_spa` (ca, es, oc).
+The token set names the target side; the encoder reads English and nothing
+else. `opus-mt-tc-big-en-zle` also carries `>>orv<<`/`>>orv_Cyrl<<` (Old East
+Slavic) in its vocabulary, but both produce modern Russian, so neither is
+claimed.
 
 ## What is in the LID registry
 
@@ -58,6 +104,7 @@ never downloads.
 |---|---|---|---|
 | `glotlid` / `glotlid-int8` | 2102 | 1.68 GB / 425 MB | Apache-2.0 |
 | `lid176` / `lid176-int8` | 176 | 131 MB / 33 MB | CC-BY-SA-3.0 |
+| `lid218e` / `lid218e-int8` | 218 | 1 MB / 295 MB | **CC-BY-NC-4.0** |
 | `openlid` / `openlid-int8` | 201 | 1.23 GB / 310 MB | GPL-3.0 |
 | `openlid-v2` / `openlid-v2-int8` | 200 | 1.22 GB / 305 MB | GPL-3.0 |
 
@@ -75,15 +122,206 @@ print(entry["arch"], entry["pair"], entry["license"], entry["size_mb"])
 # marian ['pt', 'en'] Apache-2.0 172
 
 print(len(list_models(kind="translate")), len(list_models(kind="lid")))
-# 150 8
+# 373 10
 ```
 
-Files are cached under `~/.cache/linguonnx/models/<model_id>/`. Downloads go
+## The download cache
+
+Files are cached under `$LINGUONNX_CACHE/models/<model_id>/`, defaulting to
+`~/.cache/linguonnx`. The variable is read once at import, so set it before
+importing linguonnx. Point it at bulk storage on a server: the whole
+translation registry is well over 100 GB, and a symlink at `~/.cache/linguonnx`
+is not a substitute — it is invisible to anyone reading the code and the root
+disk fills up the moment it goes missing or a service runs as another user.
+
+Downloads go
 through `huggingface_hub.hf_hub_download`, which does its own resumable and
 checksummed download, and are then copied into the cache atomically — written
-to a `.part` sibling and `os.replace`'d into place, so a killed process never
+to a temp sibling and `os.replace`'d into place, so a killed process never
 leaves a truncated file at the final path. A zero-byte file there is always
 treated as "not cached" and fetched again.
+
+The temp name is unique per process and per call. That is what makes the
+guarantee hold when two workers cold-start the same model at the same time:
+they write to different temp files, and the second `os.replace` publishes a
+complete file. A shared temp name lets them interleave, and the result is a
+corrupt file that is not zero bytes — which no later run would notice.
+
+A registry filename must stay inside its model's cache directory. Absolute
+paths and `..` components are refused, so an edited registry file cannot turn
+a download into a write anywhere else on the host.
+
+### Pinning and verification
+
+If a registry entry carries a `revision` (a commit SHA — HuggingFace tags and
+branches are mutable, so they pin nothing), it is passed to the hub, and every
+client then fetches the same bytes. If an entry carries a `sha256` map, each
+downloaded file is verified against it and a mismatch raises before anything is
+published to the cache. Both fields are optional and no entry carries them yet;
+`scripts/sync_registry.py` has to start emitting them.
+
+### Download budget and warm-up
+
+A cold fetch bigger than `LINGUONNX_MAX_DOWNLOAD_MB` raises
+`DownloadTooLargeError` instead of holding a request thread for an hour on a
+slow link. The default of 8192 refuses nothing in the current registry; set it
+lower on a server where the request path must stay predictable. `0` disables
+the check. A warm cache never trips it.
+
+To keep downloads off the request path entirely, warm the cache at startup:
+
+```python
+from linguonnx.model_manager import prefetch
+
+prefetch("glotlid-int8")
+prefetch("opus-mt-pt-en-int8", kind="translate")
+```
+
+`prefetch()` ignores the budget, because it does not run in a request.
+
+### How many models stay loaded
+
+A `Translator` keeps at most `model_cache_size` loaded models alive, four by
+default, and evicts the least recently used one. Eviction drops the cache's
+reference, which releases that model's three ONNX sessions once nothing else
+holds it — so a request still decoding through an evicted model keeps working,
+and its sessions go when it finishes.
+
+The bound matters because the whole default graph is 73 models and about
+25 GB. Without it, a long-lived server that routes over many language pairs
+converges on loading all of them, gets OOM-killed, restarts cold, and pays
+every download again.
+
+```python
+from linguonnx import load_translator
+
+tx = load_translator(model_cache_size=8)   # more RAM, fewer reloads
+print(tx.loaded_models)                    # least recently used first
+```
+
+Raise it when one process serves a few hot pairs and has the RAM; lower it on a
+small device. An evicted model reloads from the disk cache on next use, so
+eviction costs session-build time, not a download.
+
+### Bounding the cache by size
+
+`model_cache_size` counts models, and models are not the same size: four
+Marian models are about 1.4 GB, four MADLAD-400-3B are about 20 GB. Set
+`max_loaded_mb` to bound the cache in megabytes as well as in models.
+
+```python
+tx = load_translator(model_cache_size=8, max_loaded_mb=2000)
+print(tx.loaded_mb)    # declared MB the cache currently retains
+```
+
+Whichever limit binds first evicts. `loaded_mb` sums the registry's declared
+`size_mb`, not measured RSS: the sessions are memory-mapped, so real RSS
+climbs as a model is used and does not fall when it stops being used, and you
+cannot evict against a number that moves under you.
+
+Declared size is a *proxy*. Measured on this library's own models, peak RSS
+runs **1.84x to 3.7x** the declared size, and the multiplier moves inversely
+with size — 78 MB becomes 288 MB (3.7x), 1207 MB becomes 2161 MB (1.84x) —
+because a fixed per-process cost dominates a small model and is noise for a
+large one.
+
+A model larger than the whole budget still loads. Refusing it would delete a
+language rather than shrink a cache, and the models covering the long tail are
+exactly the ones no small budget admits.
+
+### What actually bounds memory
+
+**`max_loaded_mb` bounds what the cache retains. It does not bound peak RSS,
+and no cache setting can.** A model being translated through is resident
+because a thread is decoding with it, not because the cache kept it. Evicting
+it frees nothing while that thread runs.
+
+So the honest formula for peak resident memory is:
+
+```
+peak RSS  ~=  ~86 MB baseline
+            + 1.84 x ( max_loaded_mb + concurrency x largest declared size in flight )
+```
+
+Two things about that formula are easy to get wrong, so they are spelled out:
+
+* **The per-model multiplier already contains the per-process overhead**, so
+  overhead is *not* a separate term. Adding it again double-counts. Measured:
+  1207 MB declared becomes 2161 MB absolute, a delta of 2075 MB over a
+  baseline of about 86 MB.
+* **The multiplier is 1.84x**, measured across this library's models. It is
+  higher for small models (78 MB becomes 288 MB) because the fixed cost
+  dominates them, but sizing must use the figure for the *large* models,
+  since those are what set the peak.
+
+The `concurrency x largest` term dominates, and concurrency is set by your web
+server, not by this library. `ovos-translate-server` declares its endpoints as
+synchronous `def`, so Starlette runs them on its default threadpool of
+**40 threads**. Forty concurrent requests for forty different language pairs
+will make forty models resident, whatever `model_cache_size` and
+`max_loaded_mb` say.
+
+Bound that term with `max_concurrent_translations`. Requests over the limit
+wait for a slot instead of loading another model.
+
+#### Sizing for a 12 GiB host
+
+**Size from the largest model a route can reach, not from `max_loaded_mb`.**
+
+The default graph contains **MADLAD-400-3B: 4945 MB declared, Apache-2.0,
+int8** — it is permissively licensed, so it is *not* excluded by
+`include_noncommercial=False`, and it covers the long tail of languages, so
+routing reaches for it exactly when nothing smaller can serve a pair. One
+MADLAD in flight measures **9081 MB**. On a 12 GiB (12288 MB) host that leaves
+about 3.0 GiB, and a *second* concurrent MADLAD needs 18.3 GB total — so the
+box OOMs on the second concurrent request.
+
+That gives two supportable configurations, and concurrency alone is not enough
+for either:
+
+**A. MADLAD reachable — concurrency must be 1**
+
+| Setting | Value | Why |
+|---|---|---|
+| `max_concurrent_translations` | **1** | `86 + 1.84 x 4945` = 9185 MB; ~3.0 GiB spare |
+| `max_loaded_mb` | 500 | `86 + 1.84 x (500 + 4945)` = 10105 MB, still inside |
+| container `mem_limit` | 12 GiB | the backstop; keep it |
+
+Serving one request at a time is a real cost. If that is unacceptable, use B.
+
+**B. Cap the routes, then raise concurrency** *(recommended)*
+
+`max_model_mb` is the lever that actually helps here, because it removes the
+worst case instead of serialising against it. It applies **before anything is
+loaded**, at routing time.
+
+| Setting | Value | Why |
+|---|---|---|
+| `max_model_mb` | 1300 | drops MADLAD; largest reachable is ~1207 MB |
+| `max_concurrent_translations` | 4 | `86 + 1.84 x (1500 + 4 x 1207)` = 11730 MB |
+| `max_loaded_mb` | 1500 | retained set |
+| container `mem_limit` | 12 GiB | the backstop; keep it |
+
+Drop to `max_concurrent_translations=2` for a comfortable 7.1 GiB if the host
+does anything else at all.
+
+```python
+tx = load_translator(
+    max_model_mb=1300,               # removes the worst case
+    max_loaded_mb=1500,              # steady-state cache ceiling
+    max_concurrent_translations=2,   # bounds models in flight
+)
+```
+
+Setting `max_model_mb` costs coverage: a language that only MADLAD serves
+becomes unroutable. `oversize_fallback=True` softens that — every pair a
+smaller model can serve still uses it, and only a pair nothing under the cap
+covers escalates — but an escalated route puts MADLAD back in flight, so size
+for case A if you enable it.
+
+**Keep the container memory limit whatever these settings say.** It is the
+only bound that holds when an assumption here is wrong, and a limit that
+restarts one container beats a host that OOM-kills an arbitrary process.
 
 ## Keeping it in sync
 
@@ -100,12 +338,59 @@ python scripts/sync_registry.py            # rewrite both registries
 python scripts/sync_registry.py --check    # exit 1 if the committed JSON drifted
 ```
 
-`--check` writes nothing and is the CI guard. It prints which entries are new
+`--check` writes nothing and exits 1 on drift. It prints which entries are new
 and which are stale, so "someone published a model and forgot the registry"
 shows up as a failing check instead of a silent gap. Re-running the generator
-on an unchanged Hub produces a byte-identical file, and hand-authored keys the
-script does not generate — a curated `notes`, a pinned default — survive
-regeneration.
+on an unchanged Hub produces a byte-identical file.
+
+It needs a network and a full 280-repo crawl, so no workflow runs it — it is a
+command a maintainer runs, not a gate CI applies. Everything that *can* be
+checked offline against the committed registry is a test in
+`test/test_registry_sync.py`, and those do run in CI.
+
+A sync never destroys hand-verified work. The script owns the fields it
+derives from the Hub — `GENERATED_KEYS` in `scripts/sync_registry.py`: the file
+listing, the licence, the size, the `>>xxx<<` coverage read out of each
+export's own `vocab.json` — and may overwrite or remove those. Every other
+field in an entry is carried across untouched, whether or not anyone declared
+it. `notes` and `quality` go further and win outright: the script writes a
+default one-line `notes`, but the committed text may carry a caveat somebody
+found by reading 100 translations, and `quality` holds chrF numbers measured
+against a FLORES-200/MAFAND reference that no crawl can re-derive.
+
+Where the generator disagrees with a curated field, the curated value is kept
+— and the value the generator wanted is committed too, to
+`model_index/<kind>_overruled.json`. That file is what stops a curated field
+from freezing the entry: the registry text no longer moves when an upstream
+card is rewritten, so nothing else would report it, but `_overruled.json`
+changes and `--check` fails on it like any other drift (`OVERRULED-DRIFT` on
+stderr). Clearing it is the normal loop — run the sync, read the diff, fold in
+anything real, commit. Failing on the disagreement itself would never clear: a
+curated note differs from the generated one by definition.
+
+Fields in neither list — a typo'd `note`, or one whose generator was deleted —
+are preserved and printed with a `CURATED` prefix. They are immortal by
+design; the print is so they are not also invisible.
+
+`human_owned_losses` refuses to write if a run would fail to reproduce a
+curated value, naming each entry and field. It is a tripwire on the merge
+function, not a runtime guard: while `merge_preserving` is correct it cannot
+fire, because the merge copies exactly the set of keys it inspects. It exists
+because that function is the thing that broke.
+
+The allow-list is of generated keys, not of human ones, on purpose: a list of
+human-owned keys fails silently the first time somebody curates a field nobody
+remembered to add to it. Adding a derived field means adding it to
+`GENERATED_KEYS`; the script refuses to run until you do.
+
+See [routing.md#measured-quality](routing.md#measured-quality) for what
+`quality` means and how it is used.
+
+Every repo the script refuses is written to `linguonnx/model_index/skipped.json`
+alongside the registries, with the reason. A skip used to reach stderr and
+nowhere else, which is how 43 published models stayed invisible: `--check`
+diffs the committed registry against a fresh one, and a repo that fails
+extraction on every run is missing from both sides of that diff every time.
 
 ### What is derived from where
 
@@ -116,12 +401,43 @@ Everything the Hub can answer is read from the Hub, never typed out:
 | `arch` | `config.model_type` from the repo's own config; then the tokenizer files. A repo with `vocab.json` reads ids straight out of it (M2M100); one without uses fairseq's `id = sp_id + 1` (NLLB). |
 | `license` | `cardData.license` when the card has YAML front matter, else the `**License:**` line in the README body — most opus-mt exports have no front matter. |
 | `languages` | `additional_special_tokens` in the model's own `special_tokens_map.json`. |
-| `pair` | The repo name, cross-checked against the base model named in the card. |
-| `size_mb` | Summed blob sizes of the files the entry actually references. |
+| `pair` | The repo name, cross-checked against the base model named in the card. Never a language *family*: `itc`, `sla`, `mul` and the other ISO 639-5 collection codes are refused as pair sides, and the repo takes the group-model path below. |
+| `target_token_template` + `native_codes` | For a model that picks its target with a prefix token. The token set is read from the model's own vocabulary — `<2xx>` for MADLAD and `liv4ever-mt`, `>>xxx<<` for the opus-mt group models — and `native_codes` maps the BCP-47 tag the graph uses back to the model's own spelling, so the graph sees `it` and the model still gets `>>ita<<`. |
+| `prefix_templates` | **Not** derived — hand-transcribed from the model card into `T5_PREFIX_MODELS`, for an instruction-prefixed T5/UMT5. The instruction that selects a direction is prose in the card's own "Instructions" list; nothing in the artifacts records it, and the wording is not symmetric between directions. The script refuses a `umt5` repo it has no transcription for rather than guessing one. |
+| `size_mb` | Summed blob sizes of the files the entry actually references. Load-bearing twice over: it breaks ties in the route ranking, and it is what `max_model_mb` compares against, so an entry that under-reports its size gets routed onto hosts that cannot afford it. See [routing](routing.md#size-budget). |
+| `runnable` | Written as `false`, with an `unrunnable_reason`, for an architecture whose inference pipeline this library does not implement. The router excludes those models. Delete the architecture from `UNRUNNABLE_ARCHS` in the script when its pipeline lands. |
 
 There is no third fallback for the licence. A repo whose licence cannot be read
 is skipped, because "probably Apache" is not a licence claim this library is
 willing to publish on someone else's behalf.
+
+**Two tokenizer shapes under one architecture.** An instruction-prefixed T5
+usually ships a `spiece.model`, and its `added_tokens.json` is not optional:
+the cuneiform signs are not SentencePiece pieces, so an export read without
+that file turns every sign in the input into `<unk>` and the model answers the
+result fluently. `cuneiformBase-400m` ships no SentencePiece model at all and
+keeps its whole vocabulary in a `tokenizer.json`, which linguonnx reads with
+its own Unigram implementation rather than by taking the `tokenizers`
+dependency. An export with neither shape complete is skipped rather than
+registered half-readable.
+
+That reader implements a Unigram lattice and nothing else. An export whose
+`tokenizer.json` declares a normaliser is refused, not approximated — a
+normaliser rewrites the text before segmentation, and ignoring one produces a
+plausible tokenisation of a string the model was never given.
+
+**Instruction prefixes.** A model that picks its task with a sentence rather
+than a token can only do what it has an instruction for, and those do not have
+to be symmetric — Thalesian's Akkadian models translate and transliterate
+cuneiform into Latin transliteration, but were given no instruction for the
+reverse. So the registered instructions *are* the coverage claim: the router
+builds its edges from `prefix_templates` and offers nothing else, which is why
+a missing transcription is a skip rather than a default. Declared as a plain
+any-to-any `languages` list, the router would offer the one direction the
+model cannot do, and the model would answer it anyway.
+
+Neural transliteration between `akk` and `akk-Latn` is a translation route
+here, not a substitute for a deterministic sign mapping.
 
 ### Two things the script refuses to guess
 
@@ -133,11 +449,26 @@ disagrees it records the `target_token` the export was verified against, and
 skips the repo entirely if the card does not show one. Publishing a coverage
 claim that cannot be honoured is worse than publishing nothing.
 
+A repo whose *name* is a family — `opus-mt-itc-itc`, `opus-mt-mul-en` — is not
+a pair at all and is not treated as one. `itc` is the Italic family, so no
+caller can ask for it; the entry that used to say `pair: ["itc", "itc"]` was an
+edge nobody could reach, and the mandatory prefix token was missing because the
+"base target differs from repo target" test cannot fire when both sides say
+`itc`. These take the token path instead: the `>>xxx<<` keys in the export's own
+`vocab.json` are the coverage, because a language with no token cannot be
+selected whatever the card lists.
+
 **Bilingual fine-tunes of multilingual bases.** A fine-tune keeps the whole
 base tokenizer, so `special_tokens_map.json` still lists all 100 or 202
 languages long after the weights stopped serving them. Those need a verified
 entry in `BILINGUAL_FINETUNES` stating the pair in the model's own codes, and
-are skipped with a printed reason until someone adds one. `aina-es-oc` is one
+are skipped with a recorded reason until someone adds one. The test is a
+subset test, not a count: the entry may not claim a language its own Hub card
+does not. A threshold cannot tell a narrow fine-tune from a general model —
+`m2m100-418M-smugri` is a Finno-Ugric fine-tune declaring **eight** languages,
+which walked past the old "three or fewer" rule and published a 104-language
+claim including `th -> sw`. A model whose real set is narrower than its
+tokenizer states it in `MULTILINGUAL_LANGUAGE_OVERRIDES`. `aina-es-oc` is one
 of these: an NLLB-600M fine-tune whose tokenizer claims 202 languages and whose
 weights do Spanish into Aranese, one way.
 

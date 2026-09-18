@@ -58,7 +58,11 @@ class FakeModel:
 def tx(monkeypatch):
     made = {}
 
-    def factory(model_id, entry=None):
+    def factory(model_id, entry=None,
+                enforce_download_budget=True, providers=None):
+        # `Translator` passes `enforce_download_budget` and `providers` to
+        # every `TranslationModel` it builds; this double stands in for that
+        # constructor and has to have its shape.
         made.setdefault(model_id, FakeModel(model_id, entry or REGISTRY[model_id]))
         return made[model_id]
 
@@ -171,6 +175,61 @@ def test_max_hops_is_settable_per_call_and_per_translator(tx):
         strict.route("pt", "eu")
 
 
+def test_the_size_budget_is_settable_per_call_and_per_translator(tx):
+    """Same shape as max_hops: constructor value, per-call override.
+
+    The unset default is no longer "no cap": it is the cold-download budget,
+    so routing cannot promise a model ``ensure_model_files`` will refuse to
+    fetch. Every model in this fixture is far under it, so the rest of the
+    test is unaffected.
+    """
+    from linguonnx.model_manager import DEFAULT_MAX_DOWNLOAD_MB
+
+    assert tx.max_model_mb == DEFAULT_MAX_DOWNLOAD_MB
+    assert tx.route("pt", "ru").model_ids == ("multi",)
+    assert tx.route("pt", "ru", max_model_mb=500).model_ids == ("pt-en", "en-ru")
+    frugal = Translator(REGISTRY, max_model_mb=500)
+    assert frugal.max_model_mb == 500
+    assert frugal.route("pt", "ru").model_ids == ("pt-en", "en-ru")
+    # Omitting inherits; None lifts.
+    assert frugal.route("pt", "ru", max_model_mb=None).model_ids == ("multi",)
+
+
+def test_available_languages_follows_the_budget(monkeypatch):
+    """What the translator advertises is what it can serve, cap included."""
+    monkeypatch.setattr("linguonnx.model_manager.is_cached",
+                        lambda model_id, kind="lid": False)
+    frugal = Translator(REGISTRY, max_model_mb=500)
+    assert "es" in Translator(REGISTRY).available_languages
+    assert "es" not in frugal.available_languages   # only `multi` has Spanish
+    assert frugal.can_translate("pt", "es") is False
+
+
+def test_translating_under_a_budget_runs_the_chain(tx):
+    out = tx.translate("olá", src="pt", tgt="ru", max_model_mb=500)
+    assert out == "olá|pt-en:pt->en|en-ru:en->ru"
+
+
+def test_a_cached_model_stays_usable_over_the_budget(monkeypatch):
+    """The budget is on the download; `count_cached_as_free` says so."""
+    monkeypatch.setattr("linguonnx.model_manager.is_cached",
+                        lambda model_id, kind="lid": model_id == "multi")
+    assert Translator(REGISTRY, max_model_mb=500).route(
+        "pt", "ru").model_ids == ("multi",)
+    strict = Translator(REGISTRY, max_model_mb=500, count_cached_as_free=False)
+    assert strict.count_cached_as_free is False
+    assert strict.route("pt", "ru").model_ids == ("pt-en", "en-ru")
+
+
+def test_load_translator_takes_a_budget(monkeypatch):
+    monkeypatch.setattr("linguonnx.model_manager.is_cached",
+                        lambda model_id, kind="lid": False)
+    tx = load_translator(max_model_mb=500)
+    assert tx.max_model_mb == 500
+    assert all(hop.size_mb <= 500 for hop in tx.route("pt", "ru").hops)
+    assert tx.route("pt", "ru").download_size_mb < 500
+
+
 # --- the shipped registry --------------------------------------------------
 
 def test_default_graph_is_permissive_and_int8():
@@ -261,3 +320,35 @@ def test_noncommercial_opt_in_reaches_kabuverdianu():
     tx = load_translator(include_noncommercial=True)
     route = tx.route("pt", "kea")
     assert any("nllb" in hop.model_id for hop in route.hops)
+
+
+def test_supplied_route_cannot_run_a_directional_model_backwards():
+    """`route=` escapes the scoring policy, not correctness.
+
+    A one-directional model (IndicTrans2 en->indic, the nos-coda pairs,
+    liv4ever) has both languages in its code map, so a hand-built backwards
+    hop tokenises and decodes happily and returns fluent text translated the
+    wrong way round. Nothing would raise, which is why a supplied route is
+    validated rather than trusted.
+    """
+    import pytest as _pytest
+    from linguonnx.translate.graph import (Capability, Hop, InvalidRouteError,
+                                           Route, TranslationGraph)
+
+    one_way = Capability(
+        model_id="fake-en-xx", arch="marian", license="apache-2.0",
+        license_tier="permissive", size_mb=1,
+        src_languages=frozenset({"en"}), tgt_languages=frozenset({"xx"}))
+    graph = TranslationGraph([one_way])
+
+    def hop(src, tgt):
+        return Hop(model_id="fake-en-xx", src=src, tgt=tgt, arch="marian",
+                   license="apache-2.0", license_tier="permissive",
+                   size_mb=1, dedicated=True)
+
+    forwards = Route(src="en", tgt="xx", hops=(hop("en", "xx"),))
+    assert graph.validate_route(forwards) is forwards
+
+    backwards = Route(src="xx", tgt="en", hops=(hop("xx", "en"),))
+    with _pytest.raises(InvalidRouteError):
+        graph.validate_route(backwards)
