@@ -238,7 +238,7 @@ class SpmSeq2SeqTokenizer:
                  vocab_path=None, fairseq_offset: int = 0,
                  added_tokens_path=None,
                  eos_id: int = 2, pad_id: int = 1, unk_id: int = 3,
-                 bos_id: int = 0):
+                 bos_id: int = 0, declared_codes: Optional[Sequence[str]] = None):
         self.sp = _load_spm(spm_path)
         self.fairseq_offset = fairseq_offset
         self.eos_id, self.pad_id, self.unk_id, self.bos_id = eos_id, pad_id, unk_id, bos_id
@@ -287,6 +287,50 @@ class SpmSeq2SeqTokenizer:
         # from `_specials` is one that survives `decode()` as `⁇`.
         self._specials = {self.eos_id, self.pad_id, self.unk_id, self.bos_id}
         self._specials |= set(self.lang_code_to_id.values())
+        self._add_bcp47_aliases()
+        if declared_codes:
+            self._check_declared(declared_codes)
+
+    # -- names on top of the export's own order ---------------------------
+
+    def _add_bcp47_aliases(self) -> None:
+        """Let a caller ask in BCP-47 for a token spelled in FLORES.
+
+        The ids come from the export and never move. This only adds a second
+        NAME for an id that already exists: `kab` for `kab_Latn`, `en` for
+        `eng_Latn`. A name is never invented for a token the export lacks, and
+        an alias never overwrites a code the export itself carries.
+        """
+        from linguonnx.detect.labels import to_bcp47
+        for code in list(self.lang_code_to_id):
+            try:
+                alias = to_bcp47(code)
+            except Exception:
+                continue
+            if alias and alias != code:
+                self.lang_code_to_id.setdefault(alias,
+                                                self.lang_code_to_id[code])
+
+    def _check_declared(self, declared_codes: Sequence[str]) -> None:
+        """Every language the registry advertises must address a real token.
+
+        The check raises rather than repairing: a registry claim that cannot
+        be matched to a token is either a language this export does not carry
+        or a spelling nobody has mapped, and translating it into whatever sits
+        at that position is the defect this class exists to prevent.
+        """
+        unknown = [code for code in declared_codes
+                   if code not in self.lang_code_to_id]
+        if unknown:
+            raise ValueError(
+                f"this export carries no language token for {unknown!r}; it "
+                f"has {len(self.lang_code_to_id)} names for "
+                f"{len(set(self.lang_code_to_id.values()))} tokens. Either "
+                f"the registry entry's `native_codes` must map each one to a "
+                f"token the export really has, or the claim must be dropped - "
+                f"deriving an id from a code's position in the declared list "
+                f"translates into a different language and nothing reports "
+                f"it.")
 
     # -- ids ------------------------------------------------------------
 
@@ -974,8 +1018,14 @@ def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str],
         return SpmSeq2SeqTokenizer(files["spm"], codes, vocab_path=files["vocab"],
                                    added_tokens_path=files.get("added_tokens"))
     if arch == "nllb":
-        codes = lang_codes or artifact_lang_codes(files)
-        return SpmSeq2SeqTokenizer(files["spm"], codes, fairseq_offset=1)
+        # The export's own order is authoritative and the registry only maps
+        # names onto it. NLLB ships no `added_tokens.json`, so the language
+        # block is positional: handing it the registry's normalised BCP-47
+        # list translated `kab` into `kas_Deva`, Kashmiri in the Devanagari
+        # script, and 147 other languages into another language each.
+        return SpmSeq2SeqTokenizer(files["spm"], artifact_lang_codes(files),
+                                   fairseq_offset=1,
+                                   declared_codes=lang_codes)
     if arch == "madlad":
         return T5SpmTokenizer(files["spm"])
     if arch == "t5-prefix":
