@@ -25,9 +25,11 @@ checked from a label-count list, without a fastText build.
 from __future__ import annotations
 
 import json
-from typing import List, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
+
+from linguonnx.limits import CorruptModelFileError
 
 
 def build_tree(counts: Sequence[int]) -> Tuple[List[List[int]], List[List[bool]]]:
@@ -87,15 +89,49 @@ class HSCombiner:
     directly underflows float32 for the unlikely labels.
     """
 
-    def __init__(self, paths: List[List[int]], codes: List[List[bool]]):
+    def __init__(self, paths: List[List[int]], codes: List[List[bool]],
+                 num_labels: Optional[int] = None, source: str = "hs tree"):
         self.paths = paths
         self.codes = codes
+        self.source = source
+        if len(paths) != len(codes):
+            raise CorruptModelFileError(
+                f"{source} has {len(paths)} paths but {len(codes)} codes")
+        if num_labels is not None and len(paths) != num_labels:
+            raise CorruptModelFileError(
+                f"{source} describes {len(paths)} labels but the model has "
+                f"{num_labels}; the file is truncated or belongs to another "
+                "version of this model")
+        for i, (path, code) in enumerate(zip(paths, codes)):
+            if len(path) != len(code):
+                raise CorruptModelFileError(
+                    f"{source} label {i} has a {len(path)}-node path but "
+                    f"{len(code)} branch bits")
+        # A Huffman tree over N leaves has exactly N-1 internal nodes, which
+        # is how many rows the model's output layer has. Checking the node
+        # indices here turns a truncated download into one clear error at
+        # load time, instead of an IndexError from deep inside the path walk
+        # on the first detect() call - or, worse, a silently short output.
+        self.num_nodes = max((max(p) for p in paths if p), default=-1) + 1
+        if self.num_nodes > max(len(paths) - 1, 0):
+            raise CorruptModelFileError(
+                f"{source} references node {self.num_nodes - 1} but a tree "
+                f"over {len(paths)} labels has only {max(len(paths) - 1, 0)} "
+                "nodes")
 
     @classmethod
-    def from_file(cls, path) -> "HSCombiner":
+    def from_file(cls, path, num_labels: Optional[int] = None) -> "HSCombiner":
         with open(path, encoding="utf-8") as fh:
-            data = json.load(fh)
-        return cls(data["paths"], data["codes"])
+            try:
+                data = json.load(fh)
+            except json.JSONDecodeError as err:
+                raise CorruptModelFileError(
+                    f"{path} is not valid JSON: {err}") from err
+        for key in ("paths", "codes"):
+            if key not in data:
+                raise CorruptModelFileError(f"{path} has no {key!r} entry")
+        return cls(data["paths"], data["codes"], num_labels=num_labels,
+                   source=str(path))
 
     @classmethod
     def from_counts(cls, counts: Sequence[int]) -> "HSCombiner":
@@ -106,6 +142,11 @@ class HSCombiner:
 
         Returns one probability per label, in ``labels.json`` order.
         """
+        if node_probs.shape[-1] < self.num_nodes:
+            raise CorruptModelFileError(
+                f"{self.source} needs {self.num_nodes} nodes but the model "
+                f"outputs {node_probs.shape[-1]}; the tree does not belong to "
+                "this model")
         log_f = np.log(np.clip(node_probs, 1e-12, 1.0))
         log_1mf = np.log(np.clip(1.0 - node_probs, 1e-12, 1.0))
         out = np.empty(len(self.paths), dtype=np.float64)

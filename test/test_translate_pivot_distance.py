@@ -243,10 +243,17 @@ def test_pt_to_eu_prefers_an_all_dedicated_chain_over_a_multilingual_hop():
     This is the assertion the test above cannot make while ``opus-mt-pt-es`` is
     missing, and it is the one that actually protects Basque: M2M100 has no
     Basque at all, so a route that reaches `eu` through it is silently wrong.
+
+    Every dedicated pair model in this registry happens to be a Marian export
+    *except* Proxecto Nós's OpenNMT-py ``pt->gl`` leg - which the specialist
+    provenance tie-break now deliberately prefers over a smaller generic
+    Marian model for the same pair (Proxecto Nós owns Galician; see
+    ``docs/routing.md``). So the invariant this test actually protects is
+    "dedicated, not multilingual", not "architecturally Marian" - assert that
+    directly instead of the architecture, which was always a proxy for it.
     """
     from linguonnx import load_translator
     tx = load_translator(pivot_ranking="phonological")
     route = tx.route("pt", "eu", prefer="dedicated")
     for hop in route.hops:
-        assert tx.models[hop.model_id]["arch"] == "marian", (
-            f"{hop.model_id} is not a dedicated pair model")
+        assert hop.dedicated, f"{hop.model_id} is not a dedicated pair model"

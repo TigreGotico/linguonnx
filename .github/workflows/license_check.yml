@@ -10,4 +10,9 @@ jobs:
     uses: OpenVoiceOS/gh-automations/.github/workflows/license-check.yml@dev
     secrets: inherit
     with:
-      exclude_packages: '^linguonnx([=<>!~ @;:]|$)'
+      # fsspec — BSD-3-Clause (SPDX License-Expression, PEP 639). pilosus's checker
+      # cannot parse the PEP 639 `License-Expression` metadata field yet, so it
+      # reports "Error" instead of the actual (permissive) license. Same class of
+      # false positive as the tqdm/self-package gotcha documented in gh-automations'
+      # license-check.yml. Pulled in transitively via huggingface_hub.
+      exclude_packages: '^linguonnx([=<>!~ @;:]|$)|(?i:^fsspec([=<>!~ @;].*)?$)'

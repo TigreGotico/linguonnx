@@ -13,7 +13,7 @@ tiers, in order of how many strings are attached:
 
 | tier | what is in it | in the default graph? |
 |---|---|---|
-| `permissive` | Apache-2.0, MIT, CC-BY-4.0 | yes |
+| `permissive` | Apache-2.0, MIT, CC-BY-4.0, AFL-3.0 | yes |
 | `share-alike` | CC-BY-SA-3.0 | LID only, by name |
 | `non-commercial` | CC-BY-NC-4.0 | no |
 
@@ -36,9 +36,17 @@ name. But the choice matters:
 
 ## Translation
 
-`load_translator()` builds its graph from **permissive models only**. Four
-registry entries are excluded by default: `nllb-600M` and `aina-es-oc`, in both
-precisions. Both are CC-BY-NC-4.0.
+`load_translator()` builds its graph from **permissive models only**. Eight
+registry entries are excluded by default: `nllb-600M`, `aina-es-oc`,
+`aina-translator-es-an` and `aina-translator-es-ast`, in both precisions. All
+four are CC-BY-NC-4.0.
+
+`AFL-3.0` — carried by ten of the `m2m100_418M_*` African fine-tunes — is
+classified `permissive` and stays in the default graph. It grants use,
+modification and redistribution, but its patent-retaliation clause and naming
+restriction go beyond Apache-2.0 or MIT, so a caller with its own downstream
+licensing terms should check it separately rather than assume `permissive`
+means "as unencumbered as the rest of this tier."
 
 That is not a judgement about the models. NLLB-200 is excellent and covers 202
 languages, more than anything else here except MADLAD. It is a judgement about
@@ -54,6 +62,69 @@ tx = load_translator(include_noncommercial=True)
 print(tx.route("pt", "kea").model_ids)   # ('nllb-600M-int8',)
 print(tx.route("es", "oc").model_ids)    # ('aina-es-oc-int8',)
 ```
+
+### The filter holds at load time, not only at routing time
+
+A translator loads only the models it was built over. Naming an excluded model
+in a `route=` or a `model=` raises, rather than loading it and translating
+through it:
+
+```python
+tx = load_translator()                       # permissive models only
+try:
+    tx.translate("bom dia", src="pt", tgt="kea", model="nllb-600M-int8")
+except ValueError as err:
+    print(err)
+    # 'nllb-600M-int8' is not in this translator's models. It is
+    # filtered out (see include_noncommercial=, precision= and models= on
+    # load_translator) or it does not exist.
+```
+
+This is what makes `include_noncommercial=False` a guarantee about the output
+rather than a preference about routing. If you want the model, ask for it —
+with `include_noncommercial=True`, or by naming it in `models=`.
+
+## Vendored code
+
+`linguonnx/translate/_indic_processor.py` is AI4Bharat's `IndicProcessor`,
+copied from [`IndicTransToolkit`](https://github.com/VarunGumma/IndicTransToolkit)
+rather than depended on, because that package declares `transformers` as a hard
+dependency and this library keeps `transformers` out of the runtime. The
+changes are mechanical: Cython declarations dropped, the progress bar removed,
+and the placeholder map returned to the caller instead of parked in a
+module-level queue. Why a copy and not a reimplementation is explained in
+[translate.md](translate.md#indictrans2) — a reimplementation could diverge
+from the training-time preprocessing and translate fluently into the wrong
+words.
+
+The upstream licence is MIT:
+
+```
+MIT License
+
+Copyright (c) 2024 Varun Gumma
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+MIT is a permissive licence, so this changes nothing about a route's
+`license_tier`. It is recorded here because the file is someone else's work.
 
 ## What a route tells you
 

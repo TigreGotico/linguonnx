@@ -12,6 +12,12 @@ Do not "clean up" the sign-extension or the two near-identical add_subwords /
 subwords_of_known code paths — they mirror fastText's Dictionary::addSubwords
 and Dictionary::getSubwords respectively, which really are separate methods
 with separate cases (in-vocab word vs. unseen token, EOS handling, etc.).
+
+The same reasoning applies to the token cap: fastText's
+``Dictionary::getLine`` stops reading a line at ``MAX_LINE_SIZE = 1024``
+tokens, so this port stops there too. Feeding the graph more features than
+the reference ever would puts it outside the regime it was trained and
+exported in, and the output still looks plausible.
 """
 
 from __future__ import annotations
@@ -20,6 +26,8 @@ import json
 from typing import Dict, List, Sequence
 
 import numpy as np
+
+from linguonnx.limits import MAX_DETECT_CHARS, MAX_LINE_TOKENS, check_length
 
 EOS = "</s>"
 BOW = "<"
@@ -77,7 +85,11 @@ class GlotLIDFeaturizer:
     """
 
     def __init__(self, words: Sequence[str], nwords: int, minn: int = 2,
-                 maxn: int = 5, bucket: int = 1_000_000):
+                 maxn: int = 5, bucket: int = 1_000_000,
+                 max_chars: int = MAX_DETECT_CHARS,
+                 max_tokens: int = MAX_LINE_TOKENS):
+        self.max_chars = max_chars
+        self.max_tokens = max_tokens
         self.words: List[str] = list(words)
         self.nwords = nwords
         self.minn = minn
@@ -129,9 +141,23 @@ class GlotLIDFeaturizer:
             line.extend(self.subwords_of_known(wid))
 
     def __call__(self, text: str) -> np.ndarray:
-        """`Dictionary::getLine` for a supervised model - returns feature ids."""
+        """`Dictionary::getLine` for a supervised model - returns feature ids.
+
+        Two bounds apply, both raising rather than truncating: the character
+        count of ``text`` and the token count of the line. Each token expands
+        into up to four character n-grams per character, and the hashing is a
+        pure-Python loop, so an unbounded input is minutes of GIL-held work
+        and a multi-hundred-megabyte embedding gather.
+        """
+        check_length(len(text), self.max_chars, "characters",
+                     "LINGUONNX_MAX_DETECT_CHARS")
+        tokens = tokenize(text)
+        # tokenize() appends the implicit EOS; it is fastText's, not the
+        # caller's, so it does not count against the caller's budget.
+        check_length(len(tokens) - 1, self.max_tokens, "tokens",
+                     "LINGUONNX_MAX_LINE_TOKENS")
         line: List[int] = []
-        for token in tokenize(text):
+        for token in tokens:
             self.add_subwords(line, token)
         return np.asarray(line, dtype=np.int64)
 
