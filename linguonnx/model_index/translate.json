@@ -170,7 +170,8 @@
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
       "generation_config": "generation_config.json",
-      "special_tokens_map": "special_tokens_map.json"
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
     },
     "size_mb": 7382
   },
@@ -202,7 +203,8 @@
       "spm": "int8/sentencepiece.bpe.model",
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
-      "special_tokens_map": "int8/special_tokens_map.json"
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "tokenizer_json": "int8/tokenizer.json"
     },
     "size_mb": 1862
   },
@@ -777,7 +779,8 @@
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
       "generation_config": "generation_config.json",
-      "special_tokens_map": "special_tokens_map.json"
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
     },
     "size_mb": 7382
   },
@@ -805,7 +808,8 @@
       "spm": "int8/sentencepiece.bpe.model",
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
-      "special_tokens_map": "int8/special_tokens_map.json"
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "tokenizer_json": "int8/tokenizer.json"
     },
     "size_mb": 1862
   },
@@ -836,7 +840,8 @@
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
       "generation_config": "generation_config.json",
-      "special_tokens_map": "special_tokens_map.json"
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
     },
     "size_mb": 7382
   },
@@ -868,7 +873,8 @@
       "spm": "int8/sentencepiece.bpe.model",
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
-      "special_tokens_map": "int8/special_tokens_map.json"
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "tokenizer_json": "int8/tokenizer.json"
     },
     "size_mb": 1862
   },
@@ -5176,7 +5182,8 @@
       "spm": "sentencepiece.bpe.model",
       "config": "config.json",
       "generation_config": "generation_config.json",
-      "special_tokens_map": "special_tokens_map.json"
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
     },
     "size_mb": 7382
   },
@@ -5404,7 +5411,8 @@
       "spm": "sentencepiece.bpe.model",
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
-      "special_tokens_map": "special_tokens_map.json"
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
     },
     "size_mb": 1866
   },
@@ -6992,7 +7000,8 @@
       "generation_config": "generation_config.json",
       "special_tokens_map": "special_tokens_map.json"
     },
-    "size_mb": 659
+    "size_mb": 659,
+    "target_token": ">>ara<<"
   },
   "opus-mt-en-ar-int8": {
     "arch": "marian",
@@ -7020,7 +7029,8 @@
       "generation_config": "int8/generation_config.json",
       "special_tokens_map": "int8/special_tokens_map.json"
     },
-    "size_mb": 169
+    "size_mb": 169,
+    "target_token": ">>ara<<"
   },
   "opus-mt-en-az": {
     "arch": "marian",

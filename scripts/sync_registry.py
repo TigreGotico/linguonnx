@@ -566,6 +566,13 @@ SIDE_FILES: Dict[str, Dict[str, str]] = {
         "config": "config.json",
         "generation_config": "generation_config.json",
         "special_tokens_map": "special_tokens_map.json",
+        # Not optional where the repo has it. NLLB ships no
+        # `added_tokens.json`, so without this file the language block can
+        # only be counted through `special_tokens_map.json`, and a fine-tune
+        # that appends a language (`arn_Latn`, `arg_Latn`) makes that count
+        # one short: the request lands on `<mask>`. `tokenizer.json` states
+        # the ids - see `tokenizer_json_added_tokens` in tokenizers.py.
+        "tokenizer_json": "tokenizer.json",
     },
     # T5 (MADLAD): a single SentencePiece model with the `<2xx>` target tokens
     # baked in as ordinary pieces - nothing in special_tokens_map.json names
@@ -1262,6 +1269,46 @@ def _marian_pair(repo_name: str, readme: str, detail: dict
     return [src, tgt], base, token
 
 
+def _pair_target_token(repo_id: str, files: Sequence[str], tgt: str
+                       ) -> str | None:
+    """The ``>>xxx<<`` token a *pair* export still needs, or ``None``.
+
+    `_marian_pair` asks for a token only when the card's base model names a
+    different target than the repo name does. That test cannot see a pair
+    whose single target language has several varieties in one model:
+    `Helsinki-NLP/opus-mt-en-ar` is named `en-ar`, so the test is quiet, and
+    its vocabulary carries five group tokens: `>>ara<<`, `>>ara_Latn<<`,
+    `>>arq<<`, `>>arq_Latn<<` and `>>arz<<`. Measured on
+    `TigreGotico/opus-mt-en-ar-onnx` with no
+    token: "cancel the alarm" came back as the single word "this", and "tell
+    me a joke" as a word-by-word gloss with the English "a" left in it. With
+    `>>ara<<`: "cancel the alarm" and "tell me a joke" both correct.
+
+    The vocabulary is the evidence, so the vocabulary is read. A token is
+    returned only when exactly one of the export's own tokens is the target
+    language; several varieties of it, or none, return ``None`` rather than a
+    guess about which variety the caller wanted.
+    """
+    if "vocab.json" not in files:
+        return None
+    from linguonnx.detect.labels import to_bcp47
+
+    vocab = json.loads(raw_file(repo_id, "vocab.json"))
+    raw_codes = sorted({
+        match.group(1) for key in vocab
+        if (match := _GROUP_TARGET_TOKEN_RE.match(key))
+    })
+    matching = []
+    for raw in raw_codes:
+        # `to_bcp47` returns the tag unchanged when it cannot map it.
+        tag = to_bcp47(raw)
+        if tag == tgt:
+            matching.append(raw)
+    if len(matching) != 1:
+        return None
+    return f">>{matching[0]}<<"
+
+
 def _declared_languages(detail: dict) -> Optional[List[str]]:
     """``cardData.language`` normalised, or None when the card names no languages.
 
@@ -1842,6 +1889,8 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
         else:
             shared["pair"] = pair
             shared["base_model"] = base if "/" in base else f"Helsinki-NLP/{base}"
+            if not token:
+                token = _pair_target_token(repo_id, files, pair[1])
             if token:
                 shared["target_token"] = token
     elif arch == "madlad":
