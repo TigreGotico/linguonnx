@@ -449,6 +449,37 @@ disagrees it records the `target_token` the export was verified against, and
 skips the repo entirely if the card does not show one. Publishing a coverage
 claim that cannot be honoured is worse than publishing nothing.
 
+That name test is not enough on its own. `Helsinki-NLP/opus-mt-en-ar` is named
+as a pair, so the test stays quiet, and its vocabulary still carries
+five group tokens — `>>ara<<`, `>>ara_Latn<<`, `>>arq<<`, `>>arq_Latn<<` and
+`>>arz<<`: one target language with several varieties. Measured with no token,
+"cancel the alarm" came back as the single word "this". So the export's own
+`vocab.json` is read for every pair as well, and a token is recorded only when
+exactly one of its `>>xxx<<` tokens is the pair's target language. Several
+varieties of it, or none, record nothing rather than a guess about which
+variety the caller wanted.
+
+Four more pairs are named for one target and carry several varieties, so this
+reading resolves a token for each of them:
+
+| Pair | `>>xxx<<` tokens in its vocabulary | Token the reading resolves |
+| --- | --- | --- |
+| `opus-mt-en-pt` | `pob`, `por` | `>>por<<` |
+| `opus-mt-en-bg` | `bul`, `bul_Latn` | `>>bul<<` |
+| `opus-mt-en-vi` | `vie` | `>>vie<<` |
+| `opus-mt-en-zh` | `cmn`, `cmn_Hans`, `cmn_Hant`, `nan`, `wuu`, `yue`, `yue_Hans`, `yue_Hant` | `>>cmn<<` |
+
+None of the four records a token today, and none records one here either: these
+entries have not been regenerated, and a regeneration is what would pick the
+tokens up. `opus-mt-en-ar` is recorded by hand because a wrong answer there was
+measured, not because its entry was regenerated. `opus-mt-en-pl` already
+carries `>>pol<<`, from the name test rather than from this reading.
+
+`opus-mt-en-pt` is worth naming separately: `pob` is Brazilian Portuguese and
+resolves to `pob`, not to `pt`, so the reading sees one candidate and not two.
+A caller who asks for Brazilian Portuguese still cannot reach it, which is a
+coverage gap in the entry rather than an ambiguity in this rule.
+
 A repo whose *name* is a family — `opus-mt-itc-itc`, `opus-mt-mul-en` — is not
 a pair at all and is not treated as one. `itc` is the Italic family, so no
 caller can ask for it; the entry that used to say `pair: ["itc", "itc"]` was an
@@ -471,6 +502,18 @@ claim including `th -> sw`. A model whose real set is narrower than its
 tokenizer states it in `MULTILINGUAL_LANGUAGE_OVERRIDES`. `aina-es-oc` is one
 of these: an NLLB-600M fine-tune whose tokenizer claims 202 languages and whose
 weights do Spanish into Aranese, one way.
+
+A fine-tune can also **add** a language, and where it puts the new token
+matters. NLLB ships no `added_tokens.json`, so the language block used to be
+derived by counting through `special_tokens_map.json` from the first id after
+the SentencePiece table. `aina-es-oc` and `aina-translator-es-an` append
+`arn_Latn` and `arg_Latn` after the base tokenizer's own `<mask>`, so counting
+put each one on `<mask>` itself and the model was told to answer in it:
+Aranese lost the verb of every sentence, and Aragonese raised
+`IndexError: OUT_OF_RANGE` when it emitted its own token back. So
+`tokenizer.json` states each id, so it is a side file for every NLLB entry and
+is read instead of counted. An export that ships none uses the counted block,
+and `added_tokens.json` outranks both.
 
 There is a third hand-maintained fix-up, `MARIAN_MULTILINGUAL_OVERRIDES`, for a
 model whose own code collides with a different language's ISO tag —

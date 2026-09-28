@@ -38,6 +38,7 @@ __all__ = ["normalize_punctuation", "SpmSeq2SeqTokenizer", "MarianTokenizer",
            "FastUnigramTokenizer", "T5SpmTokenizer", "T5TextPrefixTokenizer",
            "UnigramTextPrefixTokenizer", "IndicTransTokenizer",
            "OpenNmtBpeTokenizer", "load_tokenizer", "artifact_lang_codes",
+           "tokenizer_json_added_tokens",
            "bare_lang_code"]
 
 
@@ -196,6 +197,56 @@ def bare_lang_code(piece: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
+#: A `tokenizers`-library `tokenizer.json` spells its own specials `<s>`,
+#: `<pad>`, `</s>`, `<unk>` and `<mask>`. A language token never looks like
+#: that, and one of these must never be handed out as a language.
+_BRACKETED_SPECIAL = re.compile(r"^<.*>$")
+
+
+def tokenizer_json_added_tokens(path) -> tuple[dict[str, int], set]:
+    """The real ids of an export's added tokens, read from ``tokenizer.json``.
+
+    Returns ``(language_ids, other_special_ids)``.
+
+    NLLB ships no ``added_tokens.json``, so the language block was derived by
+    counting through ``special_tokens_map.json``: ``lang_block_start + i``.
+    That holds only while the two agree, and a fine-tune that **appends** a
+    language breaks it. Measured on
+    ``TigreGotico/aina-translator-es-oc-onnx``: ``additional_special_tokens``
+    carries 203 names with ``arn_Latn`` last, so counting gives it 256203 -
+    which is ``<mask>``. Its real id is 256204, because the fine-tune added it
+    after the base tokenizer's own ``<mask>``. The model was therefore told to
+    begin in ``<mask>`` and answered with a fragment, and when it emitted
+    256204 the decoder asked SentencePiece for a piece that far past its table
+    and raised ``IndexError: OUT_OF_RANGE: piece id is out of range``.
+
+    ``tokenizer.json`` states each id, so it is read instead of counted.
+    """
+    added = _load_json(path).get("added_tokens") or []
+    languages: dict[str, int] = {}
+    others = set()
+    for token in added:
+        if not isinstance(token, dict):
+            continue
+        content, token_id = token.get("content"), token.get("id")
+        if not isinstance(content, str) or not isinstance(token_id, int):
+            continue
+        if _BRACKETED_SPECIAL.match(content):
+            others.add(token_id)
+            continue
+        bare = bare_lang_code(content)
+        languages[content] = token_id
+        if bare is not None:
+            languages.setdefault(bare, token_id)
+    if not languages:
+        raise ValueError(
+            f"{path} carries no added token that could be a language; every "
+            f"one of its {len(added)} added tokens is a bracketed special. "
+            f"An export whose language block cannot be read here must not "
+            f"fall back to counting positions.")
+    return languages, others
+
+
 class SpmSeq2SeqTokenizer:
     """M2M100 and NLLB.
 
@@ -236,7 +287,7 @@ class SpmSeq2SeqTokenizer:
 
     def __init__(self, spm_path, lang_codes: Sequence[str],
                  vocab_path=None, fairseq_offset: int = 0,
-                 added_tokens_path=None,
+                 added_tokens_path=None, tokenizer_json_path=None,
                  eos_id: int = 2, pad_id: int = 1, unk_id: int = 3,
                  bos_id: int = 0, declared_codes: Optional[Sequence[str]] = None):
         self.sp = _load_spm(spm_path)
@@ -276,6 +327,24 @@ class SpmSeq2SeqTokenizer:
                     f"deriving the id from a code's position in the declared "
                     f"list translates into a different language and nothing "
                     f"reports it.")
+        elif (tokenizer_json_path is not None
+                and Path(tokenizer_json_path).exists()):
+            # Authoritative for the same reason `added_tokens.json` is: it
+            # states each id rather than letting one be counted. See
+            # `tokenizer_json_added_tokens`.
+            stated, other_specials = tokenizer_json_added_tokens(
+                tokenizer_json_path)
+            self.lang_code_to_id = {code: stated[code] for code in lang_codes
+                                    if code in stated}
+            missing = [code for code in lang_codes if code not in stated]
+            if missing:
+                raise ValueError(
+                    f"{tokenizer_json_path} states no token for {missing!r}, "
+                    f"which this export's own special_tokens_map.json names. "
+                    f"The two files disagree about what the model carries, "
+                    f"and counting through the names instead is what put a "
+                    f"request on another language's token.")
+            self._other_special_ids = other_specials
         else:
             self.lang_code_to_id = {code: lang_block_start + i
                                     for i, code in enumerate(lang_codes)}
@@ -287,6 +356,10 @@ class SpmSeq2SeqTokenizer:
         # from `_specials` is one that survives `decode()` as `⁇`.
         self._specials = {self.eos_id, self.pad_id, self.unk_id, self.bos_id}
         self._specials |= set(self.lang_code_to_id.values())
+        # A bracketed special the export added - `<mask>` - is past the
+        # SentencePiece table too, so letting one reach `id_to_piece()` is
+        # the same `IndexError: OUT_OF_RANGE` the wrong language id caused.
+        self._specials |= getattr(self, "_other_special_ids", set())
         self._add_bcp47_aliases()
         if declared_codes:
             self._check_declared(declared_codes)
@@ -1025,6 +1098,7 @@ def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str],
         # script, and 147 other languages into another language each.
         return SpmSeq2SeqTokenizer(files["spm"], artifact_lang_codes(files),
                                    fairseq_offset=1,
+                                   tokenizer_json_path=files.get("tokenizer_json"),
                                    declared_codes=lang_codes)
     if arch == "madlad":
         return T5SpmTokenizer(files["spm"])
