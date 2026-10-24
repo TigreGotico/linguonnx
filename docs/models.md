@@ -2,8 +2,10 @@
 
 Two JSON files under `linguonnx/model_index/` say what exists: `lid.json` for
 language identification and `translate.json` for translation. They hold 10 and
-377 entries. Every entry names a HuggingFace repo, the exact files to fetch,
-the languages covered, the licence and the size.
+378 entries. Every ONNX entry names a HuggingFace repo, the exact files to
+fetch, the languages covered, the licence and the size. A rule-based entry
+names a Python function instead of files. See
+[Rule-based models](#rule-based-models).
 
 Both files are **generated**, not edited by hand. See
 [Keeping it in sync](#keeping-it-in-sync) below for why that matters more than
@@ -11,8 +13,10 @@ it sounds.
 
 ## What is in the translation registry
 
-377 entries is 188 int8 and 189 fp32 entries across 189 models. `load_translator()` defaults to
-`precision="int8"`; pass `precision="fp32"` or `precision=None` for both.
+378 entries is 188 int8 and 189 fp32 entries across 189 models, plus 1
+rule-based entry. `load_translator()` defaults to `precision="int8"`; pass
+`precision="fp32"` or `precision=None` for both. A rule-based entry has no
+weights and no precision, so the precision filter never removes it.
 
 | model | arch | coverage | size (int8) | licence |
 |---|---|---|---|---|
@@ -37,6 +41,7 @@ it sounds.
 | `m2m100_418M_*` African fine-tunes (12) | M2M100 | one pair each; fr↔{bam, bbj, mos}, fr → {fon, ewe}, en↔hau, en↔nso | 1.21 GB – 3.18 GB | Apache-2.0 for the `nso` pair; **AFL-3.0 for the rest** |
 | `translate-eus-cat`, `translate-oci-cat` | Pegasus (fast) | `eu-ca`, `oc-ca` | 590 MB each | MIT |
 | `opus-mt-*` (124) | Marian | one pair each | 78 MB – 716 MB | Apache-2.0 or CC-BY-4.0 |
+| `pt2barranquenho` | rules (Python package) | Portuguese → Barranquenho (`ext-PT-x-barrancos`), **one-way** | 0 MB, nothing to download | Apache-2.0 |
 
 The opus-mt pairs published as int8:
 
@@ -59,7 +64,7 @@ tc-big-zle-en  th-en  tl-en  tn-en  tr-az  tr-en  ts-en  uk-en
 ur-en  vi-en  xh-en  zh-en
 ```
 
-Together they reach 593 languages over the default graph. MADLAD supplies most
+Together they reach 594 languages over the default graph. MADLAD supplies most
 of the tail, including the ones no other model here has: Mirandese, Aragonese,
 Occitan and several hundred more.
 
@@ -112,6 +117,46 @@ Each entry also carries the `loss` the model was trained with, which is how
 `linguonnx` knows to walk a Huffman tree for lid.176 rather than reading
 softmax outputs. See [detect.md](detect.md).
 
+## Rule-based models
+
+A rule-based model is a Python package that translates with hand-written
+rules. It has no ONNX graph, no files and no download, so its registry entry
+has `arch: "rules"` and `size_mb: 0`. The entry's `callable` names the
+function, as `module:function`, and its `extra` names the linguonnx extra that
+installs the package.
+
+`pt2barranquenho` translates European Portuguese into Barranquenho, the
+language of Barrancos. The graph node is the locale key `ext-PT-x-barrancos`. The private-use subtag
+has nine letters, one over the BCP-47 limit, so `langcodes` cannot parse the
+tag. `linguonnx` accepts it in any case, gives it back as `ext-PT-x-barrancos`
+and never reads it as Extremaduran (`ext`).
+
+The rules translate one line at a time. `linguonnx` gives each line of the
+input to `pt2barranquenho.translate` and keeps the line breaks. The rules keep
+`{slots}` unchanged. Names change like any other word: *Lisboa* becomes
+*Lihboa*.
+
+The direction is one-way: no model translates out of Barranquenho. Any source
+that reaches Portuguese reaches Barranquenho in one more hop:
+
+```python
+from linguonnx.translate import load_translator
+
+tx = load_translator()
+print(tx.route("en", "ext-PT-x-barrancos").model_ids)
+# ('opus-mt-en-pt-int8', 'pt2barranquenho')
+```
+
+The package comes from the `rules` extra:
+
+```bash
+pip install "linguonnx[rules]"
+```
+
+Without the package the entry stays in the registry, but it cannot run. The
+router then refuses the pair, and the error names the extra. See
+[routing.md](routing.md#coverage-and-runnability-are-separate).
+
 ## Reading the registry from Python
 
 ```python
@@ -122,7 +167,7 @@ print(entry["arch"], entry["pair"], entry["license"], entry["size_mb"])
 # marian ['pt', 'en'] Apache-2.0 172
 
 print(len(list_models(kind="translate")), len(list_models(kind="lid")))
-# 373 10
+# 378 10
 ```
 
 ## The download cache
@@ -382,6 +427,12 @@ The allow-list is of generated keys, not of human ones, on purpose: a list of
 human-owned keys fails silently the first time somebody curates a field nobody
 remembered to add to it. Adding a derived field means adding it to
 `GENERATED_KEYS`; the script refuses to run until you do.
+
+A rule-based model is not a Hub repo, so the crawl never finds it. The script
+adds every entry in its `RULE_BASED_MODELS` table to each generated registry.
+The merge then keeps the entry like any other generated entry. A rule-based
+entry added to `translate.json` by hand, and not to that table, is removed by
+the next sync.
 
 See [routing.md#measured-quality](routing.md#measured-quality) for what
 `quality` means and how it is used.

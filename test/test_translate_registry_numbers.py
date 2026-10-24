@@ -31,6 +31,7 @@ a per-request route that changes per machine can be, and is.
 """
 
 import re
+from pathlib import Path
 
 import pytest
 
@@ -39,19 +40,21 @@ from linguonnx.translate import load_translator
 
 # Recount with:
 #   load_translator(max_model_mb=CAP, count_cached_as_free=False)
-LANGUAGES_UNCAPPED = 593
-LANGUAGES_UNDER_500 = 251
+LANGUAGES_UNCAPPED = 594
+LANGUAGES_UNDER_500 = 252
 FALLBACK_STEPS_UNDER_500 = 37
 
 # README.md's "What ships" table and docs/models.md's opening paragraph quote
 # these directly off `linguonnx/model_index/translate.json` and `lid.json`.
 # Recount with:
 #   len(list_models(kind="translate"))                        -> entries
-#   {v["hf_repo"] for v in translate.json.values()}            -> models
-#   Counter(v["precision"] for v in translate.json.values())   -> int8/fp32 split
-TRANSLATE_ENTRIES = 377
+#   {v["hf_repo"] for v in translate.json.values() if "hf_repo" in v}  -> models
+#   Counter(v.get("precision") for v in translate.json.values())
+#                                               -> int8/fp32/rule-based split
+TRANSLATE_ENTRIES = 378
 TRANSLATE_INT8_ENTRIES = 188
 TRANSLATE_FP32_ENTRIES = 189
+TRANSLATE_RULE_ENTRIES = 1
 TRANSLATE_MODELS = 189
 LID_ENTRIES = 10
 LID_MODELS = 5
@@ -181,20 +184,23 @@ class TestTheDocumentedRegistrySizeNumbers:
         from collections import Counter
 
         entries = list_models(kind="translate")
-        got = Counter(v["precision"] for v in entries.values())
-        assert (got["int8"], got["fp32"]) == (
-            TRANSLATE_INT8_ENTRIES, TRANSLATE_FP32_ENTRIES), (
-            f"translate.json now has {got['int8']} int8 and {got['fp32']} "
-            f"fp32 entries, not {TRANSLATE_INT8_ENTRIES} int8 and "
-            f"{TRANSLATE_FP32_ENTRIES} fp32. This is the intended signal "
-            f"that the registry grew, not a bug. Update "
-            f"TRANSLATE_INT8_ENTRIES and TRANSLATE_FP32_ENTRIES above, and "
+        got = Counter(v.get("precision") for v in entries.values())
+        assert (got["int8"], got["fp32"], got[None]) == (
+            TRANSLATE_INT8_ENTRIES, TRANSLATE_FP32_ENTRIES,
+            TRANSLATE_RULE_ENTRIES), (
+            f"translate.json now has {got['int8']} int8, {got['fp32']} fp32 "
+            f"and {got[None]} rule-based entries, not "
+            f"{TRANSLATE_INT8_ENTRIES} int8, {TRANSLATE_FP32_ENTRIES} fp32 "
+            f"and {TRANSLATE_RULE_ENTRIES} rule-based. This is the intended "
+            f"signal that the registry grew, not a bug. Update "
+            f"TRANSLATE_INT8_ENTRIES, TRANSLATE_FP32_ENTRIES and "
+            f"TRANSLATE_RULE_ENTRIES above, and "
             f"correct the same split in README.md's \"What ships\" table and "
             f"docs/models.md's opening paragraph.")
 
     def test_the_distinct_translate_model_count(self):
         entries = list_models(kind="translate")
-        got = len({v["hf_repo"] for v in entries.values()})
+        got = len({v["hf_repo"] for v in entries.values() if "hf_repo" in v})
         assert got == TRANSLATE_MODELS, (
             f"translate.json now spans {got} distinct HuggingFace repos, not "
             f"{TRANSLATE_MODELS}. This is the intended signal that the "
@@ -271,7 +277,8 @@ class TestTheCatalogueIsComplete:
 
     def test_every_translate_hf_repo_belongs_to_a_documented_family(self):
         registry = list_models(kind="translate")
-        repos = sorted({entry["hf_repo"] for entry in registry.values()})
+        repos = sorted({entry["hf_repo"] for entry in registry.values()
+                        if "hf_repo" in entry})
         patterns = [re.compile(p) for p in DOCUMENTED_TRANSLATE_FAMILIES]
         undocumented = [r for r in repos
                         if not any(p.match(r) for p in patterns)]
@@ -283,3 +290,16 @@ class TestTheCatalogueIsComplete:
             f"licence - taken from translate.json, never from a model card or "
             f"memory), then add a matching prefix pattern to "
             f"DOCUMENTED_TRANSLATE_FAMILIES above so this test tracks it.")
+
+    def test_every_rule_based_model_is_named_in_the_docs(self):
+        """A rule-based entry has no `hf_repo` to match a family by, so its
+        `model_id` has to appear in docs/models.md instead."""
+        docs = (Path(__file__).resolve().parent.parent / "docs" / "models.md") \
+            .read_text(encoding="utf-8")
+        undocumented = sorted(model_id for model_id, entry
+                              in list_models(kind="translate").items()
+                              if entry["arch"] == "rules"
+                              and f"`{model_id}`" not in docs)
+        assert not undocumented, (
+            f"rule-based model(s) {undocumented} are not named in "
+            f"docs/models.md; add a row for each to the per-model table")

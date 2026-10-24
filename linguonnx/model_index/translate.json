@@ -13735,6 +13735,20 @@
     },
     "size_mb": 172
   },
+  "pt2barranquenho": {
+    "arch": "rules",
+    "callable": "pt2barranquenho:translate",
+    "extra": "rules",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "pt2barranquenho",
+    "notes": "Rule-based European Portuguese -> Barranquenho translator (TigreGotico/pt2barranquenho). It translates one line at a time and keeps {slots}. It has no reverse direction.",
+    "pair": [
+      "pt",
+      "ext-PT-x-barrancos"
+    ],
+    "size_mb": 0
+  },
   "translate-eus-cat": {
     "arch": "pegasus-fast",
     "extra_files": [],

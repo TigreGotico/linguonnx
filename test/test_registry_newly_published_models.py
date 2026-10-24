@@ -107,7 +107,7 @@ def test_unregisterable_repos_are_recorded_with_their_real_reason(
 def test_arat5_and_vinai_are_not_claimed_by_the_registry():
     """T5-non-MADLAD and mBART are not architectures `linguonnx.translate`
     implements; neither model may appear under any model_id."""
-    claimed = {entry["hf_repo"] for entry in TRANSLATE.values()}
+    claimed = {entry.get("hf_repo") for entry in TRANSLATE.values()}
     assert "TigreGotico/arat5-arabic-dialects-translation-onnx" not in claimed
     assert "TigreGotico/vinai-translate-vi2en-v2-onnx" not in claimed
 

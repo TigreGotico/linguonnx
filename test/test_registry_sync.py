@@ -45,6 +45,12 @@ def _load_sync_registry():
 sync_registry = _load_sync_registry()
 
 TRANSLATE = model_manager.list_models(kind="translate")
+#: Entries that run through ONNX graphs, as opposed to a rule-based Python
+#: package (`arch: "rules"`), which has no files, no precision and no repo.
+ONNX_TRANSLATE = sorted(model_id for model_id, entry in TRANSLATE.items()
+                        if entry["arch"] != "rules")
+RULE_TRANSLATE = sorted(model_id for model_id, entry in TRANSLATE.items()
+                        if entry["arch"] == "rules")
 LID = model_manager.list_models(kind="lid")
 
 #: M2M100's 100 languages, per its own tokenizer, do **not** include Basque.
@@ -58,7 +64,7 @@ M2M100_HAS_NO_BASQUE = "eu"
 # Structural validity
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("model_id", sorted(TRANSLATE))
+@pytest.mark.parametrize("model_id", ONNX_TRANSLATE)
 def test_translate_entry_is_complete(model_id):
     entry = TRANSLATE[model_id]
     for key in ("model_id", "hf_repo", "arch", "graphs", "side_files",
@@ -75,6 +81,29 @@ def test_translate_entry_is_complete(model_id):
     assert entry["size_mb"] > 0
 
 
+@pytest.mark.parametrize("model_id", RULE_TRANSLATE)
+def test_rule_based_entry_is_complete(model_id):
+    """A rule-based entry names its callable and the extra that installs it,
+    and claims no files, no precision and no download."""
+    entry = TRANSLATE[model_id]
+    assert entry["model_id"] == model_id
+    module, _, function = entry["callable"].partition(":")
+    assert module and function, f"{model_id}: callable is not module:function"
+    assert entry["extra"].strip()
+    assert entry["size_mb"] == 0
+    for key in ("hf_repo", "graphs", "side_files", "extra_files", "onnx_file",
+                "precision"):
+        assert key not in entry, f"{model_id} carries {key!r}"
+    assert model_manager.is_cached(model_id, kind="translate")
+    assert model_manager.ensure_model_files(model_id, kind="translate") == {}
+
+
+def test_rule_based_models_are_registered():
+    """The list is pinned so an entry cannot drop out of the registry with
+    nothing failing: the parametrized test above runs over zero entries then."""
+    assert RULE_TRANSLATE == ["pt2barranquenho"]
+
+
 @pytest.mark.parametrize("model_id", sorted(TRANSLATE))
 def test_translate_entry_declares_a_licence(model_id):
     entry = TRANSLATE[model_id]
@@ -83,7 +112,7 @@ def test_translate_entry_declares_a_licence(model_id):
         f"{model_id} has licence tier {entry['license_tier']!r}"
 
 
-@pytest.mark.parametrize("model_id", sorted(TRANSLATE))
+@pytest.mark.parametrize("model_id", ONNX_TRANSLATE)
 def test_translate_entry_references_plausible_files(model_id):
     entry = TRANSLATE[model_id]
     assert set(entry["graphs"]) == {"encoder", "decoder", "decoder_with_past"}
@@ -99,7 +128,7 @@ def test_translate_entry_references_plausible_files(model_id):
             f"{model_id}: {name} does not match precision {entry['precision']}"
 
 
-@pytest.mark.parametrize("model_id", sorted(TRANSLATE))
+@pytest.mark.parametrize("model_id", ONNX_TRANSLATE)
 def test_translate_entry_carries_side_files_its_tokenizer_needs(model_id):
     entry = TRANSLATE[model_id]
     side = entry["side_files"]
@@ -576,7 +605,7 @@ def test_unrunnable_entries_say_why(model_id):
         assert "unrunnable_reason" not in entry
 
 
-@pytest.mark.parametrize("model_id", sorted(TRANSLATE))
+@pytest.mark.parametrize("model_id", ONNX_TRANSLATE)
 def test_the_registry_flags_every_architecture_without_a_pipeline(model_id):
     """The flag and the pipeline registry have to agree.
 
@@ -1353,3 +1382,70 @@ def test_arch_still_reads_madlad_for_an_unknown_t5():
     detail = {"config": {"model_type": "t5"}}
     assert sync_registry._arch(detail, {"spiece.model": 1}, "madlad400-3b-mt") == "madlad"
     assert sync_registry._arch(detail, {"spiece.model": 1}) == "madlad"
+
+
+class TestARuleBasedEntrySurvivesAResync:
+    """A rule-based translator is a Python package, not a Hub repo.
+
+    The crawl never finds it, and `merge_preserving` drops every committed
+    entry the generator does not produce. So the sync script itself has to
+    emit the entry, and emit exactly what is committed, or the next sync
+    deletes Barranquenho from the registry. These run the real `main()`
+    offline, with `build()` standing in for a crawl that knows nothing about
+    it.
+    """
+
+    CRAWLED = {"demo-mt": {
+        "model_id": "demo-mt", "hf_repo": "TigreGotico/demo-mt-onnx",
+        "arch": "marian", "license": "Apache-2.0",
+        "license_tier": "permissive", "precision": "fp32", "size_mb": 300,
+        "graphs": {"encoder": "encoder_model.onnx"},
+        "side_files": {"vocab": "vocab.json"}, "extra_files": [],
+        "pair": ["en", "pt"]}}
+
+    @pytest.fixture
+    def sync(self, tmp_path, monkeypatch):
+        module = _load_sync_registry()
+        index = tmp_path / "model_index"
+        index.mkdir()
+        (index / "translate.json").write_text(
+            json.dumps(self.CRAWLED, indent=2) + "\n", encoding="utf-8")
+        lid = TestASyncCannotDestroyCuratedRegistryData.LID
+        (index / "lid.json").write_text(json.dumps(lid, indent=2) + "\n",
+                                        encoding="utf-8")
+        monkeypatch.setattr(module, "INDEX_DIR", index)
+        monkeypatch.setattr(module, "CARD_LANGUAGES_PATH",
+                            tmp_path / "hub_card_languages.json")
+        monkeypatch.setattr(
+            module, "build",
+            lambda: ({k: dict(v) for k, v in self.CRAWLED.items()},
+                     dict(lid), [], {}))
+        module._index = index
+        return module
+
+    def _registry(self, sync):
+        return json.loads((sync._index / "translate.json")
+                          .read_text(encoding="utf-8"))
+
+    def test_the_sync_writes_the_committed_barranquenho_entry(self, sync):
+        assert sync.main([]) == 0
+        assert self._registry(sync)["pt2barranquenho"] == \
+            TRANSLATE["pt2barranquenho"]
+
+    def test_a_second_sync_finds_no_drift(self, sync):
+        assert sync.main([]) == 0
+        first = (sync._index / "translate.json").read_text(encoding="utf-8")
+        assert "pt2barranquenho" in json.loads(first)
+        assert sync.main(["--check"]) == 0
+        assert (sync._index / "translate.json").read_text(
+            encoding="utf-8") == first
+
+    def test_a_curated_field_on_the_entry_survives(self, sync):
+        registry = self._registry(sync)
+        registry["pt2barranquenho"] = dict(TRANSLATE["pt2barranquenho"],
+                                           quality={"chrf_vs_ref": 50.0})
+        (sync._index / "translate.json").write_text(
+            json.dumps(registry, indent=2) + "\n", encoding="utf-8")
+        assert sync.main([]) == 0
+        assert self._registry(sync)["pt2barranquenho"]["quality"] == \
+            {"chrf_vs_ref": 50.0}

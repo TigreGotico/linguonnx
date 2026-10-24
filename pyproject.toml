@@ -50,6 +50,10 @@ opennmt = ["sacremoses>=0.0.53", "subword-nmt>=0.3.8"]
 # `tokenizers`-library tokenizer.json (Unigram model), not a raw SentencePiece
 # `.model` - `sentencepiece` cannot read it.
 fast-tokenizers = ["tokenizers>=0.15.0"]
+# Rule-based translators: pure-Python packages that a registry entry names in
+# its `callable`, with no ONNX graph. `pt2barranquenho` serves
+# pt -> Barranquenho (`ext-PT-x-barrancos`).
+rules = ["pt2barranquenho>=0.1.0a2"]
 # `onnxruntime` and `onnxruntime-gpu` both provide the `onnxruntime` import
 # namespace and must never be installed together, so `gpu` cannot declare
 # `onnxruntime-gpu` as a dependency here - `onnxruntime` is already a hard
@@ -88,7 +92,7 @@ test = [
     # load it. Exclude it explicitly until 1.23.0 final lands - do not pin a
     # ceiling that would block the real 1.23.0.
     "onnx>=1.16.0,!=1.23.0rc1",
-    "linguonnx[distance,indic,opennmt,fast-tokenizers]",
+    "linguonnx[distance,indic,opennmt,fast-tokenizers,rules]",
     "transformers==4.46.3",
     "IndicTransToolkit>=1.1.1",
 ]
