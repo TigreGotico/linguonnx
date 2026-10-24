@@ -177,8 +177,8 @@ def test_card_language_cache_covers_every_registered_repo():
     A repo missing from the cache would make the subset test below skip
     exactly the entry it exists to catch.
     """
-    missing = sorted({entry["hf_repo"] for entry in TRANSLATE.values()}
-                     - set(CARD_LANGUAGES))
+    missing = sorted({entry["hf_repo"] for entry in TRANSLATE.values()
+                      if "hf_repo" in entry} - set(CARD_LANGUAGES))
     assert not missing, (
         "test/data/hub_card_languages.json is missing "
         f"{len(missing)} registered repo(s); re-run scripts/sync_registry.py "
@@ -228,6 +228,9 @@ def test_languages_stay_inside_the_card_s_claim():
     """
     offenders = []
     for model_id, entry in _entries():
+        # A rule-based entry is a Python package; it has no Hub card.
+        if "hf_repo" not in entry:
+            continue
         declared = _declared(entry["hf_repo"])
         if declared is None or _card_bound_exempt(entry):
             continue

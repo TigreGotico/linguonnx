@@ -83,7 +83,9 @@ def _select_entries(precision: Optional[str], include_noncommercial: bool,
         return {m: registry[m] for m in models}
     chosen = {}
     for model_id, entry in registry.items():
-        if precision and entry["precision"] != precision:
+        # A rule-based entry has no weights and so no precision; the filter
+        # does not apply to it.
+        if precision and entry.get("precision") not in (None, precision):
             continue
         if not include_noncommercial and entry["license_tier"] == "non-commercial":
             continue
