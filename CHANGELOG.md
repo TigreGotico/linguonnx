@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.2a2](https://github.com/TigreGotico/linguonnx/tree/0.14.2a2) (2026-11-02)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.14.2a1...0.14.2a2)
+
+**Merged pull requests:**
+
+- Update dependency transformers to v4.57.6 [\#100](https://github.com/TigreGotico/linguonnx/pull/100) ([renovate[bot]](https://github.com/apps/renovate))
+
 ## [0.14.2a1](https://github.com/TigreGotico/linguonnx/tree/0.14.2a1) (2026-09-23)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.14.1a2...0.14.2a1)
