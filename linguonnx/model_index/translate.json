@@ -1388,6 +1388,7 @@
   },
   "indictrans2-en-indic-1B": {
     "arch": "indictrans2",
+    "extra": "indic",
     "extra_files": [
       "decoder_model.onnx_data",
       "decoder_with_past_model.onnx_data"
@@ -1489,6 +1490,7 @@
   },
   "indictrans2-en-indic-1B-int8": {
     "arch": "indictrans2",
+    "extra": "indic",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",
@@ -1587,6 +1589,7 @@
   },
   "indictrans2-en-indic-dist-200M": {
     "arch": "indictrans2",
+    "extra": "indic",
     "extra_files": [],
     "graphs": {
       "encoder": "encoder_model.onnx",
@@ -1671,6 +1674,7 @@
   },
   "indictrans2-en-indic-dist-200M-int8": {
     "arch": "indictrans2",
+    "extra": "indic",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",
@@ -1755,6 +1759,7 @@
   },
   "indictrans2-indic-en-dist-200M": {
     "arch": "indictrans2",
+    "extra": "indic",
     "extra_files": [],
     "graphs": {
       "encoder": "encoder_model.onnx",
@@ -1839,6 +1844,7 @@
   },
   "indictrans2-indic-en-dist-200M-int8": {
     "arch": "indictrans2",
+    "extra": "indic",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",
@@ -1923,6 +1929,7 @@
   },
   "indictrans2-indic-indic-dist-320M": {
     "arch": "indictrans2",
+    "extra": "indic",
     "extra_files": [],
     "graphs": {
       "encoder": "encoder_model.onnx",
@@ -2030,6 +2037,7 @@
   },
   "indictrans2-indic-indic-dist-320M-int8": {
     "arch": "indictrans2",
+    "extra": "indic",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",
@@ -5418,6 +5426,7 @@
   },
   "nos-coda_iacobus-en-es": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "encoder_model.onnx",
@@ -5445,6 +5454,7 @@
   },
   "nos-coda_iacobus-en-es-int8": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",
@@ -5472,6 +5482,7 @@
   },
   "nos-coda_iacobus-en-gl": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "encoder_model.onnx",
@@ -5499,6 +5510,7 @@
   },
   "nos-coda_iacobus-en-gl-int8": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",
@@ -5526,6 +5538,7 @@
   },
   "nos-coda_iacobus-en-pt": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "encoder_model.onnx",
@@ -5553,6 +5566,7 @@
   },
   "nos-coda_iacobus-en-pt-int8": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",
@@ -5580,6 +5594,7 @@
   },
   "nos-coda_iacobus-es-gl": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "encoder_model.onnx",
@@ -5607,6 +5622,7 @@
   },
   "nos-coda_iacobus-es-gl-int8": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",
@@ -5634,6 +5650,7 @@
   },
   "nos-coda_iacobus-es-pt": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "encoder_model.onnx",
@@ -5661,6 +5678,7 @@
   },
   "nos-coda_iacobus-es-pt-int8": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",
@@ -5688,6 +5706,7 @@
   },
   "nos-coda_iacobus-pt-gl": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "encoder_model.onnx",
@@ -5715,6 +5734,7 @@
   },
   "nos-coda_iacobus-pt-gl-int8": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",
@@ -5742,6 +5762,7 @@
   },
   "nos-mt-en-gl": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "encoder_model.onnx",
@@ -5769,6 +5790,7 @@
   },
   "nos-mt-en-gl-int8": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",
@@ -5796,6 +5818,7 @@
   },
   "nos-mt-es-arg": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "encoder_model.onnx",
@@ -5823,6 +5846,7 @@
   },
   "nos-mt-es-arg-int8": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",
@@ -5850,6 +5874,7 @@
   },
   "nos-mt-es-arn": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "encoder_model.onnx",
@@ -5877,6 +5902,7 @@
   },
   "nos-mt-es-arn-int8": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",
@@ -5904,6 +5930,7 @@
   },
   "nos-mt-es-ast": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "encoder_model.onnx",
@@ -5931,6 +5958,7 @@
   },
   "nos-mt-es-ast-int8": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",
@@ -5958,6 +5986,7 @@
   },
   "nos-mt-es-gl": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "encoder_model.onnx",
@@ -5985,6 +6014,7 @@
   },
   "nos-mt-es-gl-int8": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",
@@ -6012,6 +6042,7 @@
   },
   "nos-mt-gl-en": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "encoder_model.onnx",
@@ -6039,6 +6070,7 @@
   },
   "nos-mt-gl-en-int8": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",
@@ -6066,6 +6098,7 @@
   },
   "nos-mt-gl-es": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "encoder_model.onnx",
@@ -6093,6 +6126,7 @@
   },
   "nos-mt-gl-es-int8": {
     "arch": "opennmt-bpe",
+    "extra": "opennmt",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",
@@ -13767,6 +13801,7 @@
   },
   "translate-eus-cat": {
     "arch": "pegasus-fast",
+    "extra": "fast-tokenizers",
     "extra_files": [],
     "graphs": {
       "encoder": "encoder_model.onnx",
@@ -13793,6 +13828,7 @@
   },
   "translate-eus-cat-int8": {
     "arch": "pegasus-fast",
+    "extra": "fast-tokenizers",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",
@@ -13819,6 +13855,7 @@
   },
   "translate-oci-cat": {
     "arch": "pegasus-fast",
+    "extra": "fast-tokenizers",
     "extra_files": [],
     "graphs": {
       "encoder": "encoder_model.onnx",
@@ -13845,6 +13882,7 @@
   },
   "translate-oci-cat-int8": {
     "arch": "pegasus-fast",
+    "extra": "fast-tokenizers",
     "extra_files": [],
     "graphs": {
       "encoder": "int8/encoder_model.onnx",

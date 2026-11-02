@@ -668,6 +668,15 @@ RULE_BASED_MODELS: Dict[str, Dict] = {
     },
 }
 
+#: Architectures whose pre- or post-processing needs an optional linguonnx
+#: extra. Each entry of such an architecture records the extra, and
+#: `entry_runnability` refuses the entry when the extra is not installed.
+ARCH_EXTRAS: Dict[str, str] = {
+    "indictrans2": "indic",
+    "opennmt-bpe": "opennmt",
+    "pegasus-fast": "fast-tokenizers",
+}
+
 REQUIRED_SIDE_FILES: Dict[str, Tuple[str, ...]] = {
     "marian": ("source_spm", "target_spm", "vocab", "config"),
     "m2m100": ("spm", "config", "special_tokens_map", "vocab"),
@@ -732,7 +741,8 @@ GENERATED_KEYS: FrozenSet[str] = frozenset({
     # the per-direction instruction strings of an instruction-prefixed T5,
     # emitted from `T5_PREFIX_MODELS` and read by `T5TextPrefixPipeline`
     "prefix_templates",
-    # rule-based translators, emitted from `RULE_BASED_MODELS`
+    # rule-based translators (`RULE_BASED_MODELS`), and architectures that
+    # need an optional extra (`ARCH_EXTRAS`)
     "callable", "extra",
     # LID
     "engine", "loss", "num_labels", "onnx_file",
@@ -1861,6 +1871,8 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
     license_id = _license_of(detail, readme)
 
     shared: Dict[str, object] = {"arch": arch}
+    if arch in ARCH_EXTRAS:
+        shared["extra"] = ARCH_EXTRAS[arch]
     if arch == "marian":
         # Before any coverage is read off this repo: check the export can
         # encode its own source language at all.
