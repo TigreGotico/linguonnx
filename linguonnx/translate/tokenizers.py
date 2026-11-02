@@ -208,8 +208,8 @@ def tokenizer_json_added_tokens(path) -> tuple[dict[str, int], set]:
 
     Returns ``(language_ids, other_special_ids)``.
 
-    NLLB ships no ``added_tokens.json``, so the language block was derived by
-    counting through ``special_tokens_map.json``: ``lang_block_start + i``.
+    An NLLB entry registers no ``added_tokens.json``, so the language block
+    was derived by counting through ``special_tokens_map.json``: ``lang_block_start + i``.
     That holds only while the two agree, and a fine-tune that **appends** a
     language breaks it. Measured on
     ``TigreGotico/aina-translator-es-oc-onnx``: ``additional_special_tokens``

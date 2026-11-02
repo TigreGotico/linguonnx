@@ -566,7 +566,7 @@ SIDE_FILES: Dict[str, Dict[str, str]] = {
         "config": "config.json",
         "generation_config": "generation_config.json",
         "special_tokens_map": "special_tokens_map.json",
-        # Not optional where the repo has it. NLLB ships no
+        # Not optional where the repo has it. An NLLB entry registers no
         # `added_tokens.json`, so without this file the language block can
         # only be counted through `special_tokens_map.json`, and a fine-tune
         # that appends a language (`arn_Latn`, `arg_Latn`) makes that count
@@ -1301,36 +1301,43 @@ def _pair_target_token(repo_id: str, files: Sequence[str], tgt: str
     different target than the repo name does. That test cannot see a pair
     whose single target language has several varieties in one model:
     `Helsinki-NLP/opus-mt-en-ar` is named `en-ar`, so the test is quiet, and
-    its vocabulary carries five group tokens: `>>ara<<`, `>>ara_Latn<<`,
-    `>>arq<<`, `>>arq_Latn<<` and `>>arz<<`. Measured on
-    `TigreGotico/opus-mt-en-ar-onnx` with no
-    token: "cancel the alarm" came back as the single word "this", and "tell
-    me a joke" as a word-by-word gloss with the English "a" left in it. With
-    `>>ara<<`: "cancel the alarm" and "tell me a joke" both correct.
+    its vocabulary carries `>>ara<<`, `>>ara_Latn<<`, `>>arq<<`,
+    `>>arq_Latn<<` and `>>arz<<`. With no token, "cancel the alarm" comes
+    back as the single word "this"; with `>>ara<<` it is correct.
 
-    The vocabulary is the evidence, so the vocabulary is read. A token is
-    returned only when exactly one of the export's own tokens is the target
-    language; several varieties of it, or none, return ``None`` rather than a
-    guess about which variety the caller wanted.
+    The export's own vocabulary is read, and a token is recorded only when
+    exactly one of its tokens *is* the target. A script subtag that is the
+    language's default script names the same thing as no script, so
+    `>>cmn<<` and `>>cmn_Hans<<` are two spellings of `zh`, and `en-zh`
+    records nothing rather than a guess between them (`>>cmn<<` alone damages
+    its output). A token in another script (`>>ara_Latn<<`) or of another
+    language (`>>arq<<`, `>>pob<<`) is a different target and does not
+    compete.
     """
     if "vocab.json" not in files:
         return None
-    from linguonnx.detect.labels import to_bcp47
-
     vocab = json.loads(raw_file(repo_id, "vocab.json"))
-    raw_codes = sorted({
-        match.group(1) for key in vocab
-        if (match := _GROUP_TARGET_TOKEN_RE.match(key))
-    })
-    matching = []
-    for raw in raw_codes:
-        # `to_bcp47` returns the tag unchanged when it cannot map it.
-        tag = to_bcp47(raw)
-        if tag == tgt:
-            matching.append(raw)
+    matching = [match.group(1) for key in sorted(vocab)
+                if (match := _GROUP_TARGET_TOKEN_RE.match(key))
+                and _without_default_script(match.group(1)) == tgt]
     if len(matching) != 1:
         return None
     return f">>{matching[0]}<<"
+
+
+def _without_default_script(raw: str) -> str:
+    """``raw`` as BCP-47, minus a script subtag that is the language's default."""
+    import langcodes
+
+    from linguonnx.detect.labels import to_bcp47
+
+    try:
+        tag = langcodes.Language.get(to_bcp47(raw))
+    except Exception:
+        return raw
+    if tag.script and tag.script == langcodes.Language.get(tag.language).maximize().script:
+        tag = tag.update_dict({"script": None})
+    return tag.to_tag()
 
 
 def _declared_languages(detail: dict) -> Optional[List[str]]:

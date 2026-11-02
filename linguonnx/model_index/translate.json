@@ -173,7 +173,7 @@
       "special_tokens_map": "special_tokens_map.json",
       "tokenizer_json": "tokenizer.json"
     },
-    "size_mb": 7382
+    "size_mb": 7414
   },
   "aina-es-oc-int8": {
     "arch": "nllb",
@@ -206,7 +206,7 @@
       "special_tokens_map": "int8/special_tokens_map.json",
       "tokenizer_json": "int8/tokenizer.json"
     },
-    "size_mb": 1862
+    "size_mb": 1894
   },
   "aina-translator-ca-de": {
     "arch": "marian",
@@ -782,7 +782,7 @@
       "special_tokens_map": "special_tokens_map.json",
       "tokenizer_json": "tokenizer.json"
     },
-    "size_mb": 7382
+    "size_mb": 7414
   },
   "aina-translator-es-an-int8": {
     "arch": "nllb",
@@ -811,7 +811,7 @@
       "special_tokens_map": "int8/special_tokens_map.json",
       "tokenizer_json": "int8/tokenizer.json"
     },
-    "size_mb": 1862
+    "size_mb": 1894
   },
   "aina-translator-es-ast": {
     "arch": "nllb",
@@ -843,7 +843,7 @@
       "special_tokens_map": "special_tokens_map.json",
       "tokenizer_json": "tokenizer.json"
     },
-    "size_mb": 7382
+    "size_mb": 7414
   },
   "aina-translator-es-ast-int8": {
     "arch": "nllb",
@@ -876,7 +876,7 @@
       "special_tokens_map": "int8/special_tokens_map.json",
       "tokenizer_json": "int8/tokenizer.json"
     },
-    "size_mb": 1862
+    "size_mb": 1894
   },
   "aina-translator-es-ca": {
     "arch": "marian",
@@ -5185,7 +5185,7 @@
       "special_tokens_map": "special_tokens_map.json",
       "tokenizer_json": "tokenizer.json"
     },
-    "size_mb": 7382
+    "size_mb": 7414
   },
   "nllb-600M-int8": {
     "arch": "nllb",
@@ -5414,7 +5414,7 @@
       "special_tokens_map": "special_tokens_map.json",
       "tokenizer_json": "tokenizer.json"
     },
-    "size_mb": 1866
+    "size_mb": 1899
   },
   "nos-coda_iacobus-en-es": {
     "arch": "opennmt-bpe",
@@ -7130,7 +7130,8 @@
       "generation_config": "generation_config.json",
       "special_tokens_map": "special_tokens_map.json"
     },
-    "size_mb": 652
+    "size_mb": 652,
+    "target_token": ">>bul<<"
   },
   "opus-mt-en-bg-int8": {
     "arch": "marian",
@@ -7158,7 +7159,8 @@
       "generation_config": "int8/generation_config.json",
       "special_tokens_map": "int8/special_tokens_map.json"
     },
-    "size_mb": 168
+    "size_mb": 168,
+    "target_token": ">>bul<<"
   },
   "opus-mt-en-ca": {
     "arch": "marian",
@@ -8727,7 +8729,8 @@
       "generation_config": "generation_config.json",
       "special_tokens_map": "special_tokens_map.json"
     },
-    "size_mb": 1748
+    "size_mb": 1748,
+    "target_token": ">>por<<"
   },
   "opus-mt-en-pt-int8": {
     "arch": "marian",
@@ -8755,7 +8758,8 @@
       "generation_config": "int8/generation_config.json",
       "special_tokens_map": "int8/special_tokens_map.json"
     },
-    "size_mb": 441
+    "size_mb": 441,
+    "target_token": ">>por<<"
   },
   "opus-mt-en-ro": {
     "arch": "marian",
@@ -9287,7 +9291,8 @@
       "generation_config": "generation_config.json",
       "special_tokens_map": "special_tokens_map.json"
     },
-    "size_mb": 602
+    "size_mb": 602,
+    "target_token": ">>vie<<"
   },
   "opus-mt-en-vi-int8": {
     "arch": "marian",
@@ -9315,7 +9320,8 @@
       "generation_config": "int8/generation_config.json",
       "special_tokens_map": "int8/special_tokens_map.json"
     },
-    "size_mb": 154
+    "size_mb": 154,
+    "target_token": ">>vie<<"
   },
   "opus-mt-en-xh": {
     "arch": "marian",

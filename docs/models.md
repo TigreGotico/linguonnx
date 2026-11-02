@@ -502,34 +502,31 @@ claim that cannot be honoured is worse than publishing nothing.
 
 That name test is not enough on its own. `Helsinki-NLP/opus-mt-en-ar` is named
 as a pair, so the test stays quiet, and its vocabulary still carries
-five group tokens — `>>ara<<`, `>>ara_Latn<<`, `>>arq<<`, `>>arq_Latn<<` and
-`>>arz<<`: one target language with several varieties. Measured with no token,
-"cancel the alarm" came back as the single word "this". So the export's own
-`vocab.json` is read for every pair as well, and a token is recorded only when
-exactly one of its `>>xxx<<` tokens is the pair's target language. Several
-varieties of it, or none, record nothing rather than a guess about which
-variety the caller wanted.
+`>>ara<<`, `>>ara_Latn<<`, `>>arq<<`, `>>arq_Latn<<` and `>>arz<<`: one target
+language with several varieties. With no token, "cancel the alarm" comes back
+as the single word "this". So the export's own `vocab.json` is read for every
+pair as well, and a token is recorded only when exactly one of its `>>xxx<<`
+tokens is the pair's target language.
 
-Four more pairs are named for one target and carry several varieties, so this
-reading resolves a token for each of them:
+A script subtag that is the language's default script is the same target as
+no script. `opus-mt-en-zh` carries `>>cmn<<` and `>>cmn_Hans<<`, two spellings
+of `zh`, so it records no token: with `>>cmn<<` alone its output carries
+subtitle markup and stray English. A token in another script or of another
+language is a different target. `>>ara_Latn<<` does not compete with
+`>>ara<<`, and `>>pob<<` does not compete with `>>por<<`. The pairs that record
+a token this way, each measured with and without it:
 
-| Pair | `>>xxx<<` tokens in its vocabulary | Token the reading resolves |
-| --- | --- | --- |
-| `opus-mt-en-pt` | `pob`, `por` | `>>por<<` |
-| `opus-mt-en-bg` | `bul`, `bul_Latn` | `>>bul<<` |
-| `opus-mt-en-vi` | `vie` | `>>vie<<` |
-| `opus-mt-en-zh` | `cmn`, `cmn_Hans`, `cmn_Hant`, `nan`, `wuu`, `yue`, `yue_Hans`, `yue_Hant` | `>>cmn<<` |
+| Entry | Token | Without the token |
+|---|---|---|
+| `opus-mt-en-ar` | `>>ara<<` | "cancel the alarm" becomes "this" |
+| `opus-mt-en-bg` | `>>bul<<` | "cancel the alarm" becomes "switch ON the alarm" |
+| `opus-mt-en-vi` | `>>vie<<` | "cancel the alarm" repeats one word to the length limit |
+| `opus-mt-en-pt` | `>>por<<` | Brazilian forms; with the token, European ("enviar-lhe-ei") |
 
-None of the four records a token today, and none records one here either: these
-entries have not been regenerated, and a regeneration is what would pick the
-tokens up. `opus-mt-en-ar` is recorded by hand because a wrong answer there was
-measured, not because its entry was regenerated. `opus-mt-en-pl` already
-carries `>>pol<<`, from the name test rather than from this reading.
-
-`opus-mt-en-pt` is worth naming separately: `pob` is Brazilian Portuguese and
-resolves to `pob`, not to `pt`, so the reading sees one candidate and not two.
-A caller who asks for Brazilian Portuguese still cannot reach it, which is a
-coverage gap in the entry rather than an ambiguity in this rule.
+`opus-mt-en-pl` carries `>>pol<<` from the name test, not from this reading.
+`>>pob<<` is Brazilian Portuguese, and no entry addresses it, so a caller who
+asks for `pt-BR` gets the `>>por<<` output. That is a coverage gap in the
+entry, not an ambiguity in this rule.
 
 A repo whose *name* is a family — `opus-mt-itc-itc`, `opus-mt-mul-en` — is not
 a pair at all and is not treated as one. `itc` is the Italic family, so no
@@ -555,16 +552,16 @@ of these: an NLLB-600M fine-tune whose tokenizer claims 202 languages and whose
 weights do Spanish into Aranese, one way.
 
 A fine-tune can also **add** a language, and where it puts the new token
-matters. NLLB ships no `added_tokens.json`, so the language block used to be
-derived by counting through `special_tokens_map.json` from the first id after
-the SentencePiece table. `aina-es-oc` and `aina-translator-es-an` append
-`arn_Latn` and `arg_Latn` after the base tokenizer's own `<mask>`, so counting
-put each one on `<mask>` itself and the model was told to answer in it:
-Aranese lost the verb of every sentence, and Aragonese raised
-`IndexError: OUT_OF_RANGE` when it emitted its own token back. So
-`tokenizer.json` states each id, so it is a side file for every NLLB entry and
-is read instead of counted. An export that ships none uses the counted block,
-and `added_tokens.json` outranks both.
+matters. Counting the language block through `special_tokens_map.json` from
+the first id after the SentencePiece table gets an appended token wrong.
+`aina-es-oc` and `aina-translator-es-an` append `arn_Latn` and `arg_Latn`
+after the base tokenizer's own `<mask>`, so a count puts each one on `<mask>`
+itself and the model is told to answer in it: Aranese loses the verb of every
+sentence, and Aragonese raises `IndexError: OUT_OF_RANGE` when it emits its own
+token back. `tokenizer.json` states each id, so it is a side file for every
+NLLB entry and is read instead of counted. An export that ships no
+`tokenizer.json` uses the counted block, and a registered `added_tokens.json`
+outranks both.
 
 There is a third hand-maintained fix-up, `MARIAN_MULTILINGUAL_OVERRIDES`, for a
 model whose own code collides with a different language's ISO tag —

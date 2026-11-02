@@ -1,7 +1,7 @@
 """An appended language token has an id that cannot be counted to.
 
-NLLB ships no ``added_tokens.json``, so the language block was derived by
-counting through ``special_tokens_map.json``: ``lang_block_start + i``. That
+An NLLB entry registers no ``added_tokens.json``, so the language block was
+derived by counting through ``special_tokens_map.json``: ``lang_block_start + i``. That
 holds only while the names and the ids agree.
 
 A Projecte Aina fine-tune **appends** its new language to the base NLLB
