@@ -123,6 +123,7 @@ to fall back on.
 | `t5-prefix` (T5/UMT5) | A natural-language instruction prepended to the input — "Translate Akkadian cuneiform to English" — not a code and not a forced decoder id. The wording differs per direction and is prose on the model card, so each direction's exact string is stored in the entry's `prefix_templates` rather than built from a template. A direction with no registered instruction raises; the model would otherwise answer it fluently, in a direction of its own choosing. The vocabulary comes from a SentencePiece model plus its added tokens, or from a `tokenizer.json` read with linguonnx's own Unigram implementation. |
 | `indictrans2` | AI4Bharat's `IndicProcessor` pipeline, then a `<src_tag> <tgt_tag>` prefix on the input. Needs the `indic` extra; see below. |
 | `opennmt-bpe` | Nothing to choose — the model is the pair. The work is Moses tokenisation plus `subword-nmt` BPE over OpenNMT's concatenated source/target vocabulary. Needs the `opennmt` extra; see below. |
+| `rules` | Nothing to choose — the model is the pair. The entry's `callable` names a Python function that translates one line. Needs the extra the entry names; see below. |
 
 `linguonnx` handles the implemented architectures behind one call and converts
 BCP-47 to whatever codes the model wants, so `tgt="pt"` means Portuguese
@@ -303,6 +304,29 @@ place — `can_translate()` answering `True`, then a raise from the call the
 caller made on the strength of that answer. `NoRouteError` names such a model
 when it is the only cover for a pair. See
 [routing.md](routing.md#coverage-and-runnability-are-separate).
+
+### Rule-based models
+
+A `rules` entry has no ONNX graph. `TranslationModel.translate` imports the
+function that the entry's `callable` names and gives it each line of the input
+in turn. The line breaks stay as they are. `pt2barranquenho` is the one such
+model: it translates Portuguese into Barranquenho, `ext-PT-x-barrancos`, and
+comes from the `rules` extra.
+
+```python
+from linguonnx import load_translator
+
+tx = load_translator()
+text, route = tx.translate("Eu gosto muito de ti.", src="pt",
+                           tgt="ext-PT-x-barrancos", return_route=True)
+print(text)              # 'Eu gohtu muntu de ti.'
+print(route.model_ids)   # ('pt2barranquenho',)
+```
+
+When the package is not installed, the router does not route through the
+entry, and `NoRouteError` names the extra. A caller who pins the model with
+`model="pt2barranquenho"` gets the same error from `translate()`. See
+[models.md](models.md#rule-based-models).
 
 ## When there is no route
 

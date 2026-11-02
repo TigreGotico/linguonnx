@@ -83,7 +83,9 @@ def _select_entries(precision: Optional[str], include_noncommercial: bool,
         return {m: registry[m] for m in models}
     chosen = {}
     for model_id, entry in registry.items():
-        if precision and entry["precision"] != precision:
+        # A rule-based entry has no weights and so no precision; the filter
+        # does not apply to it.
+        if precision and entry.get("precision") not in (None, precision):
             continue
         if not include_noncommercial and entry["license_tier"] == "non-commercial":
             continue
@@ -139,7 +141,9 @@ class Translator:
                 target = cached if model_manager.is_cached(
                     model_id, kind="translate") else absent
                 target[model_id] = entry
-            if not cached:
+            # An entry with no graphs downloads nothing, so it is always
+            # "cached". It cannot stand in for a cache that holds no model.
+            if not any(entry.get("graphs") for entry in cached.values()):
                 raise ValueError(
                     "fetch_on_demand=False and none of the "
                     f"{len(absent)} selected translation model(s) are cached; "

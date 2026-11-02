@@ -25,6 +25,10 @@ fluent text in the wrong language and nothing raises. So it is concentrated in
 ``opennmt-bpe``
     Nothing to select; the model is the pair. The work is Moses tokenisation
     and BPE, on both ends.
+``rules``
+    No ONNX graph and no download. The entry's ``callable`` names a Python
+    function, ``module:function``, that translates one line, and the model is
+    the pair. :mod:`pt2barranquenho` is the one such model.
 
 The per-architecture parts of that live in
 :mod:`linguonnx.translate.preprocess`, one :class:`~preprocess.Pipeline` each,
@@ -34,17 +38,19 @@ other and cannot drift apart.
 
 from __future__ import annotations
 
+import importlib
 import json
 import logging
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, FrozenSet, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 from linguonnx.limits import MAX_ENCODER_TOKENS, DecodeError, has_visible_content
 from linguonnx.model_manager import ensure_model_files, registry_entry
 from linguonnx.providers import ProviderSpec, make_session
 from linguonnx.translate.decode import GenerationConfig, Seq2SeqDecoder
-from linguonnx.translate.graph import Capability, normalize_tag
+from linguonnx.translate.graph import (Capability, NoRouteError,
+                                       entry_runnability, normalize_tag)
 from linguonnx.translate.preprocess import Pipeline, pipeline_for
 from linguonnx.translate.tokenizers import load_tokenizer
 
@@ -128,6 +134,7 @@ class TranslationModel:
         self._tokenizer = None
         self._config: Optional[Dict] = None
         self._banned_token_ids: Optional[FrozenSet[int]] = None
+        self._rules: Optional[Callable[[str], str]] = None
         # model code <-> BCP-47, both ways, built from the registry's own list.
         self._to_native: Dict[str, str] = {}
         for code in self.entry.get("languages", ()):
@@ -248,6 +255,24 @@ class TranslationModel:
         return self._tokenizer
 
     @property
+    def rules(self) -> Callable[[str], str]:
+        """The line translator a ``rules`` entry names in its ``callable``.
+
+        A caller who pins the model with ``model=`` skips the router's
+        runnability check, so the same check runs here and the error names the
+        extra to install instead of a bare ``ModuleNotFoundError``.
+        """
+        if self._rules is None:
+            runnable, reason = entry_runnability(self.entry)
+            if not runnable:
+                raise NoRouteError(
+                    f"{self.model_id} covers this pair but cannot be run: "
+                    f"{reason}")
+            module, _, function = self.entry["callable"].partition(":")
+            self._rules = getattr(importlib.import_module(module), function)
+        return self._rules
+
+    @property
     def pipeline(self) -> Pipeline:
         """The pre/post-processing pair for this model's architecture."""
         return pipeline_for(self.arch)
@@ -338,6 +363,11 @@ class TranslationModel:
                   target_token: Optional[str] = None) -> str:
         if not text.strip():
             return ""
+        if self.arch == "rules":
+            # The rules work on one sentence or line at a time, so each line
+            # is translated alone and the line breaks are kept.
+            return "\n".join(self.rules(line) if line.strip() else line
+                             for line in text.split("\n"))
         config = config or GenerationConfig()
         # A multi-target Marian group model (opus-mt-en-sla and friends) picks
         # its target language from a prefix token, and picks it *wrong* when

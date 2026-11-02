@@ -237,7 +237,8 @@ def test_default_graph_is_permissive_and_int8():
     assert translator.models, "the default graph must not be empty"
     for entry in translator.models.values():
         assert entry["license_tier"] == "permissive"
-        assert entry["precision"] == "int8"
+        # A rule-based entry has no weights and no precision.
+        assert entry.get("precision", "int8") == "int8"
     assert "m2m100-418M-int8" in translator.models
     assert "nllb-600M-int8" not in translator.models, \
         "NLLB is CC-BY-NC and must be opt-in"
@@ -274,7 +275,8 @@ def test_english_to_portuguese_prefers_the_dedicated_model():
 
 def test_fp32_precision_can_be_selected():
     translator = load_translator(precision="fp32")
-    assert all(e["precision"] == "fp32" for e in translator.models.values())
+    assert all(e["precision"] == "fp32" for e in translator.models.values()
+               if e["arch"] != "rules")
 
 
 def test_unknown_model_id_is_rejected():

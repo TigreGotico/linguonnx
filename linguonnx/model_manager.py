@@ -440,12 +440,15 @@ def ensure_model_files(model_id: str, kind: str = "lid",
                        enforce_budget: bool = True) -> Dict[str, Path]:
     """Download (if needed) every file a model needs; return name -> local path."""
     entry = registry_entry(model_id, kind)
+    wanted = list(_entry_files(entry))
+    if not wanted:
+        # A rule-based entry ships as a Python package and has no files.
+        return {}
     repo_id = entry["hf_repo"]
     revision = entry.get("revision")
     checksums = entry.get("sha256") or {}
     dest_dir = MODELS_DIR / model_id
 
-    wanted = list(_entry_files(entry))
     graph_filenames = _graph_filenames(entry)
     if enforce_budget:
         any_missing = _any_missing(dest_dir, (name for _, name in wanted))

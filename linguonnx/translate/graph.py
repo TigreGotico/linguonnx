@@ -58,7 +58,7 @@ smallest oversized model that does, rather than failing.
 The filter semantics alone force a choice nobody wants to make. The long tail
 of languages exists only inside a few very large multilingual models - MADLAD
 (4945 MB), NLLB (1866 MB), M2M100-418M (1207 MB) - so a 500 MB cap that
-excludes them outright drops routable languages from 586 to 249 on the
+excludes them outright drops routable languages from 594 to 252 on the
 default registry with an empty cache (``test_translate_registry_numbers.py``
 pins both numbers). Lifting the cap instead lets those same models win pairs
 that a 157 MB ``opus-mt`` pair already served, because "one multilingual hop"
@@ -194,6 +194,7 @@ way, and :attr:`Route.pivot_basis` says which ranking produced a route.
 
 from __future__ import annotations
 
+import importlib.util
 import itertools
 import logging
 from dataclasses import dataclass, field, replace
@@ -301,6 +302,15 @@ MODEL_CODE_ALIASES: Dict[str, str] = {
     # the "ja" every other Japanese-capable model routes through.
     "jap": "ja",
 }
+
+#: Graph nodes that no standard parses, keyed by their lowercase form and kept
+#: in their canonical spelling, whatever case the caller writes. The
+#: Barranquenho locale key spells its private-use subtag with nine letters,
+#: one over the BCP-47 limit, so ``langcodes`` refuses it. Without this entry
+#: a caller's tag fails as malformed whenever the model that serves it cannot
+#: run, and the region fallback in :meth:`TranslationGraph._node` turns it
+#: into ``ext``, which is Extremaduran.
+NONSTANDARD_TAGS: Dict[str, str] = {"ext-pt-x-barrancos": "ext-PT-x-barrancos"}
 
 
 #: Institution that owns a language, for the specialist-provenance tie-break.
@@ -427,6 +437,8 @@ def normalize_tag(tag: str, strict: bool = False) -> str:
     tag = tag.strip()
     if not tag:
         raise MalformedTagError("empty language tag")
+    if tag.lower() in NONSTANDARD_TAGS:
+        return NONSTANDARD_TAGS[tag.lower()]
     tag = MODEL_CODE_ALIASES.get(tag, tag)
     # FLORES/GlotLID spell a script suffix with an underscore ("ace_Arab");
     # NLLB's own registry card and some hand-written registry entries spell
@@ -469,9 +481,23 @@ def entry_runnability(entry: Dict) -> Tuple[bool, Optional[str]]:
     several targets from one decoder selects the target with a prefix token,
     and with no token it answers in whichever language it likes. Such an entry
     is refused rather than trusted.
+
+    An entry that runs a Python ``callable`` (``module:function``) instead of
+    ONNX graphs is runnable only when that module is importable. The entry
+    names the optional extra that installs the module, so the reason tells
+    the caller what to install.
     """
     if entry.get("runnable") is False:
         return False, entry.get("unrunnable_reason") or "the registry marks it unrunnable"
+    if entry.get("callable"):
+        module = entry["callable"].partition(":")[0]
+        try:
+            missing = importlib.util.find_spec(module) is None
+        except ModuleNotFoundError:
+            missing = True
+        if missing:
+            return False, (f"the {module!r} package is not installed; "
+                           f"install linguonnx[{entry['extra']}]")
     # A model with no `pair` and only one selectable target - a many-source,
     # one-fixed-target group export, e.g. `opus-mt-tc-big-cat_oci_spa-en`
     # (Catalan/Occitan/Spanish -> English, no `>>xxx<<` token in its
@@ -1306,7 +1332,8 @@ class TranslationGraph:
             if lowered in self._addressable:
                 return lowered
             raise
-        if node in self._addressable or "-" not in node:
+        if node in self._addressable or "-" not in node \
+                or node in NONSTANDARD_TAGS.values():
             return node
         # `pt-BR` is well-formed and unsupported as written, but the graph is
         # keyed on the language subtag, and refusing a region the models simply
