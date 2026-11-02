@@ -500,6 +500,34 @@ disagrees it records the `target_token` the export was verified against, and
 skips the repo entirely if the card does not show one. Publishing a coverage
 claim that cannot be honoured is worse than publishing nothing.
 
+That name test is not enough on its own. `Helsinki-NLP/opus-mt-en-ar` is named
+as a pair, so the test stays quiet, and its vocabulary still carries
+`>>ara<<`, `>>ara_Latn<<`, `>>arq<<`, `>>arq_Latn<<` and `>>arz<<`: one target
+language with several varieties. With no token, "cancel the alarm" comes back
+as the single word "this". So the export's own `vocab.json` is read for every
+pair as well, and a token is recorded only when exactly one of its `>>xxx<<`
+tokens is the pair's target language.
+
+A script subtag that is the language's default script is the same target as
+no script. `opus-mt-en-zh` carries `>>cmn<<` and `>>cmn_Hans<<`, two spellings
+of `zh`, so it records no token: with `>>cmn<<` alone its output carries
+subtitle markup and stray English. A token in another script or of another
+language is a different target. `>>ara_Latn<<` does not compete with
+`>>ara<<`, and `>>pob<<` does not compete with `>>por<<`. The pairs that record
+a token this way, each measured with and without it:
+
+| Entry | Token | Without the token |
+|---|---|---|
+| `opus-mt-en-ar` | `>>ara<<` | "cancel the alarm" becomes "this" |
+| `opus-mt-en-bg` | `>>bul<<` | "cancel the alarm" becomes "switch ON the alarm" |
+| `opus-mt-en-vi` | `>>vie<<` | "cancel the alarm" repeats one word to the length limit |
+| `opus-mt-en-pt` | `>>por<<` | Brazilian forms; with the token, European ("enviar-lhe-ei") |
+
+`opus-mt-en-pl` carries `>>pol<<` from the name test, not from this reading.
+`>>pob<<` is Brazilian Portuguese, and no entry addresses it, so a caller who
+asks for `pt-BR` gets the `>>por<<` output. That is a coverage gap in the
+entry, not an ambiguity in this rule.
+
 A repo whose *name* is a family — `opus-mt-itc-itc`, `opus-mt-mul-en` — is not
 a pair at all and is not treated as one. `itc` is the Italic family, so no
 caller can ask for it; the entry that used to say `pair: ["itc", "itc"]` was an
@@ -522,6 +550,18 @@ claim including `th -> sw`. A model whose real set is narrower than its
 tokenizer states it in `MULTILINGUAL_LANGUAGE_OVERRIDES`. `aina-es-oc` is one
 of these: an NLLB-600M fine-tune whose tokenizer claims 202 languages and whose
 weights do Spanish into Aranese, one way.
+
+A fine-tune can also **add** a language, and where it puts the new token
+matters. Counting the language block through `special_tokens_map.json` from
+the first id after the SentencePiece table gets an appended token wrong.
+`aina-es-oc` and `aina-translator-es-an` append `arn_Latn` and `arg_Latn`
+after the base tokenizer's own `<mask>`, so a count puts each one on `<mask>`
+itself and the model is told to answer in it: Aranese loses the verb of every
+sentence, and Aragonese raises `IndexError: OUT_OF_RANGE` when it emits its own
+token back. `tokenizer.json` states each id, so it is a side file for every
+NLLB entry and is read instead of counted. An export that ships no
+`tokenizer.json` uses the counted block, and a registered `added_tokens.json`
+outranks both.
 
 There is a third hand-maintained fix-up, `MARIAN_MULTILINGUAL_OVERRIDES`, for a
 model whose own code collides with a different language's ISO tag —
