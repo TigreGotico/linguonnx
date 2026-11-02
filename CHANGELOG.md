@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.1a1](https://github.com/TigreGotico/linguonnx/tree/0.15.1a1) (2026-11-02)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.15.0a1...0.15.1a1)
+
+**Merged pull requests:**
+
+- fix: address the language token the export states, and give a multi-variety pair its target token [\#99](https://github.com/TigreGotico/linguonnx/pull/99) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.15.0a1](https://github.com/TigreGotico/linguonnx/tree/0.15.0a1) (2026-11-02)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.14.2a2...0.15.0a1)
