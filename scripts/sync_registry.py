@@ -639,6 +639,28 @@ SIDE_FILES: Dict[str, Dict[str, str]] = {
 #: `linguonnx/translate/preprocess.py`. Both were listed here; both now route.
 UNRUNNABLE_ARCHS: Dict[str, str] = {}
 
+#: Translators that are Python packages, not Hub repos. The crawl cannot find
+#: them, so :func:`main` adds them to every generated registry, and
+#: :func:`merge_preserving` keeps them like any other generated entry. The
+#: ``callable`` names the line translator; ``extra`` names the linguonnx extra
+#: that installs its package, which `entry_runnability` quotes when the
+#: package is missing.
+RULE_BASED_MODELS: Dict[str, Dict] = {
+    "pt2barranquenho": {
+        "model_id": "pt2barranquenho",
+        "arch": "rules",
+        "pair": ["pt", "ext-PT-x-barrancos"],
+        "callable": "pt2barranquenho:translate",
+        "extra": "rules",
+        "license": "Apache-2.0",
+        "license_tier": "permissive",
+        "size_mb": 0,
+        "notes": ("Rule-based European Portuguese -> Barranquenho translator "
+                  "(TigreGotico/pt2barranquenho). It translates one line at "
+                  "a time and keeps {slots}. It has no reverse direction."),
+    },
+}
+
 REQUIRED_SIDE_FILES: Dict[str, Tuple[str, ...]] = {
     "marian": ("source_spm", "target_spm", "vocab", "config"),
     "m2m100": ("spm", "config", "special_tokens_map", "vocab"),
@@ -703,6 +725,8 @@ GENERATED_KEYS: FrozenSet[str] = frozenset({
     # the per-direction instruction strings of an instruction-prefixed T5,
     # emitted from `T5_PREFIX_MODELS` and read by `T5TextPrefixPipeline`
     "prefix_templates",
+    # rule-based translators, emitted from `RULE_BASED_MODELS`
+    "callable", "extra",
     # LID
     "engine", "loss", "num_labels", "onnx_file",
     # emitted together whenever `arch in UNRUNNABLE_ARCHS`, and consumed as a
@@ -2220,6 +2244,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print("refusing to write an empty registry; is the Hub reachable?",
               file=sys.stderr)
         return 2
+    # After the empty-registry guard, so these entries cannot hide a crawl
+    # that reached nothing.
+    translate.update({model_id: dict(entry)
+                      for model_id, entry in RULE_BASED_MODELS.items()})
 
     drift = False
     # A skipped repo used to exist only as a line on stderr, so a model that

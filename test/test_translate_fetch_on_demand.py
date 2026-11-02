@@ -108,6 +108,15 @@ class TestAnAbsentModelIsNamedRatherThanLookingUnsupported:
         with pytest.raises(ValueError, match="fetch_on_demand"):
             load_translator(fetch_on_demand=False)
 
+    def test_an_empty_cache_on_disk_is_refused_at_build_time(
+            self, monkeypatch, tmp_path):
+        """Not faked: an empty models directory, and the rule-based entry,
+        which has no files and so always reads as cached."""
+        monkeypatch.setattr(model_manager, "MODELS_DIR", tmp_path)
+        assert model_manager.is_cached("pt2barranquenho", kind="translate")
+        with pytest.raises(ValueError, match="fetch_on_demand"):
+            load_translator(fetch_on_demand=False)
+
 
 class TestFetchOnDemandIsTheDefault:
     """The default preserves today's behaviour: an existing deployment must

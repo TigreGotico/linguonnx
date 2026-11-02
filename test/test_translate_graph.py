@@ -266,7 +266,7 @@ def _realistic_graph():
     from linguonnx.model_manager import list_models
     from linguonnx.translate.models import capability_from_entry
     entries = [e for e in list_models(kind="translate").values()
-               if e["precision"] == "int8"]
+               if e.get("precision") == "int8"]
     return TranslationGraph([capability_from_entry(e) for e in entries])
 
 
@@ -915,7 +915,7 @@ def test_a_cap_trades_long_tail_languages_for_short_chains():
     from linguonnx.model_manager import list_models
     from linguonnx.translate.models import capability_from_entry
     caps = [capability_from_entry(e) for e in list_models(kind="translate").values()
-            if e["precision"] == "int8" and e["license_tier"] != "non-commercial"]
+            if e.get("precision") == "int8" and e["license_tier"] != "non-commercial"]
     # count_cached_as_free=False: whether this host happens to hold MADLAD must
     # not decide what the test measures.
     full = TranslationGraph(caps, count_cached_as_free=False)
@@ -939,7 +939,7 @@ def test_the_real_registry_advertises_only_what_it_can_route_under_a_cap():
     from linguonnx.model_manager import list_models
     from linguonnx.translate.models import capability_from_entry
     caps = [capability_from_entry(e) for e in list_models(kind="translate").values()
-            if e["precision"] == "int8" and e["license_tier"] != "non-commercial"]
+            if e.get("precision") == "int8" and e["license_tier"] != "non-commercial"]
     small = TranslationGraph(caps, max_model_mb=500, count_cached_as_free=False)
     dropped = TranslationGraph(caps, count_cached_as_free=False).languages \
         - small.languages
