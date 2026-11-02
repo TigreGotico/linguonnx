@@ -15,7 +15,7 @@ from linguonnx.model_manager import list_models
 from linguonnx.translate import load_translator
 from linguonnx.translate.graph import (NoRouteError, _registry_runnability,
                                        entry_runnability, normalize_tag)
-from linguonnx.translate.models import capability_from_entry
+from linguonnx.translate.models import TranslationModel, capability_from_entry
 
 BARRANQUENHO = "ext-PT-x-barrancos"
 
@@ -81,6 +81,19 @@ def test_translation_is_the_package_output_line_by_line(translator):
     assert out == expected
     assert out != text
     assert route.model_ids == ("pt2barranquenho",)
+
+
+def test_the_callable_gets_one_line_at_a_time(monkeypatch):
+    """pt2barranquenho 0.1.0a2, the declared floor, does not split lines
+    itself, so linguonnx must. A fresh model, so the stand-in is the callable
+    it resolves."""
+    def one_line(text):
+        assert "\n" not in text, text
+        return text.upper()
+
+    monkeypatch.setattr(pt2barranquenho, "translate", one_line)
+    model = TranslationModel("pt2barranquenho")
+    assert model.translate("um\n\ndois", "pt", BARRANQUENHO) == "UM\n\nDOIS"
 
 
 def test_a_pinned_model_gives_the_same_output():

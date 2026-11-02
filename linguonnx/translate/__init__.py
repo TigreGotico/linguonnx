@@ -141,7 +141,9 @@ class Translator:
                 target = cached if model_manager.is_cached(
                     model_id, kind="translate") else absent
                 target[model_id] = entry
-            if not cached:
+            # An entry with no graphs downloads nothing, so it is always
+            # "cached". It cannot stand in for a cache that holds no model.
+            if not any(entry.get("graphs") for entry in cached.values()):
                 raise ValueError(
                     "fetch_on_demand=False and none of the "
                     f"{len(absent)} selected translation model(s) are cached; "
