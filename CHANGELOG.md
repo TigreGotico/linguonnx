@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.2a1](https://github.com/TigreGotico/linguonnx/tree/0.15.2a1) (2026-11-02)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.15.1a1...0.15.2a1)
+
+**Merged pull requests:**
+
+- fix: a model whose extra is not installed is never routed to [\#105](https://github.com/TigreGotico/linguonnx/pull/105) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.15.1a1](https://github.com/TigreGotico/linguonnx/tree/0.15.1a1) (2026-11-02)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.15.0a1...0.15.1a1)
