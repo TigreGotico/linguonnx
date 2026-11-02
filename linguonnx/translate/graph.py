@@ -194,9 +194,11 @@ way, and :attr:`Route.pivot_basis` says which ranking produced a route.
 
 from __future__ import annotations
 
+import importlib.metadata
 import importlib.util
 import itertools
 import logging
+import re
 from dataclasses import dataclass, field, replace
 from datetime import date
 from functools import lru_cache
@@ -468,6 +470,38 @@ def normalize_tag(tag: str, strict: bool = False) -> str:
         return tag.lower()
 
 
+def _normalize_name(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def missing_extra_packages(extra: str) -> List[str]:
+    """The packages ``linguonnx[extra]`` requires that are not installed.
+
+    Read from the installed package metadata, so ``pyproject.toml`` stays the
+    one list of what each extra needs. Without that metadata (linguonnx run
+    from a source tree that was never installed) nothing can be checked, and
+    the answer is an empty list.
+    """
+    try:
+        requirements = importlib.metadata.requires("linguonnx") or []
+    except importlib.metadata.PackageNotFoundError:
+        return []
+    wanted = _normalize_name(extra)
+    missing = []
+    for requirement in requirements:
+        marker = re.search(r"""extra\s*==\s*['"]([^'"]+)['"]""", requirement)
+        if marker is None or _normalize_name(marker.group(1)) != wanted:
+            continue
+        name = re.match(r"[A-Za-z0-9][A-Za-z0-9._-]*", requirement).group(0)
+        if _normalize_name(name) == "linguonnx":
+            continue
+        try:
+            importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:
+            missing.append(name)
+    return missing
+
+
 def entry_runnability(entry: Dict) -> Tuple[bool, Optional[str]]:
     """``(runnable, reason)`` for one ``translate.json`` entry.
 
@@ -486,6 +520,12 @@ def entry_runnability(entry: Dict) -> Tuple[bool, Optional[str]]:
     ONNX graphs is runnable only when that module is importable. The entry
     names the optional extra that installs the module, so the reason tells
     the caller what to install.
+
+    Any other entry that names an ``extra`` needs that extra's packages for
+    its pre- or post-processing, and is runnable only when all of them are
+    installed. Checking here, when the graph is built, keeps such a model out
+    of routing. Otherwise it is chosen, downloaded, and then fails with
+    ``ImportError`` in the middle of a request.
     """
     if entry.get("runnable") is False:
         return False, entry.get("unrunnable_reason") or "the registry marks it unrunnable"
@@ -498,6 +538,11 @@ def entry_runnability(entry: Dict) -> Tuple[bool, Optional[str]]:
         if missing:
             return False, (f"the {module!r} package is not installed; "
                            f"install linguonnx[{entry['extra']}]")
+    if entry.get("extra"):
+        missing = missing_extra_packages(entry["extra"])
+        if missing:
+            return False, (f"{', '.join(missing)} not installed; install "
+                           f"linguonnx[{entry['extra']}]")
     # A model with no `pair` and only one selectable target - a many-source,
     # one-fixed-target group export, e.g. `opus-mt-tc-big-cat_oci_spa-en`
     # (Catalan/Occitan/Spanish -> English, no `>>xxx<<` token in its

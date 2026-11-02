@@ -363,6 +363,14 @@ class TranslationModel:
                   target_token: Optional[str] = None) -> str:
         if not text.strip():
             return ""
+        if self.entry.get("extra") and self.arch != "rules":
+            # A pinned `model=` skips the router. Refuse before the files
+            # download, not with an ImportError after.
+            runnable, reason = entry_runnability(self.entry)
+            if not runnable:
+                raise NoRouteError(
+                    f"{self.model_id} covers this pair but cannot be run: "
+                    f"{reason}")
         if self.arch == "rules":
             # The rules work on one sentence or line at a time, so each line
             # is translated alone and the line breaks are kept.
