@@ -666,6 +666,21 @@ RULE_BASED_MODELS: Dict[str, Dict] = {
                   "(TigreGotico/pt2barranquenho). It translates one line at "
                   "a time and keeps {slots}. It has no reverse direction."),
     },
+    "pt2mirandese": {
+        "model_id": "pt2mirandese",
+        "arch": "rules",
+        "pair": ["pt", "mwl"],
+        "callable": "pt2mirandese:translate",
+        "extra": "rules",
+        "license": "Apache-2.0 AND CC-BY-SA-4.0",
+        "license_tier": "share-alike",
+        "size_mb": 0,
+        "notes": ("Rule-based European Portuguese -> Mirandese translator "
+                  "(TigreGotico/pt2mirandese). The code is Apache-2.0; its "
+                  "word lists include CC-BY-SA-4.0 data. It translates one "
+                  "line at a time and keeps {slots}. It has no reverse "
+                  "direction."),
+    },
 }
 
 #: Architectures whose pre- or post-processing needs an optional linguonnx

@@ -11,7 +11,7 @@ license = { text = "Apache-2.0" }
 authors = [
     { name = "jarbasAi", email = "jarbasai@mailfence.com" }
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dependencies = [
     # Floors, not pins: the oldest release each of these is known to work on.
     # Without them the manifest permits a resolution nobody has ever tested.
@@ -52,8 +52,8 @@ opennmt = ["sacremoses>=0.0.53", "subword-nmt>=0.3.8"]
 fast-tokenizers = ["tokenizers>=0.15.0"]
 # Rule-based translators: pure-Python packages that a registry entry names in
 # its `callable`, with no ONNX graph. `pt2barranquenho` serves
-# pt -> Barranquenho (`ext-PT-x-barrancos`).
-rules = ["pt2barranquenho>=0.1.0a2"]
+# pt -> Barranquenho (`ext-PT-x-barrancos`), `pt2mirandese` pt -> Mirandese.
+rules = ["pt2barranquenho>=0.1.0a2", "pt2mirandese>=0.0.1a2"]
 # `onnxruntime` and `onnxruntime-gpu` both provide the `onnxruntime` import
 # namespace and must never be installed together, so `gpu` cannot declare
 # `onnxruntime-gpu` as a dependency here - `onnxruntime` is already a hard

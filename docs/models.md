@@ -2,7 +2,7 @@
 
 Two JSON files under `linguonnx/model_index/` say what exists: `lid.json` for
 language identification and `translate.json` for translation. They hold 10 and
-378 entries. Every ONNX entry names a HuggingFace repo, the exact files to
+379 entries. Every ONNX entry names a HuggingFace repo, the exact files to
 fetch, the languages covered, the licence and the size. A rule-based entry
 names a Python function instead of files. See
 [Rule-based models](#rule-based-models).
@@ -13,8 +13,8 @@ it sounds.
 
 ## What is in the translation registry
 
-378 entries is 188 int8 and 189 fp32 entries across 189 models, plus 1
-rule-based entry. `load_translator()` defaults to `precision="int8"`; pass
+379 entries is 188 int8 and 189 fp32 entries across 189 models, plus 2
+rule-based entries. `load_translator()` defaults to `precision="int8"`; pass
 `precision="fp32"` or `precision=None` for both. A rule-based entry has no
 weights and no precision, so the precision filter never removes it.
 
@@ -42,6 +42,7 @@ weights and no precision, so the precision filter never removes it.
 | `translate-eus-cat`, `translate-oci-cat` | Pegasus (fast) | `eu-ca`, `oc-ca` | 590 MB each | MIT |
 | `opus-mt-*` (124) | Marian | one pair each | 78 MB – 716 MB | Apache-2.0 or CC-BY-4.0 |
 | `pt2barranquenho` | rules (Python package) | Portuguese → Barranquenho (`ext-PT-x-barrancos`), **one-way** | 0 MB, nothing to download | Apache-2.0 |
+| `pt2mirandese` | rules (Python package) | Portuguese → Mirandese (`mwl`), **one-way** | 0 MB, nothing to download | Apache-2.0 code, **CC-BY-SA-4.0 word lists** |
 
 The opus-mt pairs published as int8:
 
@@ -65,8 +66,7 @@ ur-en  vi-en  xh-en  zh-en
 ```
 
 Together they reach 594 languages over the default graph. MADLAD supplies most
-of the tail, including the ones no other model here has: Mirandese, Aragonese,
-Occitan and several hundred more.
+of the tail: several hundred languages that no other model here has.
 
 Eight entries — `nllb-600M`, `aina-es-oc`, `aina-translator-es-an` and
 `aina-translator-es-ast`, in both precisions — are non-commercial and out of
@@ -147,6 +147,13 @@ print(tx.route("en", "ext-PT-x-barrancos").model_ids)
 # ('opus-mt-en-pt-int8', 'pt2barranquenho')
 ```
 
+`pt2mirandese` translates European Portuguese into Mirandese (`mwl`), the
+same way: one line at a time, `{slots}` kept, one-way. Its code is Apache-2.0
+and its word lists include CC-BY-SA-4.0 data, so the entry's tier is
+`share-alike`. Mirandese is also covered by MADLAD-400 and the two opus-mt
+Italic group models, `opus-mt-itc-itc` and `opus-mt-tc-big-itc-itc`; when the
+package is not installed, `pt -> mwl` routes through those instead.
+
 The package comes from the `rules` extra:
 
 ```bash
@@ -167,7 +174,7 @@ print(entry["arch"], entry["pair"], entry["license"], entry["size_mb"])
 # marian ['pt', 'en'] Apache-2.0 172
 
 print(len(list_models(kind="translate")), len(list_models(kind="lid")))
-# 378 10
+# 379 10
 ```
 
 ## The download cache

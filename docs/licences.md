@@ -14,7 +14,7 @@ tiers, in order of how many strings are attached:
 | tier | what is in it | in the default graph? |
 |---|---|---|
 | `permissive` | Apache-2.0, MIT, CC-BY-4.0, AFL-3.0 | yes |
-| `share-alike` | CC-BY-SA-3.0 | LID only, by name |
+| `share-alike` | CC-BY-SA-3.0, CC-BY-SA-4.0 | yes |
 | `non-commercial` | CC-BY-NC-4.0 | no |
 
 Tier is a routing key, not just metadata. It is the third element of the
@@ -36,10 +36,16 @@ name. But the choice matters:
 
 ## Translation
 
-`load_translator()` builds its graph from **permissive models only**. Eight
-registry entries are excluded by default: `nllb-600M`, `aina-es-oc`,
+`load_translator()` leaves out **non-commercial models only**. Eight registry
+entries are excluded by default: `nllb-600M`, `aina-es-oc`,
 `aina-translator-es-an` and `aina-translator-es-ast`, in both precisions. All
 four are CC-BY-NC-4.0.
+
+A share-alike model stays in the default graph. CC-BY-SA permits commercial
+use; its condition is that a derived work keeps the same licence. One
+translation entry has this tier: `pt2mirandese`, whose word lists are
+CC-BY-SA-4.0. A caller who must avoid share-alike terms can check
+`route.license_tier`, or name the models in `models=`.
 
 `AFL-3.0` — carried by ten of the `m2m100_418M_*` African fine-tunes — is
 classified `permissive` and stays in the default graph. It grants use,
@@ -70,7 +76,7 @@ in a `route=` or a `model=` raises, rather than loading it and translating
 through it:
 
 ```python
-tx = load_translator()                       # permissive models only
+tx = load_translator()                       # no non-commercial models
 try:
     tx.translate("bom dia", src="pt", tgt="kea", model="nllb-600M-int8")
 except ValueError as err:

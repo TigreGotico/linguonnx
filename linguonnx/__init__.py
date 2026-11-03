@@ -21,8 +21,9 @@ def load_translator(*args, **kwargs):
     """Build a translator over the registry in ``linguonnx/model_index/translate.json``.
 
     See :func:`linguonnx.translate.load_translator` for the full signature. The
-    default graph is every permissive-licensed int8 model - M2M100-418M plus
-    the opus-mt bilingual pairs - routed by fewest hops, capped at two.
+    default graph is every int8 model that is not non-commercial -
+    M2M100-418M plus the opus-mt bilingual pairs - routed by fewest hops,
+    capped at two.
 
     ``providers`` selects the ONNX Runtime execution providers; see
     :mod:`linguonnx.providers`.
