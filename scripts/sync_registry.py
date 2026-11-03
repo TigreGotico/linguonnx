@@ -484,6 +484,62 @@ MULTILINGUAL_LANGUAGE_OVERRIDES: Dict[str, Dict] = {
     },
 }
 
+#: Ugiat's MADLAD-400-3B fine-tunes. Each keeps every `<2xx>` piece of the
+#: base vocabulary, so reading coverage off the vocabulary would register it
+#: for all of MADLAD's languages, where the newer upload date makes it win
+#: every tie against `madlad400-3b-mt`. Coverage is what each card says the
+#: model was trained for. `native_codes` names the new piece, which
+#: `translate_entries` checks against the repository's own `spiece.model`.
+#:
+#: Aranese is `oc`, as for IbRo-nllb, and its piece is `<2oc_aranes>`. The
+#: regional Spanish models translate into `es-ES` and `es-419` from every
+#: language of the base vocabulary, as their cards state; those two tags
+#: become graph nodes, and a request the size cap keeps away from them routes
+#: as `es`.
+#: Sources: https://huggingface.co/Ugiat/madlad400-3b-mt-oc_aranes,
+#: https://huggingface.co/Ugiat/madlad400-3b-mt-ast-an-oc_aranes,
+#: https://huggingface.co/Ugiat/madlad400-3b-mt-es_ES,
+#: https://huggingface.co/Ugiat/madlad400-3b-mt-es_419
+_ARANESE_SOURCES = ("ca", "en", "es", "fr")
+MADLAD_FINETUNES: Dict[str, Dict] = {
+    "madlad400-3b-mt-oc_aranes": {
+        "languages": sorted(_ARANESE_SOURCES + ("oc",)),
+        "native_codes": {"oc": "oc_aranes"},
+        "directions": sorted(edge for other in _ARANESE_SOURCES
+                             for edge in (["oc", other], [other, "oc"])),
+        "notes": "Ugiat MADLAD-400-3B fine-tune for Aranese, the Occitan of "
+                 "the Val d'Aran. Trained directions: Catalan, Spanish, "
+                 "English and French <-> Aranese. The <2oc_aranes> piece "
+                 "selects Aranese.",
+    },
+    "madlad400-3b-mt-ast-an-oc_aranes": {
+        "languages": sorted(_ARANESE_SOURCES + ("an", "ast", "oc")),
+        "native_codes": {"oc": "oc_aranes"},
+        "directions": sorted(edge for other in _ARANESE_SOURCES
+                             for lang in ("an", "ast", "oc")
+                             for edge in ([lang, other], [other, lang])),
+        "notes": "Ugiat MADLAD-400-3B fine-tune for Asturian, Aragonese and "
+                 "Aranese. Trained directions: Catalan, Spanish, English and "
+                 "French <-> each of the three. The <2ast> and <2oc_aranes> "
+                 "pieces are new; <2an> is the base piece, retrained.",
+    },
+    "madlad400-3b-mt-es_ES": {
+        "tgt_languages": ["es-ES"],
+        "native_codes": {"es-ES": "es_ES"},
+        "notes": "Ugiat MADLAD-400-3B fine-tune that writes Spanish as used "
+                 "in Spain (vosotros, movil, ordenador). It translates into "
+                 "es-ES only, from every language of the base vocabulary.",
+    },
+    "madlad400-3b-mt-es_419": {
+        "tgt_languages": ["es-419"],
+        "native_codes": {"es-419": "es_419"},
+        "notes": "Ugiat MADLAD-400-3B fine-tune that writes neutral Latin "
+                 "American Spanish (ustedes, computadora, celular). It "
+                 "translates into es-419 only, from every language of the "
+                 "base vocabulary.",
+    },
+}
+
 #: Canonical spelling for the licence ids the Hub reports lowercased.
 LICENSE_DISPLAY: Dict[str, str] = {
     "apache-2.0": "Apache-2.0",
@@ -1046,8 +1102,9 @@ INDICTRANS2_DIRECTIONS: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...]]] = {
 #: `<2xx>` / `>>xx<<` target-selector tokens, shared by MADLAD (T5, SentencePiece
 #: pieces) and a multilingual Marian export like liv4ever-mt (plain vocab.json
 #: keys). Both spell it `<2code>`; opus-mt group models spell it `>>code<<`
-#: instead (see `_TARGET_TOKEN_RE`).
-_PREFIX_TARGET_TOKEN_RE = re.compile(r"^<2([A-Za-z]{2,3}(?:_[A-Za-z]+)?)>$")
+#: instead (see `_TARGET_TOKEN_RE`). The suffix may be a numeric UN M.49
+#: region, as in `<2es_419>`.
+_PREFIX_TARGET_TOKEN_RE = re.compile(r"^<2([A-Za-z]{2,3}(?:_[A-Za-z0-9]+)?)>$")
 
 #: The opus-mt spelling of the same idea: `>>por<<`, `>>lat_Latn<<`. Used to
 #: read a *group* model's real target inventory out of its own vocab.json.
@@ -1591,6 +1648,29 @@ def _madlad_languages(repo_id: str, files: Dict[str, int]) -> List[str]:
     return _without_families(normalized)
 
 
+def _madlad_coverage(model_id: str, languages: List[str]) -> Dict:
+    """Registry coverage of a MADLAD export, given its vocabulary languages.
+
+    The base model covers its whole vocabulary. A fine-tune in
+    `MADLAD_FINETUNES` covers what its card states, and every new piece it
+    names must be in the vocabulary. A regional model reads every vocabulary
+    language except its own targets.
+    """
+    spec = MADLAD_FINETUNES.get(model_id)
+    if spec is None:
+        return {"languages": languages}
+    from linguonnx.detect.labels import to_bcp47
+    targets = {to_bcp47(native) for native in spec["native_codes"].values()}
+    absent = sorted(targets - set(languages))
+    if absent:
+        raise SkipRepo(f"spiece.model has no piece for {absent[0]}, which "
+                       f"MADLAD_FINETUNES names for {model_id}")
+    coverage = dict(spec)
+    if "tgt_languages" in spec:
+        coverage["src_languages"] = [code for code in languages if code not in targets]
+    return coverage
+
+
 def _marian_multilingual_languages(repo_id: str, files: Dict[str, int],
                                    model_id: str
                                    ) -> Tuple[List[str], Dict[str, str]]:
@@ -2013,7 +2093,7 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
             if token:
                 shared["target_token"] = token
     elif arch == "madlad":
-        shared["languages"] = _madlad_languages(repo_id, files)
+        shared.update(_madlad_coverage(model_id, _madlad_languages(repo_id, files)))
     elif arch == "t5-prefix":
         # Coverage cannot be read off the artifacts here. The SentencePiece
         # model is a general subword vocabulary and carries no language

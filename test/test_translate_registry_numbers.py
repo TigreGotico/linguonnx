@@ -40,7 +40,7 @@ from linguonnx.translate import load_translator
 
 # Recount with:
 #   load_translator(max_model_mb=CAP, count_cached_as_free=False)
-LANGUAGES_UNCAPPED = 594
+LANGUAGES_UNCAPPED = 596
 LANGUAGES_UNDER_500 = 255
 FALLBACK_STEPS_UNDER_500 = 38
 
@@ -51,11 +51,11 @@ FALLBACK_STEPS_UNDER_500 = 38
 #   {v["hf_repo"] for v in translate.json.values() if "hf_repo" in v}  -> models
 #   Counter(v.get("precision") for v in translate.json.values())
 #                                               -> int8/fp32/rule-based split
-TRANSLATE_ENTRIES = 409
-TRANSLATE_INT8_ENTRIES = 203
-TRANSLATE_FP32_ENTRIES = 204
+TRANSLATE_ENTRIES = 417
+TRANSLATE_INT8_ENTRIES = 207
+TRANSLATE_FP32_ENTRIES = 208
 TRANSLATE_RULE_ENTRIES = 2
-TRANSLATE_MODELS = 204
+TRANSLATE_MODELS = 208
 LID_ENTRIES = 10
 LID_MODELS = 5
 
@@ -255,6 +255,7 @@ DOCUMENTED_TRANSLATE_FAMILIES = [
     r"^TigreGotico/opus-mt-.+-onnx$",
     r"^TigreGotico/afrigloss-opus-mt-.+-onnx$",
     r"^TigreGotico/IbRo-nllb-onnx$",
+    r"^TigreGotico/madlad400-3b-mt-(oc_aranes|ast-an-oc_aranes|es_ES|es_419)-onnx$",
 ]
 
 

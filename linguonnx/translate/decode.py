@@ -20,7 +20,8 @@ The three graphs
     returns ``logits`` plus new ``present.*`` for the self-attention entries
     only. The cross-attention entries do not change after step 0 - the encoder
     output they were computed from is fixed - so they are threaded straight
-    through from the step-0 outputs.
+    through from the step-0 outputs. Some exports also declare
+    ``encoder_hidden_states`` on this graph; it is then fed the encoder output.
 
 Cache wiring is done **by name**, not by position: every
 ``past_key_values.<i>.<attn>.<kv>`` input is matched to the graph output of the
@@ -186,6 +187,8 @@ class Seq2SeqDecoder:
         self._dec_ids_input = self._pick(self._dec_inputs, "input_ids")
         self._past_ids_input = self._pick(self._past_inputs, "input_ids")
         self._past_mask_input = self._pick(self._past_inputs, "encoder_attention_mask")
+        past_hidden = [n for n in self._past_inputs if n.endswith("encoder_hidden_states")]
+        self._past_hidden_input = past_hidden[0] if past_hidden else None
 
         # past_key_values.<i>.<attn>.<kv>  <->  present.<i>.<attn>.<kv>
         self._cache_names = [n for n in self._past_inputs
@@ -242,11 +245,13 @@ class Seq2SeqDecoder:
         cache = {name: named[self._present_for[name]] for name in self._cache_names}
         return named[self._logits_name][:, -1, :], cache
 
-    def _step(self, tokens: np.ndarray, mask: np.ndarray,
+    def _step(self, tokens: np.ndarray, hidden: np.ndarray, mask: np.ndarray,
               cache: Dict[str, np.ndarray]) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
         feeds = dict(cache)
         feeds[self._past_ids_input] = tokens
         feeds[self._past_mask_input] = mask
+        if self._past_hidden_input:
+            feeds[self._past_hidden_input] = self._expand(hidden, len(mask))
         outputs = self.decoder_past.run(self._past_outputs, feeds)
         named = dict(zip(self._past_outputs, outputs))
         new_cache = dict(cache)
@@ -302,7 +307,7 @@ class Seq2SeqDecoder:
             if step == config.max_new_tokens - 1:
                 break
             logits, cache = self._step(
-                np.array([[token]], dtype=np.int64), mask, cache)
+                np.array([[token]], dtype=np.int64), hidden, mask, cache)
         if not generated:
             # The first sampled token was EOS. Empty input never gets this
             # far, so an empty generation is a failure, and the caller has to
@@ -441,7 +446,7 @@ class Seq2SeqDecoder:
             if step == config.max_new_tokens - 1:
                 break
             logits, cache = self._step(
-                np.asarray(next_tokens, dtype=np.int64)[:, None], mask, cache)
+                np.asarray(next_tokens, dtype=np.int64)[:, None], hidden, mask, cache)
 
         # Out of budget with too few finished hypotheses: the live beams count
         # too, exactly as `transformers` folds them in at ``finalize()``.

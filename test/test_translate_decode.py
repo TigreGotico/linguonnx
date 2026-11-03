@@ -163,11 +163,11 @@ def _logits_for(history):
     return TABLE[(START + sum(history)) % N_STATES].astype(np.float64)
 
 
-def _reference_greedy(forced_bos, max_new_tokens):
+def _reference_greedy(forced_bos, max_new_tokens, logits_for=_logits_for):
     generated = []
     for step in range(max_new_tokens):
         token = forced_bos if (step == 0 and forced_bos is not None) \
-            else int(np.argmax(_logits_for(generated)))
+            else int(np.argmax(logits_for(generated)))
         if token == EOS:
             break
         generated.append(token)
@@ -179,7 +179,8 @@ def _log_softmax(x):
     return x - np.log(np.exp(x).sum(axis=-1, keepdims=True))
 
 
-def _reference_beam(forced_bos, beams, max_new_tokens, length_penalty=1.0):
+def _reference_beam(forced_bos, beams, max_new_tokens, length_penalty=1.0,
+                    logits_for=_logits_for):
     """A plain, obviously-correct beam search over the same transition rule.
 
     Deliberately the same algorithm the implementation claims to run, written
@@ -193,7 +194,7 @@ def _reference_beam(forced_bos, beams, max_new_tokens, length_penalty=1.0):
     for step in range(max_new_tokens):
         candidates = []
         for score, history in live:
-            logprobs = _log_softmax(_logits_for(history))
+            logprobs = _log_softmax(logits_for(history))
             if step == 0 and forced_bos is not None:
                 candidates.append((score, history + [forced_bos]))
                 continue
@@ -297,6 +298,81 @@ def test_cache_wiring_is_by_name_not_position(toy):
         "past_key_values.0.encoder.key", "past_key_values.0.encoder.value"}
     assert toy._refreshed == {"past_key_values.0.decoder.key",
                               "past_key_values.0.decoder.value"}
+
+
+def _make_decoder_with_past_reading_hidden(path):
+    """The with-past graph, but declaring `encoder_hidden_states` and adding
+    its sum to the state, so a missing or wrong feed changes the tokens."""
+    nodes = [
+        helper.make_node("Cast", ["input_ids"], ["f"], to=TensorProto.FLOAT),
+        helper.make_node("Unsqueeze", ["f", "AX2"], ["cur"]),
+        helper.make_node("Concat", ["past_key_values.0.decoder.key", "cur"],
+                         ["present.0.decoder.key"], axis=2),
+        helper.make_node("Concat", ["past_key_values.0.decoder.value", "cur"],
+                         ["present.0.decoder.value"], axis=2),
+        helper.make_node("ReduceSum", ["present.0.decoder.key", "AX12"], ["dsum"], keepdims=0),
+        helper.make_node("ReduceSum", ["encoder_hidden_states", "AX12"], ["hsum"], keepdims=0),
+        helper.make_node("Add", ["dsum", "hsum"], ["total"]),
+        helper.make_node("Cast", ["total"], ["ti"], to=TensorProto.INT64),
+        helper.make_node("Mod", ["ti", "NSTATES"], ["idx"]),
+        helper.make_node("Gather", ["TABLE", "idx"], ["g"], axis=0),
+        helper.make_node("Unsqueeze", ["g", "AX1"], ["logits"]),
+    ]
+    inputs = [
+        helper.make_tensor_value_info("encoder_attention_mask", TensorProto.INT64, ["b", "s"]),
+        helper.make_tensor_value_info("input_ids", TensorProto.INT64, ["b", 1]),
+        helper.make_tensor_value_info("encoder_hidden_states", TensorProto.FLOAT, ["b", "s", 1]),
+        helper.make_tensor_value_info("past_key_values.0.decoder.key", TensorProto.FLOAT, ["b", 1, "p"]),
+        helper.make_tensor_value_info("past_key_values.0.decoder.value", TensorProto.FLOAT, ["b", 1, "p"]),
+        helper.make_tensor_value_info("past_key_values.0.encoder.key", TensorProto.FLOAT, ["b", 1, 1]),
+        helper.make_tensor_value_info("past_key_values.0.encoder.value", TensorProto.FLOAT, ["b", 1, 1]),
+    ]
+    outputs = [
+        helper.make_tensor_value_info("logits", TensorProto.FLOAT, ["b", 1, VOCAB]),
+        helper.make_tensor_value_info("present.0.decoder.key", TensorProto.FLOAT, ["b", 1, "p"]),
+        helper.make_tensor_value_info("present.0.decoder.value", TensorProto.FLOAT, ["b", 1, "p"]),
+    ]
+    graph = helper.make_graph(nodes, "decoder_past_hidden", inputs, outputs,
+                              initializer=_consts())
+    onnx.save(_toy_model(graph), path)
+
+
+class TestWithPastGraphDeclaringEncoderHiddenStates:
+    """Some exports (the Ugiat MADLAD fine-tunes) declare
+    `encoder_hidden_states` on decoder_with_past. The toy encoder's output is
+    the input ids, so every with-past step adds sum(INPUT) to the state."""
+
+    SHIFT = sum(INPUT)
+
+    @classmethod
+    def _logits_for(cls, history):
+        shift = cls.SHIFT if history else 0
+        return TABLE[(START + sum(history) + shift) % N_STATES].astype(np.float64)
+
+    @pytest.fixture(scope="class")
+    def decoder(self, tmp_path_factory):
+        directory = tmp_path_factory.mktemp("toy-hidden")
+        paths = [directory / name for name in ("enc.onnx", "dec.onnx", "past.onnx")]
+        _make_encoder(paths[0])
+        _make_decoder(paths[1])
+        _make_decoder_with_past_reading_hidden(paths[2])
+        sessions = [ort.InferenceSession(str(p), providers=["CPUExecutionProvider"])
+                    for p in paths]
+        return Seq2SeqDecoder(*sessions, eos_id=EOS, pad_id=PAD, decoder_start_id=START)
+
+    def test_the_shift_changes_the_reference_output(self):
+        assert self.SHIFT % N_STATES
+        assert _reference_greedy(None, 20, self._logits_for) != _reference_greedy(None, 20)
+
+    def test_greedy_feeds_the_encoder_output(self, decoder):
+        out = decoder.generate(INPUT, config=GenerationConfig(num_beams=1, max_new_tokens=20))
+        assert out == _reference_greedy(None, 20, self._logits_for)
+
+    @pytest.mark.parametrize("beams", [2, 3, 4])
+    def test_beam_feeds_the_encoder_output_to_every_beam(self, decoder, beams):
+        config = GenerationConfig(num_beams=beams, max_new_tokens=16)
+        assert decoder.generate(INPUT, config=config) == \
+            _reference_beam(None, beams, 16, logits_for=self._logits_for)
 
 
 def test_unwireable_cache_raises_at_load_time(tmp_path):

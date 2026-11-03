@@ -58,7 +58,7 @@ smallest oversized model that does, rather than failing.
 The filter semantics alone force a choice nobody wants to make. The long tail
 of languages exists only inside a few very large multilingual models - MADLAD
 (4945 MB), NLLB (1866 MB), M2M100-418M (1207 MB) - so a 500 MB cap that
-excludes them outright drops routable languages from 594 to 255 on the
+excludes them outright drops routable languages from 596 to 255 on the
 default registry with an empty cache (``test_translate_registry_numbers.py``
 pins both numbers). Lifting the cap instead lets those same models win pairs
 that a 157 MB ``opus-mt`` pair already served, because "one multilingual hop"
@@ -1389,6 +1389,32 @@ class TranslationGraph:
             return base
         return node
 
+    #: A language subtag followed by a region alone: `es-ES`, `es-419`.
+    _REGION_TAG_RE = re.compile(r"^([a-z]{2,3})-(?:[A-Z]{2}|[0-9]{3})$")
+
+    def _regional_fallbacks(self, src: str, tgt: str) -> List[Tuple[str, str]]:
+        """Endpoint pairs to try when ``src -> tgt`` has no route.
+
+        A region node such as `es-ES` can be served only by a model the size
+        cap excludes, or only as a target. The language without the region is
+        then the better answer than no route, as it is for a region no model
+        names (see :meth:`_node`). The target keeps its region first, because
+        the region is a property of the output. A script, variant or
+        private-use subtag is never dropped: `sr-Latn` as `sr` would change
+        the script and `ext-PT-x-barrancos` as `ext` the language.
+        """
+        def base(node: str) -> str:
+            match = self._REGION_TAG_RE.match(node)
+            if match and match.group(1) in self._addressable:
+                return match.group(1)
+            return node
+
+        out: List[Tuple[str, str]] = []
+        for pair in ((base(src), tgt), (src, base(tgt)), (base(src), base(tgt))):
+            if pair != (src, tgt) and pair[0] != pair[1] and pair not in out:
+                out.append(pair)
+        return out
+
     def capabilities_for(self, src: str, tgt: str,
                          index: Optional[_Index] = None) -> List[Capability]:
         """Every model that can do this exact pair in one hop, best first."""
@@ -1567,10 +1593,16 @@ class TranslationGraph:
         index = self._resolve(max_model_mb, count_cached_as_free)
         if src == tgt:
             return []
+        fallback = self._fallback_on(oversize_fallback)
         found, waived = self._search(src, tgt, max_hops, prefer,
                                      short_circuit=False, index=index,
-                                     fallback=self._fallback_on(
-                                         oversize_fallback))
+                                     fallback=fallback)
+        for alt_src, alt_tgt in [] if found else self._regional_fallbacks(src, tgt):
+            found, waived = self._search(alt_src, alt_tgt, max_hops, prefer,
+                                         short_circuit=False, index=index,
+                                         fallback=fallback)
+            if found:
+                break
         if waived is not None:
             found = [replace(r, waived_size_cap=waived) for r in found]
         found.sort(key=lambda r: _route_key(r, prefer))
@@ -1608,10 +1640,16 @@ class TranslationGraph:
             raise NoRouteError(
                 f"source and target are the same language ({src!r}); nothing to translate")
         index = self._resolve(max_model_mb, count_cached_as_free)
+        fallback = self._fallback_on(oversize_fallback)
         found, waived = self._search(src, tgt, max_hops, prefer,
                                      short_circuit=True, index=index,
-                                     fallback=self._fallback_on(
-                                         oversize_fallback))
+                                     fallback=fallback)
+        for alt_src, alt_tgt in [] if found else self._regional_fallbacks(src, tgt):
+            found, waived = self._search(alt_src, alt_tgt, max_hops, prefer,
+                                         short_circuit=True, index=index,
+                                         fallback=fallback)
+            if found:
+                break
         if not found:
             raise NoRouteError(
                 f"no route from {raw_src!r} to {raw_tgt!r} within "
