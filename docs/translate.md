@@ -158,7 +158,8 @@ and cannot drift apart.
 
 Neither is installed by default. `linguonnx` itself stays on `onnxruntime`,
 `numpy` and `sentencepiece`; the extras add the tokenisation these two need.
-When an extra is missing the call raises `ImportError` naming it. It never
+When an extra is missing, its models are left out of routing, and a call
+pinned to one with `model=` raises `NoRouteError` naming the extra. It never
 falls back to a simpler tokenisation, because a wrong tokenisation does not
 fail — it translates fluently into the wrong words.
 
@@ -309,9 +310,10 @@ when it is the only cover for a pair. See
 
 A `rules` entry has no ONNX graph. `TranslationModel.translate` imports the
 function that the entry's `callable` names and gives it each line of the input
-in turn. The line breaks stay as they are. `pt2barranquenho` is the one such
-model: it translates Portuguese into Barranquenho, `ext-PT-x-barrancos`, and
-comes from the `rules` extra.
+in turn. The line breaks stay as they are. Two such models come from the
+`rules` extra: `pt2barranquenho` translates Portuguese into Barranquenho,
+`ext-PT-x-barrancos`, and `pt2mirandese` translates Portuguese into Mirandese,
+`mwl`.
 
 ```python
 from linguonnx import load_translator

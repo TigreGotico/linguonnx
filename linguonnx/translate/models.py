@@ -28,7 +28,7 @@ fluent text in the wrong language and nothing raises. So it is concentrated in
 ``rules``
     No ONNX graph and no download. The entry's ``callable`` names a Python
     function, ``module:function``, that translates one line, and the model is
-    the pair. :mod:`pt2barranquenho` is the one such model.
+    the pair. :mod:`pt2barranquenho` and :mod:`pt2mirandese` are such models.
 
 The per-architecture parts of that live in
 :mod:`linguonnx.translate.preprocess`, one :class:`~preprocess.Pipeline` each,

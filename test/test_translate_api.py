@@ -232,11 +232,11 @@ def test_load_translator_takes_a_budget(monkeypatch):
 
 # --- the shipped registry --------------------------------------------------
 
-def test_default_graph_is_permissive_and_int8():
+def test_default_graph_is_commercial_use_and_int8():
     translator = load_translator()
     assert translator.models, "the default graph must not be empty"
     for entry in translator.models.values():
-        assert entry["license_tier"] == "permissive"
+        assert entry["license_tier"] in ("permissive", "share-alike")
         # A rule-based entry has no weights and no precision.
         assert entry.get("precision", "int8") == "int8"
     assert "m2m100-418M-int8" in translator.models

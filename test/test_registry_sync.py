@@ -24,7 +24,7 @@ import pytest
 from linguonnx import model_manager
 from linguonnx.translate import load_translator
 from linguonnx.translate.graph import (LICENSE_TIERS, NoRouteError,
-                                       normalize_tag)
+                                       _registry_runnability, normalize_tag)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SYNC_SCRIPT = REPO_ROOT / "scripts" / "sync_registry.py"
@@ -101,7 +101,7 @@ def test_rule_based_entry_is_complete(model_id):
 def test_rule_based_models_are_registered():
     """The list is pinned so an entry cannot drop out of the registry with
     nothing failing: the parametrized test above runs over zero entries then."""
-    assert RULE_TRANSLATE == ["pt2barranquenho"]
+    assert RULE_TRANSLATE == ["pt2barranquenho", "pt2mirandese"]
 
 
 @pytest.mark.parametrize("model_id", sorted(TRANSLATE))
@@ -543,16 +543,24 @@ def test_noncommercial_models_exist_but_are_opt_in():
     assert len(opt_in.models) > len(load_translator().models)
 
 
-def test_pt_to_mwl_resolves_in_one_hop(translator):
+def test_pt_to_mwl_resolves_in_one_hop(translator, monkeypatch):
     """Mirandese: a wrong coverage claim would silently drop it.
 
-    Two models carry `mwl`: MADLAD, and `opus-mt-itc-itc` - which was
-    unreachable while the generator minted it as `pair: ["itc", "itc"]`,
-    because no caller can ask for the Italic family. Now that it registers its
-    real 16-language token set, it wins on cost (165 MB int8 against MADLAD's
-    4945 MB), which is the point of fixing it.
+    The dedicated rule-based `pt2mirandese` serves the pair when its package
+    is installed. Without it, two models still carry `mwl`: MADLAD, and
+    `opus-mt-itc-itc`, which registers its real 16-language token set rather
+    than `pair: ["itc", "itc"]`, a family no caller can ask for. It wins on
+    cost (165 MB int8 against MADLAD's 4945 MB).
     """
     route = translator.route("pt", "mwl")
+    assert route.model_ids == ("pt2mirandese",)
+
+    monkeypatch.setitem(sys.modules, "pt2mirandese", None)
+    _registry_runnability.cache_clear()
+    try:
+        route = load_translator().route("pt", "mwl")
+    finally:
+        _registry_runnability.cache_clear()
     assert route.n_hops == 1
     assert route.hops[-1].model_id.startswith(
         ("madlad400-3b-mt", "opus-mt-itc-itc"))

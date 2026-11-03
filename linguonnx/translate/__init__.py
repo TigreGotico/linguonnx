@@ -671,10 +671,10 @@ def load_translator(models: Optional[Sequence[str]] = None,
                     providers: Optional[Sequence[ProviderSpec]] = None) -> Translator:
     """Build a :class:`Translator` over the registry.
 
-    The default graph is **every permissive-licensed int8 model**: M2M100-418M
-    for general coverage plus the opus-mt bilingual pairs, which also supply
-    Basque - M2M100 has no Basque at all, so ``eu`` is routed through
-    ``opus-mt-*-eu`` instead of being silently dropped.
+    The default graph is **every int8 model that is not non-commercial**:
+    M2M100-418M for general coverage plus the opus-mt bilingual pairs, which
+    also supply Basque - M2M100 has no Basque at all, so ``eu`` is routed
+    through ``opus-mt-*-eu`` instead of being silently dropped.
 
     NLLB-200 is in the registry but **out of the default graph**, because it is
     CC-BY-NC-4.0 and this library will not put a non-commercial licence into a

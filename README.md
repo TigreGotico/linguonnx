@@ -24,7 +24,7 @@ quantised model is a trade nobody on a small device wants to make.
 ```bash
 pip install linguonnx
 pip install linguonnx[distance]   # adds orthography2ipa, for pivot ranking
-pip install linguonnx[rules]      # adds pt2barranquenho, for Barranquenho
+pip install linguonnx[rules]      # adds pt2barranquenho and pt2mirandese
 ```
 
 By default every session runs on `CPUExecutionProvider`. `onnxruntime` and
@@ -108,10 +108,10 @@ for a host that cannot afford the download:
 frugal = load_translator(max_model_mb=500)   # or LINGUONNX_MAX_MODEL_MB
 ```
 
-Not every model is a neural network. `pt2barranquenho` is a rule-based
-translator from Portuguese into Barranquenho (`ext-PT-x-barrancos`). It comes
-from the `rules` extra, downloads nothing and routes like any other model.
-Other languages reach Barranquenho through Portuguese. See
+Not every model is a neural network. `pt2barranquenho` and `pt2mirandese` are
+rule-based translators from Portuguese into Barranquenho (`ext-PT-x-barrancos`)
+and Mirandese (`mwl`). They come from the `rules` extra, download nothing and
+route like any other model. Other languages reach them through Portuguese. See
 [docs/models.md](docs/models.md#rule-based-models).
 
 See [docs/translate.md](docs/translate.md) for the API and
@@ -122,11 +122,11 @@ See [docs/translate.md](docs/translate.md) for the API and
 | | |
 |---|---|
 | Language identification | 5 models, 176 to 2102 labels, 33 MB to 1.7 GB |
-| Translation | 378 registry entries — 188 int8 and 189 fp32 across 189 models, plus 1 rule-based translator |
+| Translation | 379 registry entries — 188 int8 and 189 fp32 across 189 models, plus 2 rule-based translators |
 | Reachable languages | 594, over the default graph |
 | Default LID model | `glotlid-int8` — Apache-2.0, the only permissive LID option |
-| Default translation graph | every permissive int8 model and every rule-based model, fewest hops, capped at 2 |
-| Licences | Apache-2.0, MIT and CC-BY-4.0 by default; GPL-3.0 and CC-BY-NC-4.0 must be asked for by name |
+| Default translation graph | every int8 or rule-based model that is not non-commercial, fewest hops, capped at 2 |
+| Licences | Apache-2.0, MIT, CC-BY-4.0 and CC-BY-SA-4.0 by default; GPL-3.0 and CC-BY-NC-4.0 must be asked for by name |
 
 `linguonnx` itself is Apache-2.0 and downloads no model you did not ask for.
 Some of the models are not: OpenLID is GPL-3.0 and NLLB-200 is CC-BY-NC-4.0,
