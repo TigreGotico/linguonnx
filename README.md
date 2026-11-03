@@ -111,7 +111,9 @@ frugal = load_translator(max_model_mb=500)   # or LINGUONNX_MAX_MODEL_MB
 Not every model is a neural network. `pt2barranquenho` and `pt2mirandese` are
 rule-based translators from Portuguese into Barranquenho (`ext-PT-x-barrancos`)
 and Mirandese (`mwl`). They come from the `rules` extra, download nothing and
-route like any other model. Other languages reach them through Portuguese. See
+route like any other model. Other languages reach Barranquenho through
+Portuguese. Mirandese has direct neural models too, and the router prefers
+those one-hop routes for every source except Portuguese. See
 [docs/models.md](docs/models.md#rule-based-models).
 
 See [docs/translate.md](docs/translate.md) for the API and

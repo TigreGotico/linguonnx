@@ -347,19 +347,20 @@ model already on disk costs quality and saves nothing.
 
 ### What a budget costs in coverage
 
-Over the default selection — permissive, int8 and rule-based, 185 models —
+Over the default selection — int8 and rule-based models that are not
+non-commercial, 186 models —
 with an empty cache:
 
 | `max_model_mb` | models kept | languages routable |
 |---|---|---|
-| none | 185 | 594 |
-| 2000 | 178 | 303 |
-| 1000 | 152 | 255 |
-| 500 | 126 | 252 |
-| 300 | 116 | 75 |
+| none | 186 | 594 |
+| 2000 | 179 | 303 |
+| 1000 | 153 | 255 |
+| 500 | 127 | 252 |
+| 300 | 117 | 75 |
 
 The model column and the language column tell different stories, and the second
-one is the one to plan against. A 500 MB budget drops 59 of 185 models, but
+one is the one to plan against. A 500 MB budget drops 59 of 186 models, but
 those 59 include `madlad400-3b-mt-int8` (4945 MB), `m2m100-1.2B-int8` (2344 MB)
 and `m2m100-418M-int8` (1207 MB), and the big multilingual models are where the
 long tail of languages lives. MADLAD is the only model in the registry with

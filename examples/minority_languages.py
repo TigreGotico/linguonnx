@@ -42,7 +42,7 @@ def main() -> None:
 
     tx = load_translator()
     print(f"default graph: {len(tx.available_languages)} languages, "
-          f"permissive licences only\n")
+          f"no non-commercial licences\n")
 
     blocked = []
     for tag, name in TARGETS:

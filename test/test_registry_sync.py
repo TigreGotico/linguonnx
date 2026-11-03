@@ -494,7 +494,7 @@ def test_marian_special_tokens_reads_both_json_shapes(tmp_path):
 
 @pytest.fixture(scope="module")
 def translator():
-    """The default graph: permissive int8. Lazy - nothing is downloaded."""
+    """The default graph: int8, no non-commercial models. Lazy - nothing is downloaded."""
     return load_translator()
 
 
@@ -529,7 +529,7 @@ def test_pt_to_eu_never_routes_through_a_model_without_basque(translator):
                     f"M2M100 and has no Basque")
 
 
-def test_default_graph_is_permissively_licensed(translator):
+def test_default_graph_has_no_noncommercial_model(translator):
     """Non-commercial models are available but never silently in the default."""
     for model_id, entry in translator.models.items():
         assert entry["license_tier"] != "non-commercial", (

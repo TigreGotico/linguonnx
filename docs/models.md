@@ -66,8 +66,7 @@ ur-en  vi-en  xh-en  zh-en
 ```
 
 Together they reach 594 languages over the default graph. MADLAD supplies most
-of the tail, including the ones no other model here has: Mirandese, Aragonese,
-Occitan and several hundred more.
+of the tail: several hundred languages that no other model here has.
 
 Eight entries — `nllb-600M`, `aina-es-oc`, `aina-translator-es-an` and
 `aina-translator-es-ast`, in both precisions — are non-commercial and out of
@@ -151,9 +150,9 @@ print(tx.route("en", "ext-PT-x-barrancos").model_ids)
 `pt2mirandese` translates European Portuguese into Mirandese (`mwl`), the
 same way: one line at a time, `{slots}` kept, one-way. Its code is Apache-2.0
 and its word lists include CC-BY-SA-4.0 data, so the entry's tier is
-`share-alike`. Mirandese is also covered by MADLAD-400 and the opus-mt Italic
-group model; when the package is not installed, `pt -> mwl` routes through
-those instead.
+`share-alike`. Mirandese is also covered by MADLAD-400 and the two opus-mt
+Italic group models, `opus-mt-itc-itc` and `opus-mt-tc-big-itc-itc`; when the
+package is not installed, `pt -> mwl` routes through those instead.
 
 The package comes from the `rules` extra:
 
@@ -529,7 +528,7 @@ a token this way, each measured with and without it:
 | `opus-mt-en-ar` | `>>ara<<` | "cancel the alarm" becomes "this" |
 | `opus-mt-en-bg` | `>>bul<<` | "cancel the alarm" becomes "switch ON the alarm" |
 | `opus-mt-en-vi` | `>>vie<<` | "cancel the alarm" repeats one word to the length limit |
-| `opus-mt-en-pt` | `>>por<<` | "what time is it" becomes "O que é o tempo"; with the token, "Que horas são". The output stays mostly Brazilian either way |
+| `opus-mt-en-pt` | `>>por<<` | Brazilian forms; with the token, European ("enviar-lhe-ei") |
 
 `opus-mt-en-pl` carries `>>pol<<` from the name test, not from this reading.
 `>>pob<<` is Brazilian Portuguese, and no entry addresses it, so a caller who
