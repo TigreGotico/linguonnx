@@ -89,22 +89,27 @@ def test_a_fine_tune_whose_vocabulary_lacks_the_piece_is_skipped():
     the base vocabulary, and the entry would send a piece the model lacks."""
     with pytest.raises(sync_registry.SkipRepo, match="oc-aranes"):
         sync_registry._madlad_coverage("madlad400-3b-mt-oc_aranes",
-                                       ["ca", "en", "es", "fr", "oc"])
+                                       ["ca", "en", "es", "fr", "oc"], {})
     coverage = sync_registry._madlad_coverage(
-        "madlad400-3b-mt-oc_aranes", ["ca", "en", "es", "fr", "oc", "oc-aranes"])
+        "madlad400-3b-mt-oc_aranes", ["ca", "en", "es", "fr", "oc", "oc-aranes"],
+        {"oc-aranes": "oc_aranes"})
     assert coverage["native_codes"] == {"oc": "oc_aranes"}
 
 
 def test_a_regional_model_reads_every_language_but_its_target():
     coverage = sync_registry._madlad_coverage("madlad400-3b-mt-es_419",
-                                              ["de", "en", "es", "es-419"])
+                                              ["de", "en", "es", "es-419"],
+                                              {"es-419": "es_419"})
     assert coverage["src_languages"] == ["de", "en", "es"]
     assert coverage["tgt_languages"] == ["es-419"]
 
 
 def test_the_base_model_keeps_its_vocabulary():
-    assert sync_registry._madlad_coverage("madlad400-3b-mt", ["de", "en"]) \
+    assert sync_registry._madlad_coverage("madlad400-3b-mt", ["de", "en"], {}) \
         == {"languages": ["de", "en"]}
+    assert sync_registry._madlad_coverage(
+        "madlad400-3b-mt", ["de", "fr-CA"], {"fr-CA": "fr_CA"}) \
+        == {"languages": ["de", "fr-CA"], "native_codes": {"fr-CA": "fr_CA"}}
 
 
 def test_without_a_cap_regional_spanish_uses_the_fine_tunes():
