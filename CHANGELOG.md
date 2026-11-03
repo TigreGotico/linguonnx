@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.19.0a2](https://github.com/TigreGotico/linguonnx/tree/0.19.0a2) (2026-11-03)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.19.0a1...0.19.0a2)
+
+**Merged pull requests:**
+
+- test: pin cap escalation for a bare language at its default region [\#120](https://github.com/TigreGotico/linguonnx/pull/120) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.19.0a1](https://github.com/TigreGotico/linguonnx/tree/0.19.0a1) (2026-11-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.18.1a2...0.19.0a1)
@@ -383,11 +391,6 @@
 ## [0.5.0](https://github.com/TigreGotico/linguonnx/tree/0.5.0) (2026-08-02)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.4.0a1...0.5.0)
-
-**Merged pull requests:**
-
-- Release 0.5.0a1 [\#15](https://github.com/TigreGotico/linguonnx/pull/15) ([github-actions[bot]](https://github.com/apps/github-actions))
-- feat: route the big multilingual models, and say when a licence blocks a pair [\#14](https://github.com/TigreGotico/linguonnx/pull/14) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.4.0a1](https://github.com/TigreGotico/linguonnx/tree/0.4.0a1) (2026-08-02)
 
