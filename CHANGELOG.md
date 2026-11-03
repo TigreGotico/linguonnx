@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.1a1](https://github.com/TigreGotico/linguonnx/tree/0.18.1a1) (2026-11-03)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.18.0a1...0.18.1a1)
+
+**Merged pull requests:**
+
+- fix: send MADLAD its own piece for a tag with a script or region [\#114](https://github.com/TigreGotico/linguonnx/pull/114) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.18.0a1](https://github.com/TigreGotico/linguonnx/tree/0.18.0a1) (2026-11-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.17.0a1...0.18.0a1)
@@ -387,17 +395,9 @@
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.2.0...0.2.0a1)
 
-**Merged pull requests:**
-
-- Release 0.2.0a1 [\#9](https://github.com/TigreGotico/linguonnx/pull/9) ([github-actions[bot]](https://github.com/apps/github-actions))
-
 ## [0.2.0](https://github.com/TigreGotico/linguonnx/tree/0.2.0) (2026-08-02)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.1.2a1...0.2.0)
-
-**Merged pull requests:**
-
-- feat: translation, designed graph-first [\#8](https://github.com/TigreGotico/linguonnx/pull/8) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.1.2a1](https://github.com/TigreGotico/linguonnx/tree/0.1.2a1) (2026-08-02)
 
