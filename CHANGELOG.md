@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.17.0a1](https://github.com/TigreGotico/linguonnx/tree/0.17.0a1) (2026-11-03)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.16.0a1...0.17.0a1)
+
+**Merged pull requests:**
+
+- feat: add IbRo-nllb and the AfriGloss opus-mt fine-tunes [\#110](https://github.com/TigreGotico/linguonnx/pull/110) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.16.0a1](https://github.com/TigreGotico/linguonnx/tree/0.16.0a1) (2026-11-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.15.2a1...0.16.0a1)
@@ -396,17 +404,9 @@
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.1.1...0.1.1a1)
 
-**Merged pull requests:**
-
-- Release 0.1.1a1 [\#5](https://github.com/TigreGotico/linguonnx/pull/5) ([github-actions[bot]](https://github.com/apps/github-actions))
-
 ## [0.1.1](https://github.com/TigreGotico/linguonnx/tree/0.1.1) (2026-08-02)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.1.0...0.1.1)
-
-**Merged pull requests:**
-
-- chore: rename package to linguonnx [\#4](https://github.com/TigreGotico/linguonnx/pull/4) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.1.0](https://github.com/TigreGotico/linguonnx/tree/0.1.0) (2026-08-02)
 
