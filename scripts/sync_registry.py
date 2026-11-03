@@ -1602,7 +1602,7 @@ def _without_families(codes: Iterable[str]) -> List[str]:
     return sorted({code for code in codes if tag_scope(code) is None})
 
 
-def _madlad_languages(repo_id: str, files: Dict[str, int]) -> List[str]:
+def _madlad_languages(repo_id: str, files: Dict[str, int]) -> Tuple[List[str], Dict[str, str]]:
     """MADLAD's target set, read off its own SentencePiece vocabulary.
 
     Every language MADLAD was trained on gets a `<2xx>` piece baked into the
@@ -1638,18 +1638,31 @@ def _madlad_languages(repo_id: str, files: Dict[str, int]) -> List[str]:
     # `_multilingual_languages` already uses for NLLB, so the committed
     # registry speaks one code system instead of forcing every reader (and
     # `normalize_tag`) to reconcile two spellings of the same language.
+    #
+    # The piece keeps MADLAD's own spelling, so a tag whose spelling changed
+    # (`fr-CA` for `<2fr_CA>`, `sr-Latn` for `<2sh>`) records it in
+    # `native_codes`; `<2fr-CA>` is not a piece and the tokenizer refuses it.
+    # Where two pieces normalise to one tag (`crh`, `crh_Latn`), the piece
+    # spelled as the tag is the one sent.
     from linguonnx.detect.labels import to_bcp47
     normalized = set()
-    for code in codes:
+    native: Dict[str, str] = {}
+    for code in sorted(codes):
         try:
-            normalized.add(to_bcp47(code))
+            tag = to_bcp47(code)
         except Exception:
-            normalized.add(code)
-    return _without_families(normalized)
+            tag = code
+        normalized.add(tag)
+        if tag != code and tag not in codes:
+            native[tag] = code
+    kept = _without_families(normalized)
+    return kept, {tag: code for tag, code in native.items() if tag in kept}
 
 
-def _madlad_coverage(model_id: str, languages: List[str]) -> Dict:
-    """Registry coverage of a MADLAD export, given its vocabulary languages.
+def _madlad_coverage(model_id: str, languages: List[str],
+                     native_codes: Dict[str, str]) -> Dict:
+    """Registry coverage of a MADLAD export, given its vocabulary languages
+    and the pieces whose spelling differs from the tag.
 
     The base model covers its whole vocabulary. A fine-tune in
     `MADLAD_FINETUNES` covers what its card states, and every new piece it
@@ -1658,7 +1671,8 @@ def _madlad_coverage(model_id: str, languages: List[str]) -> Dict:
     """
     spec = MADLAD_FINETUNES.get(model_id)
     if spec is None:
-        return {"languages": languages}
+        return {"languages": languages, "native_codes": native_codes} \
+            if native_codes else {"languages": languages}
     from linguonnx.detect.labels import to_bcp47
     targets = {to_bcp47(native) for native in spec["native_codes"].values()}
     absent = sorted(targets - set(languages))
@@ -2093,7 +2107,7 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
             if token:
                 shared["target_token"] = token
     elif arch == "madlad":
-        shared.update(_madlad_coverage(model_id, _madlad_languages(repo_id, files)))
+        shared.update(_madlad_coverage(model_id, *_madlad_languages(repo_id, files)))
     elif arch == "t5-prefix":
         # Coverage cannot be read off the artifacts here. The SentencePiece
         # model is a general subword vocabulary and carries no language
