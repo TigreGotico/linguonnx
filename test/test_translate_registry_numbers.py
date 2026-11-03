@@ -40,7 +40,7 @@ from linguonnx.translate import load_translator
 
 # Recount with:
 #   load_translator(max_model_mb=CAP, count_cached_as_free=False)
-LANGUAGES_UNCAPPED = 595
+LANGUAGES_UNCAPPED = 594
 LANGUAGES_UNDER_500 = 255
 FALLBACK_STEPS_UNDER_500 = 38
 

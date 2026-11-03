@@ -163,10 +163,6 @@
         "oc"
       ],
       [
-        "ca-valencia",
-        "es"
-      ],
-      [
         "es",
         "an"
       ],
@@ -177,10 +173,6 @@
       [
         "es",
         "ca"
-      ],
-      [
-        "es",
-        "ca-valencia"
       ],
       [
         "es",
@@ -218,7 +210,6 @@
       "an",
       "ast",
       "ca",
-      "ca-valencia",
       "es",
       "gl",
       "oc"
@@ -230,7 +221,6 @@
       "an": "arg_Latn",
       "ast": "ast_Latn",
       "ca": "cat_Latn",
-      "ca-valencia": "val_Latn",
       "es": "spa_Latn",
       "gl": "glg_Latn",
       "oc": "arn_Latn"
@@ -267,10 +257,6 @@
         "oc"
       ],
       [
-        "ca-valencia",
-        "es"
-      ],
-      [
         "es",
         "an"
       ],
@@ -281,10 +267,6 @@
       [
         "es",
         "ca"
-      ],
-      [
-        "es",
-        "ca-valencia"
       ],
       [
         "es",
@@ -322,7 +304,6 @@
       "an",
       "ast",
       "ca",
-      "ca-valencia",
       "es",
       "gl",
       "oc"
@@ -334,7 +315,6 @@
       "an": "arg_Latn",
       "ast": "ast_Latn",
       "ca": "cat_Latn",
-      "ca-valencia": "val_Latn",
       "es": "spa_Latn",
       "gl": "glg_Latn",
       "oc": "arn_Latn"
@@ -6217,8 +6197,7 @@
       "config": "config.json",
       "generation_config": "generation_config.json",
       "special_tokens_map": "special_tokens_map.json",
-      "tokenizer_json": "tokenizer.json",
-      "tokenizer_config": "tokenizer_config.json"
+      "tokenizer_json": "tokenizer.json"
     },
     "size_mb": 7414
   },
@@ -6447,8 +6426,7 @@
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
       "special_tokens_map": "special_tokens_map.json",
-      "tokenizer_json": "tokenizer.json",
-      "tokenizer_config": "tokenizer_config.json"
+      "tokenizer_json": "tokenizer.json"
     },
     "size_mb": 1899
   },

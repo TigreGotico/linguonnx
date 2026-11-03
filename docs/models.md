@@ -42,7 +42,7 @@ weights and no precision, so the precision filter never removes it.
 | `translate-eus-cat`, `translate-oci-cat` | Pegasus (fast) | `eu-ca`, `oc-ca` | 590 MB each | MIT |
 | `opus-mt-*` (124) | Marian | one pair each | 78 MB – 716 MB | Apache-2.0 or CC-BY-4.0 |
 | `afrigloss-opus-mt-*` (14) | Marian fine-tune | one pair each; en → {ee, ha, ig, sn, sw, tw, yo}, fr → {ee, ha, ig, sn, sw, tw, yo} | 216 MB – 904 MB | **CC-BY-NC-4.0**; fr-ee, fr-ha, fr-ig, fr-sn: Apache-2.0 |
-| `IbRo-nllb` | NLLB-1.3B fine-tune | es ↔ {an, ast, ca, ca-valencia, gl, oc (Aranese)}, ca ↔ oc: 14 directions | 3.04 GB – 11.9 GB | Apache-2.0 |
+| `IbRo-nllb` | NLLB-1.3B fine-tune | es ↔ {an, ast, ca, gl, oc (Aranese)}, ca ↔ oc: 12 directions | 3.04 GB – 11.9 GB | Apache-2.0 |
 | `pt2barranquenho` | rules (Python package) | Portuguese → Barranquenho (`ext-PT-x-barrancos`), **one-way** | 0 MB, nothing to download | Apache-2.0 |
 | `pt2mirandese` | rules (Python package) | Portuguese → Mirandese (`mwl`), **one-way** | 0 MB, nothing to download | Apache-2.0 code, **CC-BY-SA-4.0 word lists** |
 
@@ -67,7 +67,7 @@ tc-big-zle-en  th-en  tl-en  tn-en  tr-az  tr-en  ts-en  uk-en
 ur-en  vi-en  xh-en  zh-en
 ```
 
-Together they reach 595 languages over the default graph. MADLAD supplies most
+Together they reach 594 languages over the default graph. MADLAD supplies most
 of the tail: nearly three hundred languages that no other model here has.
 
 Twenty-eight entries are non-commercial and out of the default graph:
@@ -464,7 +464,7 @@ Everything the Hub can answer is read from the Hub, never typed out:
 | `pair` | The repo name, cross-checked against the base model named in the card. Never a language *family*: `itc`, `sla`, `mul` and the other ISO 639-5 collection codes are refused as pair sides, and the repo takes the group-model path below. |
 | `target_token_template` + `native_codes` | For a model that picks its target with a prefix token. The token set is read from the model's own vocabulary — `<2xx>` for MADLAD and `liv4ever-mt`, `>>xxx<<` for the opus-mt group models — and `native_codes` maps the BCP-47 tag the graph uses back to the model's own spelling, so the graph sees `it` and the model still gets `>>ita<<`. |
 | `prefix_templates` | **Not** derived — hand-transcribed from the model card into `T5_PREFIX_MODELS`, for an instruction-prefixed T5/UMT5. The instruction that selects a direction is prose in the card's own "Instructions" list; nothing in the artifacts records it, and the wording is not symmetric between directions. The script refuses a `umt5` repo it has no transcription for rather than guessing one. |
-| `directions` | **Not** derived — hand-transcribed into `MULTILINGUAL_LANGUAGE_OVERRIDES` from the card's list of trained directions, as `[src, tgt]` pairs. For a fine-tune trained on a few directions over its languages: `IbRo-nllb` has 7 languages and 14 directions, all through Spanish except Catalan ↔ Aranese. The router offers only those edges. |
+| `directions` | **Not** derived — hand-transcribed into `MULTILINGUAL_LANGUAGE_OVERRIDES` from the card's list of trained directions, as `[src, tgt]` pairs. For a fine-tune trained on a few directions over its languages: `IbRo-nllb` has 6 languages and 12 directions, all through Spanish except Catalan ↔ Aranese. The router offers only those edges. |
 | `size_mb` | Summed blob sizes of the files the entry actually references. Load-bearing twice over: it breaks ties in the route ranking, and it is what `max_model_mb` compares against, so an entry that under-reports its size gets routed onto hosts that cannot afford it. See [routing](routing.md#size-budget). |
 | `runnable` | Written as `false`, with an `unrunnable_reason`, for an architecture whose inference pipeline this library does not implement. The router excludes those models. Delete the architecture from `UNRUNNABLE_ARCHS` in the script when its pipeline lands. |
 
@@ -498,7 +498,12 @@ vocabulary.
 **Tokenizer clean-up.** An NLLB export whose `tokenizer_config.json` sets
 `clean_up_tokenization_spaces` gets the `transformers` clean-up after decoding:
 no space before `.`, `,`, `?` and `!`, and English contractions joined.
-`IbRo-nllb` emits a separate full-stop piece in Asturian and relies on it.
+`IbRo-nllb` emits a separate full-stop piece in Asturian and relies on it. The
+registry records the file only for an export that sets the flag.
+
+**Valencian.** `IbRo-nllb` also has a Valencian token, `val_Latn`, which the
+registry does not register. The router treats `ca-valencia` as `ca`, so a
+Valencian request uses the Catalan models, small ones included.
 
 **Instruction prefixes.** A model that picks its task with a sentence rather
 than a token can only do what it has an instruction for, and those do not have

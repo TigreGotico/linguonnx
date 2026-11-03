@@ -18,15 +18,15 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import sync_registry  # noqa: E402
 
 TRANSLATE = list_models(kind="translate")
-IBRO_EDGES = {("es", other) for other in ("an", "ast", "ca", "ca-valencia", "gl", "oc")}
+IBRO_EDGES = {("es", other) for other in ("an", "ast", "ca", "gl", "oc")}
 IBRO_EDGES |= {(tgt, src) for src, tgt in IBRO_EDGES} | {("ca", "oc"), ("oc", "ca")}
 
 
 @pytest.mark.parametrize("model_id", ["IbRo-nllb", "IbRo-nllb-int8"])
-def test_ibro_covers_its_fourteen_trained_directions_only(model_id):
+def test_ibro_covers_its_twelve_registered_directions_only(model_id):
     capability = capability_from_entry(TRANSLATE[model_id])
     assert capability.directions == frozenset(IBRO_EDGES)
-    assert capability.covers("es", "ca-valencia")
+    assert capability.covers("es", "oc")
     assert capability.covers("oc", "ca")
     assert not capability.covers("gl", "ast")
     assert not capability.covers("an", "ca")
@@ -37,14 +37,29 @@ def test_ibro_sends_the_fine_tune_tokens():
     native = TRANSLATE["IbRo-nllb-int8"]["native_codes"]
     assert native["an"] == "arg_Latn"
     assert native["oc"] == "arn_Latn"
-    assert native["ca-valencia"] == "val_Latn"
     assert native["ca"] == "cat_Latn"
+    assert "val_Latn" not in native.values()
 
 
-def test_valencian_routes_through_ibro_and_aranese_spellings_agree():
+def test_aranese_spellings_route_alike():
     tx = load_translator()
-    assert tx.route("es", "ca-valencia").model_ids == ("IbRo-nllb-int8",)
     assert tx.route("es", "oc-aranes").model_ids == tx.route("es", "oc").model_ids
+
+
+@pytest.mark.parametrize("budget", [None, 500])
+@pytest.mark.parametrize("tgt", ["en", "es", "fr", "pt", "eu"])
+def test_a_valencian_request_routes_as_catalan(budget, tgt):
+    """A `ca-valencia` node served only by the 3 GB IbRo model took these
+    requests off the small Catalan models and failed them under 500 MB."""
+    tx = load_translator(max_model_mb=budget, count_cached_as_free=False)
+    assert tx.route("ca-valencia", tgt).model_ids == tx.route("ca", tgt).model_ids
+
+
+def test_an_nllb_export_without_the_clean_up_flag_gains_no_side_file():
+    """nllb-600M's tokenizer_config.json leaves the flag false; recording it
+    anyway would make every cache already on disk look incomplete."""
+    for model_id in ("nllb-600M", "nllb-600M-int8"):
+        assert "tokenizer_config" not in TRANSLATE[model_id]["side_files"]
 
 
 def test_a_directions_list_becomes_the_capability_edges():

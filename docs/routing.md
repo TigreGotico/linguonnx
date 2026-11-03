@@ -353,7 +353,7 @@ with an empty cache:
 
 | `max_model_mb` | models kept | languages routable |
 |---|---|---|
-| none | 191 | 595 |
+| none | 191 | 594 |
 | 2000 | 183 | 303 |
 | 1000 | 157 | 258 |
 | 500 | 131 | 255 |
@@ -406,7 +406,7 @@ tx = load_translator(max_model_mb=500, oversize_fallback=True)
 print(tx.route("en", "ca").model_ids)      # ('opus-mt-en-ca-int8',)   157 MB
 print(tx.route("en", "cv").model_ids)      # ('madlad400-3b-mt-int8',) 4945 MB
 print(tx.route("en", "cv").waived_size_cap)  # 500
-print(len(tx.available_languages))         # 595, not 255
+print(len(tx.available_languages))         # 594, not 255
 ```
 
 `en -> ca` stays on the small model, because one exists. Chuvash routes at

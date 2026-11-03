@@ -388,6 +388,13 @@ _KNOWN_UNRESOLVED_GROUP_MODELS: Tuple[str, ...] = ()
 #: `transformers` on the same sentence reproduces the identical
 #: Fula/Wolof-over-Yoruba misclassification - confirmed genuine upstream
 #: model behaviour, not an export or preprocessing defect.
+_KNOWN_ARCH_MISMATCH: Tuple[str, ...] = (
+    "vinai-translate-vi2en-v2",
+    "arat5-arabic-dialects-translation",
+    "arabic-MARBERT-dialect-identification-city",
+    "afrolid_1.5",
+)
+
 #: Exports this library cannot tokenize the way the model was trained, keyed
 #: by model id. ``translate_entries`` skips them with the reason.
 #:
@@ -403,13 +410,6 @@ _UNSUPPORTED_TOKENIZATION: Dict[str, str] = {
         "SpmSeq2SeqTokenizer does not reproduce it")
     for model_id in ("afrigloss-nllb-600m", "afrigloss-nllb-1.3b")
 }
-
-_KNOWN_ARCH_MISMATCH: Tuple[str, ...] = (
-    "vinai-translate-vi2en-v2",
-    "arat5-arabic-dialects-translation",
-    "arabic-MARBERT-dialect-identification-city",
-    "afrolid_1.5",
-)
 
 #: Hand-verified fix-ups for a *multilingual* Marian export whose target is
 #: chosen by a `<2xx>` prefix token read straight out of its own vocab.json
@@ -454,23 +454,26 @@ MARIAN_MULTILINGUAL_OVERRIDES: Dict[str, Dict] = {
 #: not Mapudungun ``arn``) and ``val_Latn`` (Valencian). ``tokenizer.json``
 #: states their ids. Aranese is ``oc``, as for ``aina-es-oc`` and
 #: ``nos-mt-es-arn`` (see ``MODEL_CODE_ALIASES`` in graph.py). Valencian is
-#: ``ca-valencia``, because ``ca`` already names the ``cat_Latn`` token.
+#: left out: the router treats ``ca-valencia`` as ``ca``, and a separate
+#: Valencian node served only by this 3 GB model would take ``ca-valencia``
+#: requests away from the small Catalan models and fail them under a 500 MB
+#: budget.
 #: Source: https://huggingface.co/Transducens/IbRo-nllb
 MULTILINGUAL_LANGUAGE_OVERRIDES: Dict[str, Dict] = {
     "IbRo-nllb": {
-        "languages": ["an", "ast", "ca", "ca-valencia", "es", "gl", "oc"],
+        "languages": ["an", "ast", "ca", "es", "gl", "oc"],
         "native_codes": {"an": "arg_Latn", "ast": "ast_Latn", "ca": "cat_Latn",
-                         "ca-valencia": "val_Latn", "es": "spa_Latn",
-                         "gl": "glg_Latn", "oc": "arn_Latn"},
+                         "es": "spa_Latn", "gl": "glg_Latn", "oc": "arn_Latn"},
         "directions": sorted(
-            [edge for other in ("an", "ast", "ca", "ca-valencia", "gl", "oc")
+            [edge for other in ("an", "ast", "ca", "gl", "oc")
              for edge in (["es", other], [other, "es"])]
             + [["ca", "oc"], ["oc", "ca"]]),
         "notes": "Transducens NLLB-1.3B fine-tune for the languages of Spain. "
                  "Trained directions: Spanish <-> Asturian, Aragonese, "
-                 "Aranese, Galician, Catalan, Valencian, and Catalan <-> "
-                 "Aranese. Coverage is these 14 edges, not the 202 tokens "
-                 "the base tokenizer still carries.",
+                 "Aranese, Galician, Catalan, and Catalan <-> Aranese. "
+                 "Coverage is these 12 edges, not the 202 tokens the base "
+                 "tokenizer still carries. The Valencian token val_Latn is "
+                 "not registered; ca-valencia routes as ca.",
     },
     "m2m100-418M-smugri": {
         "languages": ["en", "et", "fi", "lv", "liv", "vro", "sma", "se"],
@@ -615,9 +618,11 @@ SIDE_FILES: Dict[str, Dict[str, str]] = {
         # one short: the request lands on `<mask>`. `tokenizer.json` states
         # the ids - see `tokenizer_json_added_tokens` in tokenizers.py.
         "tokenizer_json": "tokenizer.json",
-        # Optional. Read for `clean_up_tokenization_spaces`: IbRo-nllb sets it,
-        # and without it its Asturian output keeps a space before every
-        # full stop and comma.
+        # Recorded only when it sets `clean_up_tokenization_spaces` (see
+        # `translate_entries`). IbRo-nllb sets it, and without it its
+        # Asturian output keeps a space before every full stop and comma.
+        # An export that leaves it false gains no side file, so a cache
+        # already on disk stays complete.
         "tokenizer_config": "tokenizer_config.json",
     },
     # T5 (MADLAD): a single SentencePiece model with the `<2xx>` target tokens
@@ -2109,6 +2114,10 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
                 f"an instruction-prefixed T5 needs either spiece.model *and* "
                 f"added_tokens.json, or a tokenizer.json carrying both; this "
                 f"export has {sorted(side)}")
+        if arch == "nllb" and "tokenizer_config" in side:
+            config = json.loads(raw_file(repo_id, side["tokenizer_config"]))
+            if not config.get("clean_up_tokenization_spaces"):
+                del side["tokenizer_config"]
         missing = [k for k in REQUIRED_SIDE_FILES[arch] if k not in side]
         if missing:
             raise SkipRepo(f"missing required side files: {', '.join(missing)}")
