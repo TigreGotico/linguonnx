@@ -5,7 +5,9 @@ is `<2fr_CA>`, `sr-Latn` is `<2sh>`, `fa-AF` is `<2prs>`. A tag sent as
 `<2fr-CA>` is not a piece, and `T5SpmTokenizer` refuses it, so every such
 language raised at translation time while routing offered it.
 """
+import sys
 import urllib.request
+from pathlib import Path
 
 import pytest
 
@@ -13,6 +15,10 @@ from linguonnx.detect.labels import to_bcp47
 from linguonnx.model_manager import list_models
 from linguonnx.translate.models import load_model
 from linguonnx.translate.tokenizers import T5SpmTokenizer
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
+import sync_registry  # noqa: E402
 
 TRANSLATE = list_models(kind="translate")
 MADLAD = sorted(k for k, e in TRANSLATE.items() if e["arch"] == "madlad")
@@ -41,9 +47,20 @@ def test_every_base_target_tag_maps_back_from_its_piece(model_id):
 
 @pytest.mark.parametrize("tag,piece", [("fr-CA", "fr_CA"), ("sr-Latn", "sh"),
                                        ("fa-AF", "prs"), ("zh-Hant", "zh_Hant"),
-                                       ("crh", "crh"), ("pt", "pt")])
+                                       ("kmz", "kmz_Latn"), ("crh", "crh"),
+                                       ("pt", "pt")])
 def test_the_base_model_sends_its_own_spelling(tag, piece):
     assert load_model("madlad400-3b-mt-int8").native_code(tag) == piece
+
+
+def test_the_tag_mapping_keeps_the_piece_spelled_as_the_tag():
+    """`crh` and `crh_Latn` both normalise to `crh`; `<2crh>` is the piece
+    sent. A renamed code records its piece, a family code is dropped."""
+    tags, native = sync_registry._madlad_tags(
+        ["crh_Latn", "crh", "fr_CA", "sh", "prs", "kmz_Latn", "pt", "ber"])
+    assert tags == ["crh", "fa-AF", "fr-CA", "kmz", "pt", "sr-Latn"]
+    assert native == {"fa-AF": "prs", "fr-CA": "fr_CA", "kmz": "kmz_Latn",
+                      "sr-Latn": "sh"}
 
 
 @pytest.mark.network

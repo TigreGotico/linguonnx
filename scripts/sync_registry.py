@@ -1633,17 +1633,25 @@ def _madlad_languages(repo_id: str, files: Dict[str, int]) -> Tuple[List[str], D
     }
     if not codes:
         raise SkipRepo("spiece.model has no <2xx> target-prefix pieces")
-    # MADLAD spells its vocabulary in the same FLORES-ish shape NLLB does
-    # ("ace_Arab", "zh_Hant"); normalise it through the same `to_bcp47` path
-    # `_multilingual_languages` already uses for NLLB, so the committed
-    # registry speaks one code system instead of forcing every reader (and
-    # `normalize_tag`) to reconcile two spellings of the same language.
-    #
-    # The piece keeps MADLAD's own spelling, so a tag whose spelling changed
-    # (`fr-CA` for `<2fr_CA>`, `sr-Latn` for `<2sh>`) records it in
-    # `native_codes`; `<2fr-CA>` is not a piece and the tokenizer refuses it.
-    # Where two pieces normalise to one tag (`crh`, `crh_Latn`), the piece
-    # spelled as the tag is the one sent.
+    return _madlad_tags(codes)
+
+
+def _madlad_tags(codes: Iterable[str]) -> Tuple[List[str], Dict[str, str]]:
+    """MADLAD's piece codes -> ``(BCP-47 tags, native_codes)``.
+
+    MADLAD spells its vocabulary in the same FLORES-ish shape NLLB does
+    ("ace_Arab", "zh_Hant"); normalise it through the same `to_bcp47` path
+    `_multilingual_languages` already uses for NLLB, so the committed
+    registry speaks one code system instead of forcing every reader (and
+    `normalize_tag`) to reconcile two spellings of the same language.
+
+    The piece keeps MADLAD's own spelling, so a tag whose spelling changed
+    (`fr-CA` for `<2fr_CA>`, `sr-Latn` for `<2sh>`) records it in
+    `native_codes`; `<2fr-CA>` is not a piece and the tokenizer refuses it.
+    Where two pieces normalise to one tag (`crh`, `crh_Latn`), the piece
+    spelled as the tag is the one sent.
+    """
+    codes = set(codes)
     from linguonnx.detect.labels import to_bcp47
     normalized = set()
     native: Dict[str, str] = {}
