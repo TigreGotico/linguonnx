@@ -2,7 +2,7 @@
 
 Two JSON files under `linguonnx/model_index/` say what exists: `lid.json` for
 language identification and `translate.json` for translation. They hold 10 and
-379 entries. Every ONNX entry names a HuggingFace repo, the exact files to
+409 entries. Every ONNX entry names a HuggingFace repo, the exact files to
 fetch, the languages covered, the licence and the size. A rule-based entry
 names a Python function instead of files. See
 [Rule-based models](#rule-based-models).
@@ -13,7 +13,7 @@ it sounds.
 
 ## What is in the translation registry
 
-379 entries is 188 int8 and 189 fp32 entries across 189 models, plus 2
+409 entries is 203 int8 and 204 fp32 entries across 204 models, plus 2
 rule-based entries. `load_translator()` defaults to `precision="int8"`; pass
 `precision="fp32"` or `precision=None` for both. A rule-based entry has no
 weights and no precision, so the precision filter never removes it.
@@ -41,6 +41,8 @@ weights and no precision, so the precision filter never removes it.
 | `m2m100_418M_*` African fine-tunes (12) | M2M100 | one pair each; fr↔{bam, bbj, mos}, fr → {fon, ewe}, en↔hau, en↔nso | 1.21 GB – 3.18 GB | Apache-2.0 for the `nso` pair; **AFL-3.0 for the rest** |
 | `translate-eus-cat`, `translate-oci-cat` | Pegasus (fast) | `eu-ca`, `oc-ca` | 590 MB each | MIT |
 | `opus-mt-*` (124) | Marian | one pair each | 78 MB – 716 MB | Apache-2.0 or CC-BY-4.0 |
+| `afrigloss-opus-mt-*` (14) | Marian fine-tune | one pair each; en → {ee, ha, ig, sn, sw, tw, yo}, fr → {ee, ha, ig, sn, sw, tw, yo} | 216 MB – 904 MB | **CC-BY-NC-4.0**; fr-ee, fr-ha, fr-ig, fr-sn: Apache-2.0 |
+| `IbRo-nllb` | NLLB-1.3B fine-tune | es ↔ {an, ast, ca, ca-valencia, gl, oc (Aranese)}, ca ↔ oc: 14 directions | 3.04 GB – 11.9 GB | Apache-2.0 |
 | `pt2barranquenho` | rules (Python package) | Portuguese → Barranquenho (`ext-PT-x-barrancos`), **one-way** | 0 MB, nothing to download | Apache-2.0 |
 | `pt2mirandese` | rules (Python package) | Portuguese → Mirandese (`mwl`), **one-way** | 0 MB, nothing to download | Apache-2.0 code, **CC-BY-SA-4.0 word lists** |
 
@@ -65,12 +67,12 @@ tc-big-zle-en  th-en  tl-en  tn-en  tr-az  tr-en  ts-en  uk-en
 ur-en  vi-en  xh-en  zh-en
 ```
 
-Together they reach 594 languages over the default graph. MADLAD supplies most
-of the tail: several hundred languages that no other model here has.
+Together they reach 595 languages over the default graph. MADLAD supplies most
+of the tail: nearly three hundred languages that no other model here has.
 
-Eight entries — `nllb-600M`, `aina-es-oc`, `aina-translator-es-an` and
-`aina-translator-es-ast`, in both precisions — are non-commercial and out of
-the default graph. See [licences.md](licences.md).
+Twenty-eight entries are non-commercial and out of the default graph:
+`nllb-600M`, `aina-es-oc`, `aina-translator-es-an`, `aina-translator-es-ast`
+and ten of the `afrigloss-opus-mt-*` pairs, in both precisions. See [licences.md](licences.md).
 
 `aina-translator-es-ca` ships fp32 only; no int8 export is in the registry
 yet.
@@ -174,7 +176,7 @@ print(entry["arch"], entry["pair"], entry["license"], entry["size_mb"])
 # marian ['pt', 'en'] Apache-2.0 172
 
 print(len(list_models(kind="translate")), len(list_models(kind="lid")))
-# 379 10
+# 409 10
 ```
 
 ## The download cache
@@ -462,6 +464,7 @@ Everything the Hub can answer is read from the Hub, never typed out:
 | `pair` | The repo name, cross-checked against the base model named in the card. Never a language *family*: `itc`, `sla`, `mul` and the other ISO 639-5 collection codes are refused as pair sides, and the repo takes the group-model path below. |
 | `target_token_template` + `native_codes` | For a model that picks its target with a prefix token. The token set is read from the model's own vocabulary — `<2xx>` for MADLAD and `liv4ever-mt`, `>>xxx<<` for the opus-mt group models — and `native_codes` maps the BCP-47 tag the graph uses back to the model's own spelling, so the graph sees `it` and the model still gets `>>ita<<`. |
 | `prefix_templates` | **Not** derived — hand-transcribed from the model card into `T5_PREFIX_MODELS`, for an instruction-prefixed T5/UMT5. The instruction that selects a direction is prose in the card's own "Instructions" list; nothing in the artifacts records it, and the wording is not symmetric between directions. The script refuses a `umt5` repo it has no transcription for rather than guessing one. |
+| `directions` | **Not** derived — hand-transcribed into `MULTILINGUAL_LANGUAGE_OVERRIDES` from the card's list of trained directions, as `[src, tgt]` pairs. For a fine-tune trained on a few directions over its languages: `IbRo-nllb` has 7 languages and 14 directions, all through Spanish except Catalan ↔ Aranese. The router offers only those edges. |
 | `size_mb` | Summed blob sizes of the files the entry actually references. Load-bearing twice over: it breaks ties in the route ranking, and it is what `max_model_mb` compares against, so an entry that under-reports its size gets routed onto hosts that cannot afford it. See [routing](routing.md#size-budget). |
 | `runnable` | Written as `false`, with an `unrunnable_reason`, for an architecture whose inference pipeline this library does not implement. The router excludes those models. Delete the architecture from `UNRUNNABLE_ARCHS` in the script when its pipeline lands. |
 
@@ -483,6 +486,19 @@ That reader implements a Unigram lattice and nothing else. An export whose
 `tokenizer.json` declares a normaliser is refused, not approximated — a
 normaliser rewrites the text before segmentation, and ignoring one produces a
 plausible tokenisation of a string the model was never given.
+
+**Glossary fine-tunes.** The `afrigloss-opus-mt-*` models are AfriSpeech
+fine-tunes that keep a glossary term written in angle brackets. A term marked
+`<term>` in the input comes back inside angle brackets, and the model can
+change the term itself. Plain input gives plain output. `en-yo` keeps the
+`>>yor<<` token of its base vocabulary but was trained without it, so its entry
+sends no target token. Only an `opus-mt-*` entry takes a target token from its
+vocabulary.
+
+**Tokenizer clean-up.** An NLLB export whose `tokenizer_config.json` sets
+`clean_up_tokenization_spaces` gets the `transformers` clean-up after decoding:
+no space before `.`, `,`, `?` and `!`, and English contractions joined.
+`IbRo-nllb` emits a separate full-stop piece in Asturian and relies on it.
 
 **Instruction prefixes.** A model that picks its task with a sentence rather
 than a token can only do what it has an instruction for, and those do not have

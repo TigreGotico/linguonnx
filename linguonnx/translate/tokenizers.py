@@ -289,8 +289,10 @@ class SpmSeq2SeqTokenizer:
                  vocab_path=None, fairseq_offset: int = 0,
                  added_tokens_path=None, tokenizer_json_path=None,
                  eos_id: int = 2, pad_id: int = 1, unk_id: int = 3,
-                 bos_id: int = 0, declared_codes: Optional[Sequence[str]] = None):
+                 bos_id: int = 0, declared_codes: Optional[Sequence[str]] = None,
+                 clean_up_tokenization_spaces: bool = False):
         self.sp = _load_spm(spm_path)
+        self.clean_up_tokenization_spaces = clean_up_tokenization_spaces
         self.fairseq_offset = fairseq_offset
         self.eos_id, self.pad_id, self.unk_id, self.bos_id = eos_id, pad_id, unk_id, bos_id
 
@@ -438,7 +440,24 @@ class SpmSeq2SeqTokenizer:
 
     def decode(self, ids: Sequence[int]) -> str:
         pieces = [self.id_to_piece(i) for i in ids if i not in self._specials]
-        return self.sp.DecodePieces(pieces)
+        text = self.sp.DecodePieces(pieces)
+        if self.clean_up_tokenization_spaces:
+            text = clean_up_tokenization(text)
+        return text
+
+
+def clean_up_tokenization(text: str) -> str:
+    """Remove a space before punctuation and English contractions.
+
+    The same replacements as ``transformers``' ``clean_up_tokenization``,
+    which a Hugging Face tokenizer applies when its ``tokenizer_config.json``
+    sets ``clean_up_tokenization_spaces``. A fine-tune that emits a separate
+    ``▁.`` piece (IbRo-nllb into Asturian) relies on it.
+    """
+    return (text.replace(" .", ".").replace(" ?", "?").replace(" !", "!")
+            .replace(" ,", ",").replace(" ' ", "'").replace(" n't", "n't")
+            .replace(" 'm", "'m").replace(" 's", "'s").replace(" 've", "'ve")
+            .replace(" 're", "'re"))
 
 
 # --------------------------------------------------------------------------
@@ -1096,10 +1115,14 @@ def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str],
         # block is positional: handing it the registry's normalised BCP-47
         # list translated `kab` into `kas_Deva`, Kashmiri in the Devanagari
         # script, and 147 other languages into another language each.
-        return SpmSeq2SeqTokenizer(files["spm"], artifact_lang_codes(files),
-                                   fairseq_offset=1,
-                                   tokenizer_json_path=files.get("tokenizer_json"),
-                                   declared_codes=lang_codes)
+        tokenizer_config = (_load_json(files["tokenizer_config"])
+                            if files.get("tokenizer_config") else {})
+        return SpmSeq2SeqTokenizer(
+            files["spm"], artifact_lang_codes(files), fairseq_offset=1,
+            tokenizer_json_path=files.get("tokenizer_json"),
+            declared_codes=lang_codes,
+            clean_up_tokenization_spaces=bool(
+                tokenizer_config.get("clean_up_tokenization_spaces", False)))
     if arch == "madlad":
         return T5SpmTokenizer(files["spm"])
     if arch == "t5-prefix":

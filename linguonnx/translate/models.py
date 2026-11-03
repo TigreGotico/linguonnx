@@ -79,10 +79,19 @@ def capability_from_entry(entry: Dict) -> Capability:
     # for, so its registered prefixes *are* its coverage. Deriving the edges
     # from them rather than restating them keeps the two from drifting: a
     # route the graph offers is a prefix the pipeline can find.
+    # A model trained on a few directions over its languages states them as
+    # `directions`, a list of [src, tgt] edges.
     templates = entry.get("prefix_templates")
-    directions = frozenset(
-        tuple(normalize_tag(code) for code in key.split(">", 1))
-        for key in templates) if templates else None
+    if templates:
+        directions = frozenset(
+            tuple(normalize_tag(code) for code in key.split(">", 1))
+            for key in templates)
+    elif entry.get("directions"):
+        directions = frozenset(
+            (normalize_tag(src), normalize_tag(tgt))
+            for src, tgt in entry["directions"])
+    else:
+        directions = None
     pair = entry.get("pair")
     src_langs = entry.get("src_languages")
     tgt_langs = entry.get("tgt_languages")

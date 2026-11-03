@@ -143,6 +143,1026 @@
     },
     "size_mb": 731
   },
+  "IbRo-nllb": {
+    "arch": "nllb",
+    "directions": [
+      [
+        "an",
+        "es"
+      ],
+      [
+        "ast",
+        "es"
+      ],
+      [
+        "ca",
+        "es"
+      ],
+      [
+        "ca",
+        "oc"
+      ],
+      [
+        "ca-valencia",
+        "es"
+      ],
+      [
+        "es",
+        "an"
+      ],
+      [
+        "es",
+        "ast"
+      ],
+      [
+        "es",
+        "ca"
+      ],
+      [
+        "es",
+        "ca-valencia"
+      ],
+      [
+        "es",
+        "gl"
+      ],
+      [
+        "es",
+        "oc"
+      ],
+      [
+        "gl",
+        "es"
+      ],
+      [
+        "oc",
+        "ca"
+      ],
+      [
+        "oc",
+        "es"
+      ]
+    ],
+    "extra_files": [
+      "decoder_model.onnx_data",
+      "decoder_with_past_model.onnx_data",
+      "encoder_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/IbRo-nllb-onnx",
+    "languages": [
+      "an",
+      "ast",
+      "ca",
+      "ca-valencia",
+      "es",
+      "gl",
+      "oc"
+    ],
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "IbRo-nllb",
+    "native_codes": {
+      "an": "arg_Latn",
+      "ast": "ast_Latn",
+      "ca": "cat_Latn",
+      "ca-valencia": "val_Latn",
+      "es": "spa_Latn",
+      "gl": "glg_Latn",
+      "oc": "arn_Latn"
+    },
+    "notes": "Transducens NLLB-1.3B fine-tune for the languages of Spain. Trained directions: Spanish <-> Asturian, Aragonese, Aranese, Galician, Catalan, Valencian, and Catalan <-> Aranese. Coverage is these 14 edges, not the 202 tokens the base tokenizer still carries.",
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json",
+      "tokenizer_config": "tokenizer_config.json"
+    },
+    "size_mb": 11949
+  },
+  "IbRo-nllb-int8": {
+    "arch": "nllb",
+    "directions": [
+      [
+        "an",
+        "es"
+      ],
+      [
+        "ast",
+        "es"
+      ],
+      [
+        "ca",
+        "es"
+      ],
+      [
+        "ca",
+        "oc"
+      ],
+      [
+        "ca-valencia",
+        "es"
+      ],
+      [
+        "es",
+        "an"
+      ],
+      [
+        "es",
+        "ast"
+      ],
+      [
+        "es",
+        "ca"
+      ],
+      [
+        "es",
+        "ca-valencia"
+      ],
+      [
+        "es",
+        "gl"
+      ],
+      [
+        "es",
+        "oc"
+      ],
+      [
+        "gl",
+        "es"
+      ],
+      [
+        "oc",
+        "ca"
+      ],
+      [
+        "oc",
+        "es"
+      ]
+    ],
+    "extra_files": [
+      "int8/decoder_model.onnx_data",
+      "int8/decoder_with_past_model.onnx_data",
+      "int8/encoder_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/IbRo-nllb-onnx",
+    "languages": [
+      "an",
+      "ast",
+      "ca",
+      "ca-valencia",
+      "es",
+      "gl",
+      "oc"
+    ],
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "IbRo-nllb-int8",
+    "native_codes": {
+      "an": "arg_Latn",
+      "ast": "ast_Latn",
+      "ca": "cat_Latn",
+      "ca-valencia": "val_Latn",
+      "es": "spa_Latn",
+      "gl": "glg_Latn",
+      "oc": "arn_Latn"
+    },
+    "notes": "Transducens NLLB-1.3B fine-tune for the languages of Spain. Trained directions: Spanish <-> Asturian, Aragonese, Aranese, Galician, Catalan, Valencian, and Catalan <-> Aranese. Coverage is these 14 edges, not the 202 tokens the base tokenizer still carries.",
+    "precision": "int8",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json",
+      "tokenizer_config": "tokenizer_config.json"
+    },
+    "size_mb": 3040
+  },
+  "afrigloss-opus-mt-en-ee": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-en-ee",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-en-ee-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-en-ee",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "en",
+      "ee"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 862
+  },
+  "afrigloss-opus-mt-en-ee-int8": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-en-ee",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-en-ee-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-en-ee-int8",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "en",
+      "ee"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 220
+  },
+  "afrigloss-opus-mt-en-ha": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-en-ha",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-en-ha-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-en-ha",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "en",
+      "ha"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 867
+  },
+  "afrigloss-opus-mt-en-ha-int8": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-en-ha",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-en-ha-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-en-ha-int8",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "en",
+      "ha"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 221
+  },
+  "afrigloss-opus-mt-en-ig": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-en-ig",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-en-ig-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-en-ig",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "en",
+      "ig"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 847
+  },
+  "afrigloss-opus-mt-en-ig-int8": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-en-ig",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-en-ig-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-en-ig-int8",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "en",
+      "ig"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 216
+  },
+  "afrigloss-opus-mt-en-sn": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-en-sn",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-en-sn-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-en-sn",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "en",
+      "sn"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 899
+  },
+  "afrigloss-opus-mt-en-sn-int8": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-en-sn",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-en-sn-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-en-sn-int8",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "en",
+      "sn"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 229
+  },
+  "afrigloss-opus-mt-en-sw": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-en-sw",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-en-sw-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-en-sw",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "en",
+      "sw"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 876
+  },
+  "afrigloss-opus-mt-en-sw-int8": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-en-sw",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-en-sw-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-en-sw-int8",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "en",
+      "sw"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 223
+  },
+  "afrigloss-opus-mt-en-tw": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-en-tw",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-en-tw-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-en-tw",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "en",
+      "tw"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 856
+  },
+  "afrigloss-opus-mt-en-tw-int8": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-en-tw",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-en-tw-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-en-tw-int8",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "en",
+      "tw"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 218
+  },
+  "afrigloss-opus-mt-en-yo": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-en-yo",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-en-yo-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-en-yo",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output. It was trained without the >>yor<< prefix its vocabulary still carries, so the entry sends none.",
+    "pair": [
+      "en",
+      "yo"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 903
+  },
+  "afrigloss-opus-mt-en-yo-int8": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-en-yo",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-en-yo-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-en-yo-int8",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output. It was trained without the >>yor<< prefix its vocabulary still carries, so the entry sends none.",
+    "pair": [
+      "en",
+      "yo"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 230
+  },
+  "afrigloss-opus-mt-fr-ee": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-fr-ee",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-fr-ee-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "afrigloss-opus-mt-fr-ee",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "fr",
+      "ee"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 889
+  },
+  "afrigloss-opus-mt-fr-ee-int8": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-fr-ee",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-fr-ee-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "afrigloss-opus-mt-fr-ee-int8",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "fr",
+      "ee"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 227
+  },
+  "afrigloss-opus-mt-fr-ha": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-fr-ha",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-fr-ha-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "afrigloss-opus-mt-fr-ha",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "fr",
+      "ha"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 881
+  },
+  "afrigloss-opus-mt-fr-ha-int8": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-fr-ha",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-fr-ha-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "afrigloss-opus-mt-fr-ha-int8",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "fr",
+      "ha"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 224
+  },
+  "afrigloss-opus-mt-fr-ig": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-fr-ig",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-fr-ig-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "afrigloss-opus-mt-fr-ig",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output. On 'Fermez la porte quand vous partez, s'il vous plaît.' it loops until the 128-token limit.",
+    "pair": [
+      "fr",
+      "ig"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 885
+  },
+  "afrigloss-opus-mt-fr-ig-int8": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-fr-ig",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-fr-ig-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "afrigloss-opus-mt-fr-ig-int8",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output. On 'Fermez la porte quand vous partez, s'il vous plaît.' it loops until the 128-token limit.",
+    "pair": [
+      "fr",
+      "ig"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 225
+  },
+  "afrigloss-opus-mt-fr-sn": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-fr-sn",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-fr-sn-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "afrigloss-opus-mt-fr-sn",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "fr",
+      "sn"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 904
+  },
+  "afrigloss-opus-mt-fr-sn-int8": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-fr-sn",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-fr-sn-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "afrigloss-opus-mt-fr-sn-int8",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "fr",
+      "sn"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 230
+  },
+  "afrigloss-opus-mt-fr-sw": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-fr-sw",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-fr-sw-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-fr-sw",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "fr",
+      "sw"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 889
+  },
+  "afrigloss-opus-mt-fr-sw-int8": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-fr-sw",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-fr-sw-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-fr-sw-int8",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "fr",
+      "sw"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 226
+  },
+  "afrigloss-opus-mt-fr-tw": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-fr-tw",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-fr-tw-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-fr-tw",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "fr",
+      "tw"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 889
+  },
+  "afrigloss-opus-mt-fr-tw-int8": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-fr-tw",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-fr-tw-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-fr-tw-int8",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "fr",
+      "tw"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 226
+  },
+  "afrigloss-opus-mt-fr-yo": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-fr-yo",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-fr-yo-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-fr-yo",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "fr",
+      "yo"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 883
+  },
+  "afrigloss-opus-mt-fr-yo-int8": {
+    "arch": "marian",
+    "base_model": "AfriSpeech/afrigloss-opus-mt-fr-yo",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-opus-mt-fr-yo-onnx",
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-opus-mt-fr-yo-int8",
+    "notes": "AfriSpeech AfriGloss fine-tune of an opus-mt model, trained to keep glossary terms marked with angle brackets. A term written as <term> in the input comes back inside angle brackets, and the model may change the term itself; plain input gives plain output.",
+    "pair": [
+      "fr",
+      "yo"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 225
+  },
   "aina-es-oc": {
     "arch": "nllb",
     "extra_files": [
@@ -171,7 +1191,8 @@
       "config": "config.json",
       "generation_config": "generation_config.json",
       "special_tokens_map": "special_tokens_map.json",
-      "tokenizer_json": "tokenizer.json"
+      "tokenizer_json": "tokenizer.json",
+      "tokenizer_config": "tokenizer_config.json"
     },
     "size_mb": 7414
   },
@@ -204,7 +1225,8 @@
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
       "special_tokens_map": "int8/special_tokens_map.json",
-      "tokenizer_json": "int8/tokenizer.json"
+      "tokenizer_json": "int8/tokenizer.json",
+      "tokenizer_config": "int8/tokenizer_config.json"
     },
     "size_mb": 1894
   },
@@ -780,7 +1802,8 @@
       "config": "config.json",
       "generation_config": "generation_config.json",
       "special_tokens_map": "special_tokens_map.json",
-      "tokenizer_json": "tokenizer.json"
+      "tokenizer_json": "tokenizer.json",
+      "tokenizer_config": "tokenizer_config.json"
     },
     "size_mb": 7414
   },
@@ -809,7 +1832,8 @@
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
       "special_tokens_map": "int8/special_tokens_map.json",
-      "tokenizer_json": "int8/tokenizer.json"
+      "tokenizer_json": "int8/tokenizer.json",
+      "tokenizer_config": "int8/tokenizer_config.json"
     },
     "size_mb": 1894
   },
@@ -841,7 +1865,8 @@
       "config": "config.json",
       "generation_config": "generation_config.json",
       "special_tokens_map": "special_tokens_map.json",
-      "tokenizer_json": "tokenizer.json"
+      "tokenizer_json": "tokenizer.json",
+      "tokenizer_config": "tokenizer_config.json"
     },
     "size_mb": 7414
   },
@@ -874,7 +1899,8 @@
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
       "special_tokens_map": "int8/special_tokens_map.json",
-      "tokenizer_json": "int8/tokenizer.json"
+      "tokenizer_json": "int8/tokenizer.json",
+      "tokenizer_config": "int8/tokenizer_config.json"
     },
     "size_mb": 1894
   },
@@ -5191,7 +6217,8 @@
       "config": "config.json",
       "generation_config": "generation_config.json",
       "special_tokens_map": "special_tokens_map.json",
-      "tokenizer_json": "tokenizer.json"
+      "tokenizer_json": "tokenizer.json",
+      "tokenizer_config": "tokenizer_config.json"
     },
     "size_mb": 7414
   },
@@ -5420,7 +6447,8 @@
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
       "special_tokens_map": "special_tokens_map.json",
-      "tokenizer_json": "tokenizer.json"
+      "tokenizer_json": "tokenizer.json",
+      "tokenizer_config": "tokenizer_config.json"
     },
     "size_mb": 1899
   },
