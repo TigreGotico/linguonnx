@@ -947,9 +947,10 @@ def test_the_real_registry_advertises_only_what_it_can_route_under_a_cap():
     # A dropped region node whose language stays listed routes as that
     # language, as `pt-BR` does where no model names it.
     regional = {lang for lang in dropped
-                if TranslationGraph._REGION_TAG_RE.match(lang)
+                if (lang.split("-")[0], "en") in small._regional_fallbacks(lang, "en")
                 and lang.split("-")[0] in small.languages}
     assert {"es-419", "es-ES", "fr-CA"} <= regional
+    assert "az-RU" in dropped - regional, "az-RU is Cyrillic, az is Latin"
     for lang in sorted(regional):
         base = lang.split("-")[0]
         assert [(h.src, h.tgt) for h in small.route("en", lang).hops][-1][1] == base

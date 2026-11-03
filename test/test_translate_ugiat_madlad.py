@@ -137,6 +137,32 @@ def test_routes_falls_back_like_route():
     assert routes and routes[0].model_ids == tx.route("en", "es-ES").model_ids
 
 
+@pytest.mark.parametrize("src,expected", [
+    ("en", ("opus-mt-en-es-int8", "es", None)),
+    ("fa", ("m2m100-418M-int8", "es", 500)),
+    ("cv", ("madlad400-3b-mt-es_ES-int8", "es-ES", 500)),
+])
+def test_the_oversize_fallback_tries_the_language_within_the_cap_first(src, expected):
+    """`en -> es` fits the cap, so no cap is waived for `es-ES`. Where
+    nothing fits, the smallest oversized model wins: M2M100 serves `fa -> es`
+    in 1207 MB. MADLAD and the es_ES fine-tune are the same size for `cv`,
+    and the exact pair wins the tie."""
+    tx = load_translator(max_model_mb=500, count_cached_as_free=False,
+                         oversize_fallback=True)
+    route = tx.route(src, "es-ES")
+    assert (route.model_ids[-1], route.hops[-1].tgt, route.waived_size_cap) == expected
+    assert tx.graph.routes(src, "es-ES")[0].model_ids == route.model_ids
+
+
+def test_a_region_whose_script_differs_never_falls_back():
+    """`az-RU` is Cyrillic by default and `az` Latin; opus-mt-en-az writes
+    Latin, so serving `az-RU` as `az` would change the script."""
+    graph = load_translator(max_model_mb=None).graph
+    assert graph._regional_fallbacks("en", "az-RU") == []
+    tx = load_translator(max_model_mb=500, count_cached_as_free=False)
+    assert not tx.can_translate("en", "az-RU")
+
+
 def test_a_script_or_private_use_subtag_is_never_dropped():
     graph = load_translator(max_model_mb=None).graph
     assert ("es", "en") in graph._regional_fallbacks("es-ES", "en")

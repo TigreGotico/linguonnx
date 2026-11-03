@@ -869,17 +869,21 @@ Nodes are BCP-47, and `normalize_tag` maps every shape onto one node name:
 models do not distinguish routes as its language, so `route("pt-BR", "en")`
 serves `pt`.
 
-A region a model does distinguish is a node of its own: `es-ES`, `es-419` and
-`fr-CA` are served by MADLAD models. When such a node has no route, because
-the size cap leaves out the only model that serves it or because no model
-reads it as a source, the router tries the language without the region:
-first on the source side, then on the target side, then on both. Under a
-500 MB cap, `route("en", "es-ES")` serves `en -> es` through
-`opus-mt-en-es-int8`. Only a language-and-region tag falls back this way. A
-script, variant or private-use subtag is never dropped, because `sr-Latn` as
-`sr` changes the script and `ext-PT-x-barrancos` as `ext` changes the
-language. `available_languages` lists only the nodes the cap can reach, so a
-region node the cap removes is left out of it, as `pt-BR` is.
+A region a model does distinguish is a node of its own: `es-ES`, `es-419`,
+`fr-CA` and `fa-AF` are served by MADLAD models. When such a node has no route
+within the cap, because the cap leaves out the only model that serves it or
+because no model reads it as a source, the router tries the language without
+the region: first on the source side, then on the target side, then on both.
+Under a 500 MB cap, `route("en", "es-ES")` serves `en -> es` through
+`opus-mt-en-es-int8`. With `oversize_fallback=True` every one of these pairs
+is tried within the cap before the cap is waived for any of them, and then
+the pair whose largest model is smallest wins, the exact pair on a tie.
+
+This fallback drops only a region, and only when the region does not change
+the default script: `az-RU` is Cyrillic and `az` Latin, so `az-RU` never
+routes as `az`. It never drops a script, variant or private-use subtag.
+`available_languages` lists only the nodes the cap can reach, so a region node
+the cap removes is left out of it, as `pt-BR` is.
 
 Junk gets two different answers, because two callers with opposite needs share
 the function. Building the graph is lenient: an exotic registry code that no
