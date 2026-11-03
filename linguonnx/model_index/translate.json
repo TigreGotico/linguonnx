@@ -225,7 +225,7 @@
       "gl": "glg_Latn",
       "oc": "arn_Latn"
     },
-    "notes": "Transducens NLLB-1.3B fine-tune for the languages of Spain. Trained directions: Spanish <-> Asturian, Aragonese, Aranese, Galician, Catalan, Valencian, and Catalan <-> Aranese. Coverage is these 14 edges, not the 202 tokens the base tokenizer still carries.",
+    "notes": "Transducens NLLB-1.3B fine-tune for the languages of Spain. Trained directions: Spanish <-> Asturian, Aragonese, Aranese, Galician, Catalan, and Catalan <-> Aranese. Coverage is these 12 edges, not the 202 tokens the base tokenizer still carries. The Valencian token val_Latn is not registered; ca-valencia routes as ca.",
     "precision": "fp32",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
@@ -319,7 +319,7 @@
       "gl": "glg_Latn",
       "oc": "arn_Latn"
     },
-    "notes": "Transducens NLLB-1.3B fine-tune for the languages of Spain. Trained directions: Spanish <-> Asturian, Aragonese, Aranese, Galician, Catalan, Valencian, and Catalan <-> Aranese. Coverage is these 14 edges, not the 202 tokens the base tokenizer still carries.",
+    "notes": "Transducens NLLB-1.3B fine-tune for the languages of Spain. Trained directions: Spanish <-> Asturian, Aragonese, Aranese, Galician, Catalan, and Catalan <-> Aranese. Coverage is these 12 edges, not the 202 tokens the base tokenizer still carries. The Valencian token val_Latn is not registered; ca-valencia routes as ca.",
     "precision": "int8",
     "side_files": {
       "spm": "sentencepiece.bpe.model",

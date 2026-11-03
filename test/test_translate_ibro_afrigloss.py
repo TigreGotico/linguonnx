@@ -98,3 +98,11 @@ def test_afrigloss_marian_pairs_send_no_target_token():
 def test_only_opus_mt_entries_carry_a_pair_target_token():
     assert not [k for k, e in TRANSLATE.items()
                 if e.get("target_token") and not k.startswith("opus-mt-")]
+
+
+@pytest.mark.parametrize("model_id", ["IbRo-nllb", "IbRo-nllb-int8"])
+def test_ibro_notes_are_the_override_text(model_id):
+    """`notes` is human-owned, so a committed note outlives a changed
+    override; this keeps the published note in step with the coverage."""
+    assert TRANSLATE[model_id]["notes"] \
+        == sync_registry.MULTILINGUAL_LANGUAGE_OVERRIDES["IbRo-nllb"]["notes"]
