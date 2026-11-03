@@ -885,6 +885,14 @@ routes as `az`. It never drops a script, variant or private-use subtag.
 `available_languages` lists only the nodes the cap can reach, so a region node
 the cap removes is left out of it, as `pt-BR` is.
 
+When a bare language has no route, the router tries its default region. The
+default region is where the language first appeared and is still spoken, as
+`linguatag.with_default_region` gives it: `es` is `es-ES`, `pt` is `pt-PT` and
+`en` is `en-GB`. The router tries it only when that node exists and keeps the
+default script, and only when neither the bare pair nor any region-dropping
+pair has a route, with or without the cap waived. A bare language that has a
+route keeps it.
+
 Junk gets two different answers, because two callers with opposite needs share
 the function. Building the graph is lenient: an exotic registry code that no
 standard knows is lowercased, logged as a warning, and kept as a node, which

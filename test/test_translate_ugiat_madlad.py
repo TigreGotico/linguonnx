@@ -168,6 +168,17 @@ def test_a_region_whose_script_differs_never_falls_back():
     assert not tx.can_translate("en", "az-RU")
 
 
+def test_only_spanish_reaches_a_default_region_node():
+    """`es` -> `es-ES` is the one bare node whose default region is a node
+    too. `fr-CA`, `fa-AF` and the other region nodes are not the default
+    region of their language."""
+    graph = load_translator(max_model_mb=None).graph
+    found = {node: graph._default_region_fallbacks("en", node)
+             for node in sorted(graph._addressable) if node != "en"}
+    assert {node: pairs for node, pairs in found.items() if pairs} \
+        == {"es": [("en", "es-ES")]}
+
+
 def test_a_script_or_private_use_subtag_is_never_dropped():
     graph = load_translator(max_model_mb=None).graph
     assert ("es", "en") in graph._regional_fallbacks("es-ES", "en")

@@ -541,6 +541,59 @@ def test_a_region_subtag_routes_as_its_language(graph):
     assert graph.route("pt-BR", "en").hops[0].model_id == "opus-pt-en"
 
 
+def test_a_bare_language_routes_as_its_default_region():
+    """Spanish first appeared in Spain, so with only `es-ES` models a bare
+    `es` is served as `es-ES`, on either side of the pair."""
+    graph = TranslationGraph([marian("en", "es-ES"), marian("es-ES", "en")])
+    to_es = graph.route("en", "es")
+    assert (to_es.model_ids, to_es.hops[-1].tgt) == (("opus-en-es-ES",), "es-ES")
+    assert graph.routes("en", "es")[0].model_ids == to_es.model_ids
+    assert graph.can_translate("en", "es")
+    from_es = graph.route("es", "en")
+    assert (from_es.model_ids, from_es.hops[0].src) == (("opus-es-ES-en",), "es-ES")
+
+
+@pytest.mark.parametrize("regional", ["es-MX", "es-AR", "es_MX"])
+def test_a_region_routed_as_its_language_never_takes_the_default_region(regional):
+    """`es-MX` is not a node, so it routes as `es`; it is still Mexican
+    Spanish, not a bare `es`, and must not be served as `es-ES`."""
+    graph = TranslationGraph([marian("es", "en"), marian("en", "es-ES"),
+                              marian("en", "es-419")])
+    with pytest.raises(NoRouteError):
+        graph.route("en", regional)
+    assert graph.routes("en", regional) == []
+    assert graph.route("en", "es").hops[-1].tgt == "es-ES"
+
+
+def test_a_bare_language_with_a_route_keeps_it():
+    """`en -> es-ES` fits the cap and `en -> es` does not, but `en -> es` has
+    a route once the cap is waived, so the default region is never tried."""
+    capped = TranslationGraph([marian("en", "es", size=1000),
+                               marian("en", "es-ES", size=300)],
+                              max_model_mb=500, oversize_fallback=True)
+    assert capped._default_region_fallbacks("en", "es") == [("en", "es-ES")]
+    route = capped.route("en", "es")
+    assert (route.model_ids, route.hops[-1].tgt, route.waived_size_cap) \
+        == (("opus-en-es",), "es", 500)
+    assert capped.routes("en", "es")[0].model_ids == ("opus-en-es",)
+    uncapped = TranslationGraph([marian("en", "es"), marian("en", "es-ES")])
+    assert uncapped.route("en", "es").model_ids == ("opus-en-es",)
+
+
+@pytest.mark.parametrize("region_node,bare", [
+    # `pt` defaults to `pt-PT`, which no model here names.
+    ("pt-BR", "pt"),
+    # `yue` defaults to `yue-CN`, Simplified where `yue` is Traditional.
+    ("yue-CN", "yue"),
+])
+def test_a_bare_language_whose_default_region_is_unusable_has_no_route(
+        region_node, bare):
+    graph = TranslationGraph([marian("en", region_node)])
+    assert graph._default_region_fallbacks("en", bare) == []
+    with pytest.raises(NoRouteError):
+        graph.route("en", bare)
+
+
 # --- separator/script normalisation (redundant-spelling collapse) ---------
 
 @pytest.mark.parametrize("underscore, hyphen", [
