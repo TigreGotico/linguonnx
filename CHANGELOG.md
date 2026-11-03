@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.19.0a1](https://github.com/TigreGotico/linguonnx/tree/0.19.0a1) (2026-11-03)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.18.1a2...0.19.0a1)
+
+**Merged pull requests:**
+
+- feat: route a bare language through its default region node [\#117](https://github.com/TigreGotico/linguonnx/pull/117) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.18.1a2](https://github.com/TigreGotico/linguonnx/tree/0.18.1a2) (2026-11-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.18.1a1...0.18.1a2)
@@ -384,11 +392,6 @@
 ## [0.4.0a1](https://github.com/TigreGotico/linguonnx/tree/0.4.0a1) (2026-08-02)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.3.0a1...0.4.0a1)
-
-**Merged pull requests:**
-
-- Release 0.4.0a1 [\#13](https://github.com/TigreGotico/linguonnx/pull/13) ([github-actions[bot]](https://github.com/apps/github-actions))
-- feat: generate the model registry from the HuggingFace API [\#12](https://github.com/TigreGotico/linguonnx/pull/12) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.3.0a1](https://github.com/TigreGotico/linguonnx/tree/0.3.0a1) (2026-08-02)
 
