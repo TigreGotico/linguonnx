@@ -206,6 +206,7 @@ from typing import (Dict, FrozenSet, Iterable, List, Optional, Sequence,
                     Tuple, Union)
 
 import langcodes
+from linguatag import with_default_region
 
 from linguonnx.limits import MAX_MODEL_MB
 from linguonnx.translate import distance as _distance
@@ -1313,34 +1314,38 @@ class TranslationGraph:
     def _search_endpoints(self, src: str, tgt: str, max_hops: int, prefer: str,
                           short_circuit: bool, index: _Index, fallback: bool
                           ) -> Tuple[List[Route], Optional[int]]:
-        """:meth:`_search` over the pair and its :meth:`_regional_fallbacks`.
+        """:meth:`_search` over the pair and its :meth:`_regional_fallbacks`,
+        then over its :meth:`_default_region_fallbacks`.
 
         Every endpoint pair is tried within the cap before any is escalated,
         so `es-ES` under a 500 MB cap is served as `es` by a small model, not
         by the oversized model that serves `es-ES` itself. Escalated, the pair
         whose largest model is smallest wins, the exact pair on a tie, as the
         oversize fallback picks the smallest sufficient model for one pair.
+        The default-region pairs are searched only when the first group has
+        no route at all, so they never change a request that has one.
         """
-        pairs = [(src, tgt)] + self._regional_fallbacks(src, tgt)
-        for pair_src, pair_tgt in pairs:
-            found = self._enumerate(pair_src, pair_tgt, max_hops, prefer,
-                                    short_circuit, index)
-            if found:
-                return found, None
-        if not fallback:
-            return [], None
-        escalated = []
-        for pair_src, pair_tgt in pairs:
-            found, waived = self._escalate(pair_src, pair_tgt, max_hops,
-                                           prefer, short_circuit, index)
-            if found:
-                largest = min(max(hop.size_mb for hop in route.hops)
-                              for route in found)
-                escalated.append((largest, len(escalated), found, waived))
-        if not escalated:
-            return [], None
-        _, _, found, waived = min(escalated, key=lambda item: item[:2])
-        return found, waived
+        for pairs in ([(src, tgt)] + self._regional_fallbacks(src, tgt),
+                      self._default_region_fallbacks(src, tgt)):
+            for pair_src, pair_tgt in pairs:
+                found = self._enumerate(pair_src, pair_tgt, max_hops, prefer,
+                                        short_circuit, index)
+                if found:
+                    return found, None
+            if not fallback:
+                continue
+            escalated = []
+            for pair_src, pair_tgt in pairs:
+                found, waived = self._escalate(pair_src, pair_tgt, max_hops,
+                                               prefer, short_circuit, index)
+                if found:
+                    largest = min(max(hop.size_mb for hop in route.hops)
+                                  for route in found)
+                    escalated.append((largest, len(escalated), found, waived))
+            if escalated:
+                _, _, found, waived = min(escalated, key=lambda item: item[:2])
+                return found, waived
+        return [], None
 
     def _fallback_on(self, oversize_fallback: Optional[bool]) -> bool:
         return self.oversize_fallback if oversize_fallback is None \
@@ -1457,6 +1462,33 @@ class TranslationGraph:
 
         out: List[Tuple[str, str]] = []
         for pair in ((base(src), tgt), (src, base(tgt)), (base(src), base(tgt))):
+            if pair != (src, tgt) and pair[0] != pair[1] and pair not in out:
+                out.append(pair)
+        return out
+
+    def _default_region_fallbacks(self, src: str, tgt: str) -> List[Tuple[str, str]]:
+        """Endpoint pairs to try when neither ``src -> tgt`` nor any of its
+        :meth:`_regional_fallbacks` has a route.
+
+        A bare language is tried at its default region, the region where it
+        first appeared and is still spoken, as
+        :func:`linguatag.with_default_region` gives it: `es` as `es-ES`. The
+        region node must exist, and must keep the language and its default
+        script: `yue` defaults to `yue-CN`, which is Simplified where `yue` is
+        Traditional, so `yue` never routes as `yue-CN`. The order is the same
+        as for :meth:`_regional_fallbacks`: source, target, then both.
+        """
+        def regional(node: str) -> str:
+            default = with_default_region(node)
+            match = self._REGION_TAG_RE.match(default)
+            if match and match.group(1) == node and default in self._addressable \
+                    and _default_script(default) == _default_script(node):
+                return default
+            return node
+
+        out: List[Tuple[str, str]] = []
+        for pair in ((regional(src), tgt), (src, regional(tgt)),
+                     (regional(src), regional(tgt))):
             if pair != (src, tgt) and pair[0] != pair[1] and pair not in out:
                 out.append(pair)
         return out

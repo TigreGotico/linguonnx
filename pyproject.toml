@@ -24,6 +24,9 @@ dependencies = [
     # from a language *family* (`itc`, `sla`, `ber`) - see
     # `linguonnx.detect.labels.tag_scope`.
     "language_data>=1.1",
+    # The default region of a bare tag (`es` -> `es-ES`), which the router
+    # tries when the bare language has no route.
+    "linguatag>=0.0.2a2",
     "sentencepiece>=0.1.99",
 ]
 classifiers = [
