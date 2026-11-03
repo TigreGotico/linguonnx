@@ -565,6 +565,19 @@ def test_a_region_routed_as_its_language_never_takes_the_default_region(regional
     assert graph.route("en", "es").hops[-1].tgt == "es-ES"
 
 
+def test_a_bare_language_escalates_at_its_default_region():
+    """With only an oversized `es-ES` model, a bare `es` is served by it once
+    the cap is waived, and the route says which cap it waived."""
+    capped = TranslationGraph([marian("en", "es-ES", size=1000)],
+                              max_model_mb=500, oversize_fallback=True)
+    route = capped.route("en", "es")
+    assert (route.model_ids, route.hops[-1].tgt, route.waived_size_cap) \
+        == (("opus-en-es-ES",), "es-ES", 500)
+    assert capped.routes("en", "es")[0].model_ids == ("opus-en-es-ES",)
+    with pytest.raises(NoRouteError):
+        capped.route("en", "es", oversize_fallback=False)
+
+
 def test_a_bare_language_with_a_route_keeps_it():
     """`en -> es-ES` fits the cap and `en -> es` does not, but `en -> es` has
     a route once the cap is waived, so the default region is never tried."""
