@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.0a1](https://github.com/TigreGotico/linguonnx/tree/0.18.0a1) (2026-11-03)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.17.0a1...0.18.0a1)
+
+**Merged pull requests:**
+
+- feat: register Ugiat MADLAD fine-tunes and route region nodes as their language [\#112](https://github.com/TigreGotico/linguonnx/pull/112) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.17.0a1](https://github.com/TigreGotico/linguonnx/tree/0.17.0a1) (2026-11-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.16.0a1...0.17.0a1)
@@ -394,11 +402,6 @@
 ## [0.1.2a1](https://github.com/TigreGotico/linguonnx/tree/0.1.2a1) (2026-08-02)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.1.1a1...0.1.2a1)
-
-**Merged pull requests:**
-
-- Release 0.1.2a1 [\#7](https://github.com/TigreGotico/linguonnx/pull/7) ([github-actions[bot]](https://github.com/apps/github-actions))
-- docs: link related projects [\#6](https://github.com/TigreGotico/linguonnx/pull/6) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.1.1a1](https://github.com/TigreGotico/linguonnx/tree/0.1.1a1) (2026-08-02)
 
