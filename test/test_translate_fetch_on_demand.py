@@ -32,7 +32,7 @@ from linguonnx.translate import load_translator
 from linguonnx.translate.graph import NoRouteError
 
 #: The two int8 models that chain `pt -> en -> eu`. `pt->eu` has no direct
-#: model in the permissive int8 graph, so this pair is exactly the "a cached
+#: model in the default int8 graph, so this pair is exactly the "a cached
 #: chain still covers it" case.
 PT_EN = "opus-mt-pt-en-int8"
 EN_EU = "mt-hitz-en-eu-int8"

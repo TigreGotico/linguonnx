@@ -36,10 +36,11 @@ name. But the choice matters:
 
 ## Translation
 
-`load_translator()` leaves out **non-commercial models only**. Eight registry
-entries are excluded by default: `nllb-600M`, `aina-es-oc`,
-`aina-translator-es-an` and `aina-translator-es-ast`, in both precisions. All
-four are CC-BY-NC-4.0.
+`load_translator()` leaves out **non-commercial models only**. Twenty-eight
+registry entries are excluded by default: `nllb-600M`, `aina-es-oc`,
+`aina-translator-es-an`, `aina-translator-es-ast` and ten of the
+`afrigloss-opus-mt-*` pairs, in both precisions. All of them are
+CC-BY-NC-4.0.
 
 A share-alike model stays in the default graph. CC-BY-SA permits commercial
 use; its condition is that a derived work keeps the same licence. One

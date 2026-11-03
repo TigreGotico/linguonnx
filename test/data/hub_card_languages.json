@@ -9,6 +9,15 @@
     "en",
     "akk-Latn"
   ],
+  "TigreGotico/IbRo-nllb-onnx": [
+    "es",
+    "ast",
+    "an",
+    "oc",
+    "gl",
+    "ca",
+    "ca-valencia"
+  ],
   "TigreGotico/Plume128k-onnx": [
     "ca",
     "es",
@@ -30,6 +39,86 @@
     "pt",
     "gl",
     "fr"
+  ],
+  "TigreGotico/afrigloss-nllb-1.3b-onnx": [
+    "en",
+    "fr",
+    "tw",
+    "sw",
+    "yo",
+    "ha",
+    "ig",
+    "ee",
+    "sn",
+    "multilingual"
+  ],
+  "TigreGotico/afrigloss-nllb-600m-onnx": [
+    "en",
+    "fr",
+    "tw",
+    "sw",
+    "yo",
+    "ha",
+    "ig",
+    "ee",
+    "sn",
+    "multilingual"
+  ],
+  "TigreGotico/afrigloss-opus-mt-en-ee-onnx": [
+    "en",
+    "ee"
+  ],
+  "TigreGotico/afrigloss-opus-mt-en-ha-onnx": [
+    "en",
+    "ha"
+  ],
+  "TigreGotico/afrigloss-opus-mt-en-ig-onnx": [
+    "en",
+    "ig"
+  ],
+  "TigreGotico/afrigloss-opus-mt-en-sn-onnx": [
+    "en",
+    "sn"
+  ],
+  "TigreGotico/afrigloss-opus-mt-en-sw-onnx": [
+    "en",
+    "sw"
+  ],
+  "TigreGotico/afrigloss-opus-mt-en-tw-onnx": [
+    "en",
+    "tw"
+  ],
+  "TigreGotico/afrigloss-opus-mt-en-yo-onnx": [
+    "en",
+    "yo"
+  ],
+  "TigreGotico/afrigloss-opus-mt-fr-ee-onnx": [
+    "fr",
+    "ee"
+  ],
+  "TigreGotico/afrigloss-opus-mt-fr-ha-onnx": [
+    "fr",
+    "ha"
+  ],
+  "TigreGotico/afrigloss-opus-mt-fr-ig-onnx": [
+    "fr",
+    "ig"
+  ],
+  "TigreGotico/afrigloss-opus-mt-fr-sn-onnx": [
+    "fr",
+    "sn"
+  ],
+  "TigreGotico/afrigloss-opus-mt-fr-sw-onnx": [
+    "fr",
+    "sw"
+  ],
+  "TigreGotico/afrigloss-opus-mt-fr-tw-onnx": [
+    "fr",
+    "tw"
+  ],
+  "TigreGotico/afrigloss-opus-mt-fr-yo-onnx": [
+    "fr",
+    "yo"
   ],
   "TigreGotico/aina-translator-ca-de-onnx": [
     "ca",
