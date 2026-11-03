@@ -477,6 +477,15 @@ def normalize_tag(tag: str, strict: bool = False) -> str:
         return tag.lower()
 
 
+def _is_bare(tag: str) -> bool:
+    """True when *tag* names a language with no region, script or variant:
+    `es`, `SPA` and `por_Latn` are bare, `es-MX` is not."""
+    try:
+        return "-" not in normalize_tag(tag, strict=True)
+    except MalformedTagError:
+        return "-" not in tag.strip()
+
+
 def _normalize_name(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
@@ -1312,7 +1321,8 @@ class TranslationGraph:
         return at_widest, index.max_model_mb
 
     def _search_endpoints(self, src: str, tgt: str, max_hops: int, prefer: str,
-                          short_circuit: bool, index: _Index, fallback: bool
+                          short_circuit: bool, index: _Index, fallback: bool,
+                          bare: Tuple[bool, bool] = (True, True)
                           ) -> Tuple[List[Route], Optional[int]]:
         """:meth:`_search` over the pair and its :meth:`_regional_fallbacks`,
         then over its :meth:`_default_region_fallbacks`.
@@ -1323,10 +1333,13 @@ class TranslationGraph:
         whose largest model is smallest wins, the exact pair on a tie, as the
         oversize fallback picks the smallest sufficient model for one pair.
         The default-region pairs are searched only when the first group has
-        no route at all, so they never change a request that has one.
+        no route at all, so they never change a request that has one. ``bare``
+        says which endpoints the caller sent with no subtag after the
+        language: only those get a default region, so `es-MX`, routed as `es`,
+        never becomes `es-ES`.
         """
         for pairs in ([(src, tgt)] + self._regional_fallbacks(src, tgt),
-                      self._default_region_fallbacks(src, tgt)):
+                      self._default_region_fallbacks(src, tgt, *bare)):
             for pair_src, pair_tgt in pairs:
                 found = self._enumerate(pair_src, pair_tgt, max_hops, prefer,
                                         short_circuit, index)
@@ -1466,7 +1479,9 @@ class TranslationGraph:
                 out.append(pair)
         return out
 
-    def _default_region_fallbacks(self, src: str, tgt: str) -> List[Tuple[str, str]]:
+    def _default_region_fallbacks(self, src: str, tgt: str,
+                                  bare_src: bool = True, bare_tgt: bool = True
+                                  ) -> List[Tuple[str, str]]:
         """Endpoint pairs to try when neither ``src -> tgt`` nor any of its
         :meth:`_regional_fallbacks` has a route.
 
@@ -1475,10 +1490,15 @@ class TranslationGraph:
         :func:`linguatag.with_default_region` gives it: `es` as `es-ES`. The
         region node must exist, and must keep the language and its default
         script: `yue` defaults to `yue-CN`, which is Simplified where `yue` is
-        Traditional, so `yue` never routes as `yue-CN`. The order is the same
-        as for :meth:`_regional_fallbacks`: source, target, then both.
+        Traditional, so `yue` never routes as `yue-CN`. An endpoint the caller
+        sent with a region (`bare_src` or `bare_tgt` false) keeps its node: a
+        region the graph cut to the language is not a bare language. The order
+        is the same as for :meth:`_regional_fallbacks`: source, target, then
+        both.
         """
-        def regional(node: str) -> str:
+        def regional(node: str, bare: bool) -> str:
+            if not bare:
+                return node
             default = with_default_region(node)
             match = self._REGION_TAG_RE.match(default)
             if match and match.group(1) == node and default in self._addressable \
@@ -1487,8 +1507,8 @@ class TranslationGraph:
             return node
 
         out: List[Tuple[str, str]] = []
-        for pair in ((regional(src), tgt), (src, regional(tgt)),
-                     (regional(src), regional(tgt))):
+        for pair in ((regional(src, bare_src), tgt), (src, regional(tgt, bare_tgt)),
+                     (regional(src, bare_src), regional(tgt, bare_tgt))):
             if pair != (src, tgt) and pair[0] != pair[1] and pair not in out:
                 out.append(pair)
         return out
@@ -1663,6 +1683,7 @@ class TranslationGraph:
         combination. Returns ``[]`` rather than raising - use :meth:`route`
         when you want ``NoRouteError``.
         """
+        bare = (_is_bare(src), _is_bare(tgt))
         src, tgt = self._node(src), self._node(tgt)
         prefer = prefer or self.prefer
         max_hops = self._check_max_hops(
@@ -1674,7 +1695,7 @@ class TranslationGraph:
         fallback = self._fallback_on(oversize_fallback)
         found, waived = self._search_endpoints(src, tgt, max_hops, prefer,
                                                short_circuit=False, index=index,
-                                               fallback=fallback)
+                                               fallback=fallback, bare=bare)
         if waived is not None:
             found = [replace(r, waived_size_cap=waived) for r in found]
         found.sort(key=lambda r: _route_key(r, prefer))
@@ -1704,6 +1725,7 @@ class TranslationGraph:
         call.
         """
         raw_src, raw_tgt = src, tgt
+        bare = (_is_bare(src), _is_bare(tgt))
         src, tgt = self._node(src), self._node(tgt)
         prefer = prefer or self.prefer
         max_hops = self._check_max_hops(
@@ -1715,7 +1737,7 @@ class TranslationGraph:
         fallback = self._fallback_on(oversize_fallback)
         found, waived = self._search_endpoints(src, tgt, max_hops, prefer,
                                                short_circuit=True, index=index,
-                                               fallback=fallback)
+                                               fallback=fallback, bare=bare)
         if not found:
             raise NoRouteError(
                 f"no route from {raw_src!r} to {raw_tgt!r} within "

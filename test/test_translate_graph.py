@@ -553,6 +553,18 @@ def test_a_bare_language_routes_as_its_default_region():
     assert (from_es.model_ids, from_es.hops[0].src) == (("opus-es-ES-en",), "es-ES")
 
 
+@pytest.mark.parametrize("regional", ["es-MX", "es-AR", "es_MX"])
+def test_a_region_routed_as_its_language_never_takes_the_default_region(regional):
+    """`es-MX` is not a node, so it routes as `es`; it is still Mexican
+    Spanish, not a bare `es`, and must not be served as `es-ES`."""
+    graph = TranslationGraph([marian("es", "en"), marian("en", "es-ES"),
+                              marian("en", "es-419")])
+    with pytest.raises(NoRouteError):
+        graph.route("en", regional)
+    assert graph.routes("en", regional) == []
+    assert graph.route("en", "es").hops[-1].tgt == "es-ES"
+
+
 def test_a_bare_language_with_a_route_keeps_it():
     """`en -> es-ES` fits the cap and `en -> es` does not, but `en -> es` has
     a route once the cap is waived, so the default region is never tried."""
