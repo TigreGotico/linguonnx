@@ -444,6 +444,32 @@
     "nso",
     "en"
   ],
+  "TigreGotico/madlad400-3b-mt-ast-an-oc_aranes-onnx": [
+    "ast",
+    "an",
+    "oc",
+    "es",
+    "ca",
+    "en",
+    "fr",
+    "multilingual"
+  ],
+  "TigreGotico/madlad400-3b-mt-es_419-onnx": [
+    "es",
+    "multilingual"
+  ],
+  "TigreGotico/madlad400-3b-mt-es_ES-onnx": [
+    "es",
+    "multilingual"
+  ],
+  "TigreGotico/madlad400-3b-mt-oc_aranes-onnx": [
+    "oc",
+    "ca",
+    "es",
+    "en",
+    "fr",
+    "multilingual"
+  ],
   "TigreGotico/madlad400-3b-mt-onnx": null,
   "TigreGotico/marblenet-vad-coreml": null,
   "TigreGotico/mfcc-onnx": null,

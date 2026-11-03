@@ -124,8 +124,8 @@ See [docs/translate.md](docs/translate.md) for the API and
 | | |
 |---|---|
 | Language identification | 5 models, 176 to 2102 labels, 33 MB to 1.7 GB |
-| Translation | 409 registry entries — 203 int8 and 204 fp32 across 204 models, plus 2 rule-based translators |
-| Reachable languages | 594, over the default graph |
+| Translation | 417 registry entries — 207 int8 and 208 fp32 across 208 models, plus 2 rule-based translators |
+| Reachable languages | 596, over the default graph |
 | Default LID model | `glotlid-int8` — Apache-2.0, the only permissive LID option |
 | Default translation graph | every int8 or rule-based model that is not non-commercial, fewest hops, capped at 2 |
 | Licences | Apache-2.0, MIT, CC-BY-4.0 and CC-BY-SA-4.0 by default; GPL-3.0 and CC-BY-NC-4.0 must be asked for by name |

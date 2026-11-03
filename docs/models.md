@@ -2,7 +2,7 @@
 
 Two JSON files under `linguonnx/model_index/` say what exists: `lid.json` for
 language identification and `translate.json` for translation. They hold 10 and
-409 entries. Every ONNX entry names a HuggingFace repo, the exact files to
+417 entries. Every ONNX entry names a HuggingFace repo, the exact files to
 fetch, the languages covered, the licence and the size. A rule-based entry
 names a Python function instead of files. See
 [Rule-based models](#rule-based-models).
@@ -13,7 +13,7 @@ it sounds.
 
 ## What is in the translation registry
 
-409 entries is 203 int8 and 204 fp32 entries across 204 models, plus 2
+417 entries is 207 int8 and 208 fp32 entries across 208 models, plus 2
 rule-based entries. `load_translator()` defaults to `precision="int8"`; pass
 `precision="fp32"` or `precision=None` for both. A rule-based entry has no
 weights and no precision, so the precision filter never removes it.
@@ -43,6 +43,8 @@ weights and no precision, so the precision filter never removes it.
 | `opus-mt-*` (124) | Marian | one pair each | 78 MB – 716 MB | Apache-2.0 or CC-BY-4.0 |
 | `afrigloss-opus-mt-*` (14) | Marian fine-tune | one pair each; en → {ee, ha, ig, sn, sw, tw, yo}, fr → {ee, ha, ig, sn, sw, tw, yo} | 216 MB – 904 MB | **CC-BY-NC-4.0**; fr-ee, fr-ha, fr-ig, fr-sn: Apache-2.0 |
 | `IbRo-nllb` | NLLB-1.3B fine-tune | es ↔ {an, ast, ca, gl, oc (Aranese)}, ca ↔ oc: 12 directions | 3.04 GB – 11.9 GB | Apache-2.0 |
+| `madlad400-3b-mt-oc_aranes`, `-ast-an-oc_aranes` | MADLAD-400-3B fine-tune | {ca, en, es, fr} ↔ oc (Aranese): 8 directions; {ca, en, es, fr} ↔ {an, ast, oc}: 24 directions | 4.95 GB – 19.7 GB | Apache-2.0 |
+| `madlad400-3b-mt-es_ES`, `-es_419` | MADLAD-400-3B fine-tune | every MADLAD language → `es-ES`, or → `es-419` | 4.95 GB – 19.7 GB | Apache-2.0 |
 | `pt2barranquenho` | rules (Python package) | Portuguese → Barranquenho (`ext-PT-x-barrancos`), **one-way** | 0 MB, nothing to download | Apache-2.0 |
 | `pt2mirandese` | rules (Python package) | Portuguese → Mirandese (`mwl`), **one-way** | 0 MB, nothing to download | Apache-2.0 code, **CC-BY-SA-4.0 word lists** |
 
@@ -67,7 +69,7 @@ tc-big-zle-en  th-en  tl-en  tn-en  tr-az  tr-en  ts-en  uk-en
 ur-en  vi-en  xh-en  zh-en
 ```
 
-Together they reach 594 languages over the default graph. MADLAD supplies most
+Together they reach 596 languages over the default graph. MADLAD supplies most
 of the tail: nearly three hundred languages that no other model here has.
 
 Twenty-eight entries are non-commercial and out of the default graph:
@@ -176,7 +178,7 @@ print(entry["arch"], entry["pair"], entry["license"], entry["size_mb"])
 # marian ['pt', 'en'] Apache-2.0 172
 
 print(len(list_models(kind="translate")), len(list_models(kind="lid")))
-# 409 10
+# 417 10
 ```
 
 ## The download cache
@@ -504,6 +506,15 @@ registry records the file only for an export that sets the flag.
 **Valencian.** `IbRo-nllb` also has a Valencian token, `val_Latn`, which the
 registry does not register. The router treats `ca-valencia` as `ca`, so a
 Valencian request uses the Catalan models, small ones included.
+
+**MADLAD fine-tunes.** Ugiat's MADLAD-400-3B fine-tunes keep every `<2xx>`
+piece of the base vocabulary. Registered by vocabulary, each would cover all
+447 MADLAD languages and, as the newer upload, win every tie against
+`madlad400-3b-mt`. `MADLAD_FINETUNES` in `scripts/sync_registry.py` holds the
+coverage each card states, and the crawler checks that every new piece it
+names is in the export's `spiece.model`. Aranese is `oc`, selected with
+`<2oc_aranes>`. The regional Spanish models translate into `es-ES` or `es-419`
+only, from every language of the base vocabulary.
 
 **Instruction prefixes.** A model that picks its task with a sentence rather
 than a token can only do what it has an instruction for, and those do not have

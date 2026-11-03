@@ -944,7 +944,18 @@ def test_the_real_registry_advertises_only_what_it_can_route_under_a_cap():
     dropped = TranslationGraph(caps, count_cached_as_free=False).languages \
         - small.languages
     assert dropped, "a 500 MB cap must drop the languages only MADLAD reaches"
-    for lang in sorted(dropped)[:40]:
+    # A dropped region node whose language stays listed routes as that
+    # language, as `pt-BR` does where no model names it.
+    regional = {lang for lang in dropped
+                if (lang.split("-")[0], "en") in small._regional_fallbacks(lang, "en")
+                and lang.split("-")[0] in small.languages}
+    assert {"es-419", "es-ES", "fr-CA"} <= regional
+    assert "az-RU" in dropped - regional, "az-RU is Cyrillic, az is Latin"
+    for lang in sorted(regional):
+        base = lang.split("-")[0]
+        assert [(h.src, h.tgt) for h in small.route("en", lang).hops][-1][1] == base
+        assert small.route(lang, "en").hops[0].src == base
+    for lang in sorted(dropped - regional)[:40]:
         assert not small.can_translate("en", lang)
         assert not small.can_translate(lang, "en")
 

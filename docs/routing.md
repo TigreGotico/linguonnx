@@ -348,20 +348,20 @@ model already on disk costs quality and saves nothing.
 ### What a budget costs in coverage
 
 Over the default selection — int8 and rule-based models that are not
-non-commercial, 191 models —
+non-commercial, 195 models —
 with an empty cache:
 
 | `max_model_mb` | models kept | languages routable |
 |---|---|---|
-| none | 191 | 594 |
+| none | 195 | 596 |
 | 2000 | 183 | 303 |
 | 1000 | 157 | 258 |
 | 500 | 131 | 255 |
 | 300 | 121 | 78 |
 
 The model column and the language column tell different stories, and the second
-one is the one to plan against. A 500 MB budget drops 60 of 191 models, but
-those 60 include `madlad400-3b-mt-int8` (4945 MB), `m2m100-1.2B-int8` (2344 MB)
+one is the one to plan against. A 500 MB budget drops 64 of 195 models, but
+those 64 include `madlad400-3b-mt-int8` (4945 MB), `m2m100-1.2B-int8` (2344 MB)
 and `m2m100-418M-int8` (1207 MB), and the big multilingual models are where the
 long tail of languages lives. MADLAD is the only model in the registry with
 Chuvash at all; no chain of small models replaces it, because there is no small
@@ -406,7 +406,7 @@ tx = load_translator(max_model_mb=500, oversize_fallback=True)
 print(tx.route("en", "ca").model_ids)      # ('opus-mt-en-ca-int8',)   157 MB
 print(tx.route("en", "cv").model_ids)      # ('madlad400-3b-mt-int8',) 4945 MB
 print(tx.route("en", "cv").waived_size_cap)  # 500
-print(len(tx.available_languages))         # 594, not 255
+print(len(tx.available_languages))         # 596, not 255
 ```
 
 `en -> ca` stays on the small model, because one exists. Chuvash routes at
@@ -868,6 +868,22 @@ Nodes are BCP-47, and `normalize_tag` maps every shape onto one node name:
 `por_Latn`, `POR` and `pt` all resolve to `pt`. A tag carrying a region the
 models do not distinguish routes as its language, so `route("pt-BR", "en")`
 serves `pt`.
+
+A region a model does distinguish is a node of its own: `es-ES`, `es-419`,
+`fr-CA` and `fa-AF` are served by MADLAD models. When such a node has no route
+within the cap, because the cap leaves out the only model that serves it or
+because no model reads it as a source, the router tries the language without
+the region: first on the source side, then on the target side, then on both.
+Under a 500 MB cap, `route("en", "es-ES")` serves `en -> es` through
+`opus-mt-en-es-int8`. With `oversize_fallback=True` every one of these pairs
+is tried within the cap before the cap is waived for any of them, and then
+the pair whose largest model is smallest wins, the exact pair on a tie.
+
+This fallback drops only a region, and only when the region does not change
+the default script: `az-RU` is Cyrillic and `az` Latin, so `az-RU` never
+routes as `az`. It never drops a script, variant or private-use subtag.
+`available_languages` lists only the nodes the cap can reach, so a region node
+the cap removes is left out of it, as `pt-BR` is.
 
 Junk gets two different answers, because two callers with opposite needs share
 the function. Building the graph is lenient: an exotic registry code that no

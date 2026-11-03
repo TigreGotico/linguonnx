@@ -58,7 +58,7 @@ smallest oversized model that does, rather than failing.
 The filter semantics alone force a choice nobody wants to make. The long tail
 of languages exists only inside a few very large multilingual models - MADLAD
 (4945 MB), NLLB (1866 MB), M2M100-418M (1207 MB) - so a 500 MB cap that
-excludes them outright drops routable languages from 594 to 255 on the
+excludes them outright drops routable languages from 596 to 255 on the
 default registry with an empty cache (``test_translate_registry_numbers.py``
 pins both numbers). Lifting the cap instead lets those same models win pairs
 that a 157 MB ``opus-mt`` pair already served, because "one multilingual hop"
@@ -413,6 +413,12 @@ def _recency_sort_value(release_date: Optional[str]) -> float:
         LOG.warning("unparseable release_date %r; treating as unknown",
                     release_date)
         return float("inf")
+
+
+@lru_cache(maxsize=None)
+def _default_script(tag: str) -> Optional[str]:
+    """The script CLDR's likely-subtags data gives a tag: `az-RU` -> `Cyrl`."""
+    return langcodes.Language.get(tag).maximize().script
 
 
 def normalize_tag(tag: str, strict: bool = False) -> str:
@@ -1280,6 +1286,12 @@ class TranslationGraph:
                                 index)
         if found or not fallback:
             return found, None
+        return self._escalate(src, tgt, max_hops, prefer, short_circuit, index)
+
+    def _escalate(self, src: str, tgt: str, max_hops: int, prefer: str,
+                  short_circuit: bool, index: _Index
+                  ) -> Tuple[List[Route], Optional[int]]:
+        """The oversized half of :meth:`_search`, for a pair the cap cannot serve."""
         steps = self._fallback_steps(index, src, tgt, max_hops)
         if not steps:
             return [], None
@@ -1297,6 +1309,38 @@ class TranslationGraph:
             if found:
                 return found, index.max_model_mb
         return at_widest, index.max_model_mb
+
+    def _search_endpoints(self, src: str, tgt: str, max_hops: int, prefer: str,
+                          short_circuit: bool, index: _Index, fallback: bool
+                          ) -> Tuple[List[Route], Optional[int]]:
+        """:meth:`_search` over the pair and its :meth:`_regional_fallbacks`.
+
+        Every endpoint pair is tried within the cap before any is escalated,
+        so `es-ES` under a 500 MB cap is served as `es` by a small model, not
+        by the oversized model that serves `es-ES` itself. Escalated, the pair
+        whose largest model is smallest wins, the exact pair on a tie, as the
+        oversize fallback picks the smallest sufficient model for one pair.
+        """
+        pairs = [(src, tgt)] + self._regional_fallbacks(src, tgt)
+        for pair_src, pair_tgt in pairs:
+            found = self._enumerate(pair_src, pair_tgt, max_hops, prefer,
+                                    short_circuit, index)
+            if found:
+                return found, None
+        if not fallback:
+            return [], None
+        escalated = []
+        for pair_src, pair_tgt in pairs:
+            found, waived = self._escalate(pair_src, pair_tgt, max_hops,
+                                           prefer, short_circuit, index)
+            if found:
+                largest = min(max(hop.size_mb for hop in route.hops)
+                              for route in found)
+                escalated.append((largest, len(escalated), found, waived))
+        if not escalated:
+            return [], None
+        _, _, found, waived = min(escalated, key=lambda item: item[:2])
+        return found, waived
 
     def _fallback_on(self, oversize_fallback: Optional[bool]) -> bool:
         return self.oversize_fallback if oversize_fallback is None \
@@ -1388,6 +1432,34 @@ class TranslationGraph:
             LOG.debug("%r is not a graph node; routing it as %r", node, base)
             return base
         return node
+
+    #: A language subtag followed by a region alone: `es-ES`, `es-419`.
+    _REGION_TAG_RE = re.compile(r"^([a-z]{2,3})-(?:[A-Z]{2}|[0-9]{3})$")
+
+    def _regional_fallbacks(self, src: str, tgt: str) -> List[Tuple[str, str]]:
+        """Endpoint pairs to try when ``src -> tgt`` has no route.
+
+        A region node such as `es-ES` can be served only by a model the size
+        cap excludes, or only as a target. The language without the region is
+        then the better answer than no route, as it is for a region no model
+        names (see :meth:`_node`). The target keeps its region first, because
+        the region is a property of the output. A region whose default script
+        differs from its language's (`az-RU` is Cyrillic, `az` Latin) is kept,
+        and so is a script, variant or private-use subtag: `sr-Latn` as `sr`
+        would change the script and `ext-PT-x-barrancos` as `ext` the language.
+        """
+        def base(node: str) -> str:
+            match = self._REGION_TAG_RE.match(node)
+            if match and match.group(1) in self._addressable \
+                    and _default_script(node) == _default_script(match.group(1)):
+                return match.group(1)
+            return node
+
+        out: List[Tuple[str, str]] = []
+        for pair in ((base(src), tgt), (src, base(tgt)), (base(src), base(tgt))):
+            if pair != (src, tgt) and pair[0] != pair[1] and pair not in out:
+                out.append(pair)
+        return out
 
     def capabilities_for(self, src: str, tgt: str,
                          index: Optional[_Index] = None) -> List[Capability]:
@@ -1567,10 +1639,10 @@ class TranslationGraph:
         index = self._resolve(max_model_mb, count_cached_as_free)
         if src == tgt:
             return []
-        found, waived = self._search(src, tgt, max_hops, prefer,
-                                     short_circuit=False, index=index,
-                                     fallback=self._fallback_on(
-                                         oversize_fallback))
+        fallback = self._fallback_on(oversize_fallback)
+        found, waived = self._search_endpoints(src, tgt, max_hops, prefer,
+                                               short_circuit=False, index=index,
+                                               fallback=fallback)
         if waived is not None:
             found = [replace(r, waived_size_cap=waived) for r in found]
         found.sort(key=lambda r: _route_key(r, prefer))
@@ -1608,10 +1680,10 @@ class TranslationGraph:
             raise NoRouteError(
                 f"source and target are the same language ({src!r}); nothing to translate")
         index = self._resolve(max_model_mb, count_cached_as_free)
-        found, waived = self._search(src, tgt, max_hops, prefer,
-                                     short_circuit=True, index=index,
-                                     fallback=self._fallback_on(
-                                         oversize_fallback))
+        fallback = self._fallback_on(oversize_fallback)
+        found, waived = self._search_endpoints(src, tgt, max_hops, prefer,
+                                               short_circuit=True, index=index,
+                                               fallback=fallback)
         if not found:
             raise NoRouteError(
                 f"no route from {raw_src!r} to {raw_tgt!r} within "
