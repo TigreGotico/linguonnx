@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.16.0a1](https://github.com/TigreGotico/linguonnx/tree/0.16.0a1) (2026-11-03)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.15.2a1...0.16.0a1)
+
+**Merged pull requests:**
+
+- feat: route pt -\> Mirandese through the pt2mirandese rules [\#108](https://github.com/TigreGotico/linguonnx/pull/108) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.15.2a1](https://github.com/TigreGotico/linguonnx/tree/0.15.2a1) (2026-11-02)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.15.1a1...0.15.2a1)
@@ -321,20 +329,20 @@
 
 ## [0.5.1a1](https://github.com/TigreGotico/linguonnx/tree/0.5.1a1) (2026-08-02)
 
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0...0.5.1a1)
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0a1...0.5.1a1)
 
 **Merged pull requests:**
 
 - Release 0.5.1a1 [\#18](https://github.com/TigreGotico/linguonnx/pull/18) ([github-actions[bot]](https://github.com/apps/github-actions))
 - docs: split README into docs/, add examples, record short-text caveat [\#17](https://github.com/TigreGotico/linguonnx/pull/17) ([JarbasAl](https://github.com/JarbasAl))
 
-## [0.5.0](https://github.com/TigreGotico/linguonnx/tree/0.5.0) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0a1...0.5.0)
-
 ## [0.5.0a1](https://github.com/TigreGotico/linguonnx/tree/0.5.0a1) (2026-08-02)
 
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.4.0a1...0.5.0a1)
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0...0.5.0a1)
+
+## [0.5.0](https://github.com/TigreGotico/linguonnx/tree/0.5.0) (2026-08-02)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.4.0a1...0.5.0)
 
 **Merged pull requests:**
 
@@ -407,11 +415,6 @@
 ## [0.1.0a1](https://github.com/TigreGotico/linguonnx/tree/0.1.0a1) (2026-08-02)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.0.0...0.1.0a1)
-
-**Merged pull requests:**
-
-- Release 0.1.0a1 [\#3](https://github.com/TigreGotico/linguonnx/pull/3) ([github-actions[bot]](https://github.com/apps/github-actions))
-- feat: support lid.176, OpenLID and OpenLID-v2 [\#2](https://github.com/TigreGotico/linguonnx/pull/2) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.0.0](https://github.com/TigreGotico/linguonnx/tree/0.0.0) (2026-08-02)
 
