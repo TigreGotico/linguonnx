@@ -348,20 +348,20 @@ model already on disk costs quality and saves nothing.
 ### What a budget costs in coverage
 
 Over the default selection — int8 and rule-based models that are not
-non-commercial, 195 models —
+non-commercial, 196 models —
 with an empty cache:
 
 | `max_model_mb` | models kept | languages routable |
 |---|---|---|
-| none | 195 | 596 |
+| none | 196 | 606 |
 | 2000 | 183 | 303 |
 | 1000 | 157 | 258 |
 | 500 | 131 | 255 |
 | 300 | 121 | 78 |
 
 The model column and the language column tell different stories, and the second
-one is the one to plan against. A 500 MB budget drops 64 of 195 models, but
-those 64 include `madlad400-3b-mt-int8` (4945 MB), `m2m100-1.2B-int8` (2344 MB)
+one is the one to plan against. A 500 MB budget drops 65 of 196 models, but
+those 65 include `madlad400-3b-mt-int8` (4945 MB), `m2m100-1.2B-int8` (2344 MB)
 and `m2m100-418M-int8` (1207 MB), and the big multilingual models are where the
 long tail of languages lives. MADLAD is the only model in the registry with
 Chuvash at all; no chain of small models replaces it, because there is no small
@@ -406,7 +406,7 @@ tx = load_translator(max_model_mb=500, oversize_fallback=True)
 print(tx.route("en", "ca").model_ids)      # ('opus-mt-en-ca-int8',)   157 MB
 print(tx.route("en", "cv").model_ids)      # ('madlad400-3b-mt-int8',) 4945 MB
 print(tx.route("en", "cv").waived_size_cap)  # 500
-print(len(tx.available_languages))         # 596, not 255
+print(len(tx.available_languages))         # 606, not 255
 ```
 
 `en -> ca` stays on the small model, because one exists. Chuvash routes at

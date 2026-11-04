@@ -13,6 +13,10 @@ fluent text in the wrong language and nothing raises. So it is concentrated in
 ``nllb``
     Same mechanism, but the codes are FLORES-200 (``por_Latn``), so the
     language *and* the script are selected together.
+``mbart``
+    Source language goes on the *input* after ``</s>``; target language is
+    the decoder's start token (``decoder_start_token_id = lang_id(tgt)``),
+    not a generated one. The codes are mBART's own (``vi_VN``, ``en_XX``).
 ``marian``
     Nothing to select. The model is the pair. A target token is only used by
     the multi-target ``tc-big``/``ROMANCE`` models, and only on request.
@@ -301,13 +305,16 @@ class TranslationModel:
             )
         if self._decoder is None:
             config = self.config
+            # mBART's config names no start token: the pipeline supplies the
+            # target language's tag per call instead.
+            start = config.get("decoder_start_token_id")
             self._decoder = Seq2SeqDecoder(
                 _session(self.files["encoder"], self._providers),
                 _session(self.files["decoder"], self._providers),
                 _session(self.files["decoder_with_past"], self._providers),
                 eos_id=int(config["eos_token_id"]),
                 pad_id=int(config["pad_token_id"]),
-                decoder_start_id=int(config["decoder_start_token_id"]),
+                decoder_start_id=None if start is None else int(start),
                 max_input_tokens=self._max_input_tokens(),
             )
         return self._decoder
@@ -439,6 +446,7 @@ class TranslationModel:
                                     target_token=target_token)
         output_ids = self.decoder.generate(
             input_ids, forced_bos_token_id=pipeline.forced_bos(self, tgt),
+            decoder_start_token_id=pipeline.decoder_start(self, tgt),
             config=config)
         result = pipeline.decode(self, output_ids, src, tgt)
         if not has_visible_content(result):

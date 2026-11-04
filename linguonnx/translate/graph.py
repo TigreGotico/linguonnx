@@ -58,7 +58,7 @@ smallest oversized model that does, rather than failing.
 The filter semantics alone force a choice nobody wants to make. The long tail
 of languages exists only inside a few very large multilingual models - MADLAD
 (4945 MB), NLLB (1866 MB), M2M100-418M (1207 MB) - so a 500 MB cap that
-excludes them outright drops routable languages from 596 to 255 on the
+excludes them outright drops routable languages from 606 to 255 on the
 default registry with an empty cache (``test_translate_registry_numbers.py``
 pins both numbers). Lifting the cap instead lets those same models win pairs
 that a 157 MB ``opus-mt`` pair already served, because "one multilingual hop"
@@ -1281,7 +1281,7 @@ class TranslationGraph:
         oversized model can never outrank a small model that already works.
 
         The escalation is bounded twice over. It is bounded *by construction*
-        at one search per distinct oversized model size - 36 of them on the
+        at one search per distinct oversized model size - 41 of them on the
         default registry under a 500 MB cap, and fewer once the pair's own
         endpoint filter applies - never more than the model count. It is
         bounded again, and much more tightly, by probing the **widest** step

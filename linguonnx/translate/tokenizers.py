@@ -18,6 +18,11 @@ directly rather than taking the dependency.
     block after the ordinary vocabulary, in the order given by
     ``special_tokens_map.json``.
 
+`MBartTokenizer`
+    mBART. NLLB's fairseq offset and positional language block, but the source
+    tag goes *after* the sentence: ``pieces + [</s>, src_lang]``. The codes are
+    mBART's own (``vi_VN``, ``en_XX``).
+
 `MarianTokenizer`
     opus-mt. A separate SentencePiece model per side, a shared ``vocab.json``,
     and ``</s>`` appended with no language token at all - the model *is* the
@@ -34,7 +39,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import sentencepiece as spm
 
-__all__ = ["normalize_punctuation", "SpmSeq2SeqTokenizer", "MarianTokenizer",
+__all__ = ["normalize_punctuation", "SpmSeq2SeqTokenizer", "MBartTokenizer",
+           "MarianTokenizer",
            "FastUnigramTokenizer", "T5SpmTokenizer", "T5TextPrefixTokenizer",
            "UnigramTextPrefixTokenizer", "IndicTransTokenizer",
            "OpenNmtBpeTokenizer", "load_tokenizer", "artifact_lang_codes",
@@ -446,6 +452,21 @@ class SpmSeq2SeqTokenizer:
         return text
 
 
+class MBartTokenizer(SpmSeq2SeqTokenizer):
+    """mBART: ``pieces + [</s>, src_lang]``.
+
+    The vocabulary is laid out like NLLB's - SentencePiece ids shifted by the
+    fairseq offset of 1, then one token per language - and only the place of
+    the source tag differs. ``transformers``' ``MBartTokenizer`` sets
+    ``prefix_tokens = []`` and ``suffix_tokens = [eos, src_lang]``.
+    """
+
+    def encode(self, text: str, src_lang: str) -> List[int]:
+        pieces = self.sp.encode(text, out_type=str)
+        return ([self.piece_to_id(p) for p in pieces]
+                + [self.eos_id, self.lang_id(src_lang)])
+
+
 def clean_up_tokenization(text: str) -> str:
     """Remove a space before punctuation and English contractions.
 
@@ -529,10 +550,24 @@ class FastUnigramTokenizer:
     group-model ambiguity (confirmed by inspecting ``vocab.json``: neither
     ships any ``>>xxx<<`` token), so, like :class:`MarianTokenizer`, it never
     needs a target token.
+
+    ``arat5-arabic-dialects-translation`` (``t5-fast``) loads through here
+    too. Its ``tokenizer.json`` holds a BPE model rather than a Unigram one,
+    which the ``tokenizers`` package reads the same way, and the model is a
+    plain directed one with no prefix on the input either.
+
+    A ``tokenizer.json`` can carry a ``truncation`` setting, and the AraT5
+    one does: 64 tokens. The ``tokenizers`` package applies it on every
+    ``encode``, so a longer sentence is cut with nothing raised and the model
+    translates the first half of it fluently. `transformers` switches it off
+    unless a caller asks for truncation, so it is switched off here too, and
+    the encoder bounds in :mod:`linguonnx.limits` refuse an input that is too
+    long instead.
     """
 
     def __init__(self, tokenizer_json, eos_token: str = "</s>",
-                 pad_token: str = "<blank>", unk_token: str = "<unk>"):
+                 pad_token: str = "<blank>", unk_token: str = "<unk>",
+                 clean_up_tokenization_spaces: bool = False):
         try:
             from tokenizers import Tokenizer
         except ImportError as exc:
@@ -541,6 +576,9 @@ class FastUnigramTokenizer:
                 "tokenizer.json, which needs the 'tokenizers' package. "
                 "Install it: pip install 'linguonnx[fast-tokenizers]'") from exc
         self._tok = Tokenizer.from_file(str(tokenizer_json))
+        self._tok.no_truncation()
+        self._tok.no_padding()
+        self.clean_up_tokenization_spaces = clean_up_tokenization_spaces
         vocab = self._tok.get_vocab()
         self.eos_id = vocab[eos_token]
         self.pad_id = vocab[pad_token]
@@ -562,7 +600,10 @@ class FastUnigramTokenizer:
 
     def decode(self, ids: Sequence[int]) -> str:
         ids = [i for i in ids if i not in self._specials]
-        return self._tok.decode(ids, skip_special_tokens=False)
+        text = self._tok.decode(ids, skip_special_tokens=False)
+        if self.clean_up_tokenization_spaces:
+            text = clean_up_tokenization(text)
+        return text
 
 
 class FastPromptTokenizer:
@@ -1154,6 +1195,11 @@ def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str],
             declared_codes=lang_codes,
             clean_up_tokenization_spaces=bool(
                 tokenizer_config.get("clean_up_tokenization_spaces", False)))
+    if arch == "mbart":
+        return MBartTokenizer(
+            files["spm"], artifact_lang_codes(files), fairseq_offset=1,
+            tokenizer_json_path=files.get("tokenizer_json"),
+            declared_codes=lang_codes)
     if arch == "madlad":
         return T5SpmTokenizer(files["spm"])
     if arch == "t5-prefix":
@@ -1181,6 +1227,13 @@ def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str],
     if arch == "pegasus-fast":
         specials = _marian_special_tokens(files.get("special_tokens_map"))
         return FastUnigramTokenizer(files["tokenizer_json"], **specials)
+    if arch == "t5-fast":
+        specials = _marian_special_tokens(files.get("special_tokens_map"))
+        tokenizer_config = _load_json(files["tokenizer_config"])
+        return FastUnigramTokenizer(
+            files["tokenizer_json"], **specials,
+            clean_up_tokenization_spaces=bool(
+                tokenizer_config.get("clean_up_tokenization_spaces", False)))
     if arch == "causal-lm":
         tokenizer_config = (_load_json(files["tokenizer_config"])
                             if files.get("tokenizer_config") else {})

@@ -174,7 +174,7 @@ class Seq2SeqDecoder:
     """Greedy and beam-search generation over three ONNX Runtime sessions."""
 
     def __init__(self, encoder_session, decoder_session, decoder_past_session,
-                 eos_id: int, pad_id: int, decoder_start_id: int,
+                 eos_id: int, pad_id: int, decoder_start_id: Optional[int],
                  max_input_tokens: int = MAX_ENCODER_TOKENS):
         self.max_input_tokens = max_input_tokens
         self.encoder = encoder_session
@@ -288,17 +288,28 @@ class Seq2SeqDecoder:
 
     def generate(self, input_ids: Sequence[int],
                  forced_bos_token_id: Optional[int] = None,
-                 config: Optional[GenerationConfig] = None) -> List[int]:
+                 config: Optional[GenerationConfig] = None,
+                 decoder_start_token_id: Optional[int] = None) -> List[int]:
+        """``decoder_start_token_id`` replaces the model's own start token
+        for this call. mBART selects its target language that way: the target
+        tag is the decoder's first *input*, and the config names no start
+        token at all."""
         config = config or GenerationConfig()
+        start = (self.decoder_start_id if decoder_start_token_id is None
+                 else decoder_start_token_id)
+        if start is None:
+            raise ValueError(
+                "no decoder start token: the model's config names no "
+                "decoder_start_token_id and the caller supplied none")
         ids = np.asarray([list(input_ids)], dtype=np.int64)
         if config.num_beams <= 1:
-            return self._greedy(ids, forced_bos_token_id, config)
-        return self._beam(ids, forced_bos_token_id, config)
+            return self._greedy(ids, forced_bos_token_id, config, start)
+        return self._beam(ids, forced_bos_token_id, config, start)
 
     def _greedy(self, input_ids: np.ndarray, forced_bos: Optional[int],
-                config: GenerationConfig) -> List[int]:
+                config: GenerationConfig, start: int) -> List[int]:
         hidden, mask = self._encode(input_ids)
-        logits, cache = self._first_step(hidden, mask, self.decoder_start_id)
+        logits, cache = self._first_step(hidden, mask, start)
 
         generated: List[int] = []
         for step in range(config.max_new_tokens):
@@ -342,7 +353,7 @@ class Seq2SeqDecoder:
         return total_logprob / (len(sequence) + 1) ** length_penalty
 
     def _beam(self, input_ids: np.ndarray, forced_bos: Optional[int],
-              config: GenerationConfig) -> List[int]:
+              config: GenerationConfig, start: int) -> List[int]:
         """Beam search, written to agree with `transformers` token for token.
 
         The published parity numbers for every model in the registry were
@@ -362,7 +373,7 @@ class Seq2SeqDecoder:
         beams = config.num_beams
         length_penalty = config.length_penalty
         hidden, mask = self._encode(input_ids)
-        logits, cache = self._first_step(hidden, mask, self.decoder_start_id)
+        logits, cache = self._first_step(hidden, mask, start)
 
         # Expand the single step-0 result into `beams` identical rows. Only the
         # first beam starts alive: with identical rows, an all-zero score vector

@@ -14,7 +14,7 @@ tiers, in order of how many strings are attached:
 | tier | what is in it | in the default graph? |
 |---|---|---|
 | `permissive` | Apache-2.0, MIT, CC-BY-4.0, AFL-3.0 | yes |
-| `share-alike` | CC-BY-SA-3.0, CC-BY-SA-4.0 | yes |
+| `share-alike` | CC-BY-SA-3.0, CC-BY-SA-4.0, GPL-3.0, AGPL-3.0 | yes |
 | `non-commercial` | CC-BY-NC-4.0 | no |
 
 Tier is a routing key, not just metadata. It is the third element of the
@@ -46,10 +46,18 @@ registry entries are excluded by default: `nllb-600M`, `aina-es-oc`,
 CC-BY-NC-4.0.
 
 A share-alike model stays in the default graph. CC-BY-SA permits commercial
-use; its condition is that a derived work keeps the same licence. One
-translation entry has this tier: `pt2mirandese`, whose word lists are
-CC-BY-SA-4.0. A caller who must avoid share-alike terms can check
-`route.license_tier`, or name the models in `models=`.
+use; its condition is that a derived work keeps the same licence. Two
+translation entries have this tier: `pt2mirandese`, whose word lists are
+CC-BY-SA-4.0, and `vinai-translate-vi2en-v2`. A caller who must avoid
+share-alike terms can check `route.license_tier`, or name the models in
+`models=`.
+
+`vinai-translate-vi2en-v2` is AGPL-3.0, inherited from VinAI's upstream
+model. It is published in fp32 only, so the
+default int8 graph never routes through it. AGPL-3.0 adds a condition that
+CC-BY-SA does not have: a service that lets users interact with a modified
+version over a network must offer them its source. A caller who runs a
+translation service should check this model separately.
 
 `AFL-3.0` — carried by ten of the `m2m100_418M_*` African fine-tunes — is
 classified `permissive` and stays in the default graph. It grants use,

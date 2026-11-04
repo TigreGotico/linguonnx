@@ -553,7 +553,7 @@
       "generation_config": "int8/generation_config.json",
       "tokenizer_config": "int8/tokenizer_config.json"
     },
-    "size_mb": 2517
+    "size_mb": 4337
   },
   "Plume32k": {
     "arch": "causal-lm",
@@ -736,7 +736,9 @@
       ]
     ],
     "extra": "fast-tokenizers",
-    "extra_files": [],
+    "extra_files": [
+      "int8/model_quantized.onnx_data"
+    ],
     "graphs": {
       "model": "int8/model_quantized.onnx"
     },
@@ -775,7 +777,7 @@
       "generation_config": "int8/generation_config.json",
       "tokenizer_config": "int8/tokenizer_config.json"
     },
-    "size_mb": 2117
+    "size_mb": 2757
   },
   "afrigloss-opus-mt-en-ee": {
     "arch": "marian",
@@ -2723,6 +2725,92 @@
       "added_tokens": "int8/added_tokens.json"
     },
     "size_mb": 2345
+  },
+  "arat5-arabic-dialects-translation": {
+    "arch": "t5-fast",
+    "extra": "fast-tokenizers",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/arat5-arabic-dialects-translation-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "arat5-arabic-dialects-translation",
+    "notes": "PRAli22 AraT5 fine-tune that rewrites dialectal Arabic as Modern Standard Arabic. Trained on MADAR's city dialects and a Levantine and Maghrebi corpus, short travel and conversation sentences. The input carries no dialect label. Gulf, Iraqi, Mosul, Levantine, Egyptian, Sudanese, Algerian, Libyan, Moroccan, Tunisian, Najdi and Sanaani sources are registered.",
+    "precision": "fp32",
+    "side_files": {
+      "tokenizer_json": "tokenizer.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "tokenizer_config": "tokenizer_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 2898,
+    "src_languages": [
+      "acm",
+      "aeb",
+      "afb",
+      "apc",
+      "apd",
+      "arq",
+      "ars",
+      "ary",
+      "arz",
+      "ayl",
+      "ayn",
+      "ayp"
+    ],
+    "tgt_languages": [
+      "ar"
+    ]
+  },
+  "arat5-arabic-dialects-translation-int8": {
+    "arch": "t5-fast",
+    "extra": "fast-tokenizers",
+    "extra_files": [
+      "int8/decoder_model.onnx_data",
+      "int8/decoder_with_past_model.onnx_data",
+      "int8/encoder_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/arat5-arabic-dialects-translation-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "arat5-arabic-dialects-translation-int8",
+    "notes": "PRAli22 AraT5 fine-tune that rewrites dialectal Arabic as Modern Standard Arabic. Trained on MADAR's city dialects and a Levantine and Maghrebi corpus, short travel and conversation sentences. The input carries no dialect label. Gulf, Iraqi, Mosul, Levantine, Egyptian, Sudanese, Algerian, Libyan, Moroccan, Tunisian, Najdi and Sanaani sources are registered.",
+    "precision": "int8",
+    "side_files": {
+      "tokenizer_json": "int8/tokenizer.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "tokenizer_config": "int8/tokenizer_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 2007,
+    "src_languages": [
+      "acm",
+      "aeb",
+      "afb",
+      "apc",
+      "apd",
+      "arq",
+      "ars",
+      "ary",
+      "arz",
+      "ayl",
+      "ayn",
+      "ayp"
+    ],
+    "tgt_languages": [
+      "ar"
+    ]
   },
   "cuneiformBase-400m": {
     "arch": "t5-prefix",
@@ -17758,5 +17846,36 @@
       "special_tokens_map": "int8/special_tokens_map.json"
     },
     "size_mb": 590
+  },
+  "vinai-translate-vi2en-v2": {
+    "arch": "mbart",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/vinai-translate-vi2en-v2-onnx",
+    "license": "AGPL-3.0",
+    "license_tier": "share-alike",
+    "model_id": "vinai-translate-vi2en-v2",
+    "native_codes": {
+      "en": "en_XX",
+      "vi": "vi_VN"
+    },
+    "notes": "VinAI Translate (mBART), Vietnamese -> English. One-way: VinAI publishes English -> Vietnamese as a separate model.",
+    "pair": [
+      "vi",
+      "en"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
+    },
+    "size_mb": 3504
   }
 }

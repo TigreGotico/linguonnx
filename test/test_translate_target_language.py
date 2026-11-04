@@ -44,7 +44,8 @@ class _RecordingTokenizer:
 
 
 class _StubDecoder:
-    def generate(self, input_ids, forced_bos_token_id=None, config=None):
+    def generate(self, input_ids, forced_bos_token_id=None, config=None,
+                 decoder_start_token_id=None):
         return [1, 2, 3]
 
 

@@ -295,6 +295,21 @@ BILINGUAL_FINETUNES: Dict[str, Dict] = {
     #:         https://huggingface.co/softcatala/translate-oci-cat
     "translate-eus-cat": {"pair": ["eu", "ca"], "notes": "Marian, Basque -> Catalan."},
     "translate-oci-cat": {"pair": ["oc", "ca"], "notes": "Marian, Occitan -> Catalan."},
+
+    #: VinAI Translate: an mBART fine-tune that keeps mBART-cc25's 25-code
+    #: token inventory but translates one way only. The card declares
+    #: `vi`/`en`; the direction is VinAI's own, with the reverse published as
+    #: a separate model (`vinai/vinai-translate-en2vi-v2`). The model's own
+    #: tokens (`vi_VN`, `en_XX`) are read from the export by
+    #: `_mbart_native_codes`.
+    #: Source: https://github.com/VinAIResearch/VinAI_Translate
+    #:   "Vietnamese-to-English translation ... src_lang="vi_VN" ...
+    #:    decoder_start_token_id=tokenizer_vi2en.lang_code_to_id["en_XX"]"
+    "vinai-translate-vi2en-v2": {
+        "pair": ["vi", "en"],
+        "notes": "VinAI Translate (mBART), Vietnamese -> English. One-way: "
+                 "VinAI publishes English -> Vietnamese as a separate model.",
+    },
 }
 
 #: RESOLVED. A Marian *group* export's real coverage is always read from its
@@ -355,20 +370,7 @@ _KNOWN_UNRESOLVED_GROUP_MODELS: Tuple[str, ...] = ()
 #:   `tokenizers` package instead of `sentencepiece`. Both directions were
 #:   run for real; see the PR description.
 #:
-#: ``vinai-translate-vi2en-v2``: tags its graph `mbart`, and `_arch()` raises
-#: `SkipRepo` for it deliberately (see the `model_type == "mbart"` branch) -
-#: it is not NLLB despite sharing NLLB's lone sentencepiece.bpe.model +
-#: special_tokens_map.json shape, and no mBART loader exists in this library.
-#:
-#: ``arat5-arabic-dialects-translation``: tags its graph `t5`, which `_arch()`
-#: only recognises as the MADLAD shape. This export ships a fast tokenizer
-#: (`tokenizer.json`) instead of MADLAD's raw `spiece.model`, so
-#: `_madlad_languages` raises `SkipRepo` for it too - a real AraT5 loader
-#: is not implemented.
-_KNOWN_ARCH_MISMATCH: Tuple[str, ...] = (
-    "vinai-translate-vi2en-v2",
-    "arat5-arabic-dialects-translation",
-)
+_KNOWN_ARCH_MISMATCH: Tuple[str, ...] = ()
 
 #: Exports this library cannot tokenize the way the model was trained, keyed
 #: by model id. ``translate_entries`` skips them with the reason.
@@ -434,7 +436,39 @@ MARIAN_MULTILINGUAL_OVERRIDES: Dict[str, Dict] = {
 #: requests away from the small Catalan models and fail them under a 500 MB
 #: budget.
 #: Source: https://huggingface.co/Transducens/IbRo-nllb
+#:
+#: ``arat5-arabic-dialects-translation``: PRAli22's AraT5 fine-tune that
+#: rewrites dialectal Arabic as Modern Standard Arabic, which is ``ar`` here
+#: (``arb`` normalises to it). It is ``t5-fast``: a T5 with a
+#: ``tokenizer.json`` and no prefix, so nothing in the export names a
+#: language. The card names no varieties and its dataset
+#: (``PRAli22/Arabic_dialects_to_MSA``, 145541 source/target rows) labels
+#: none, so the sources come from the data itself. 1979 MSA targets recur
+#: exactly 30 times, in 30 aligned blocks: MADAR's 25 city dialects plus a
+#: repeat of its five-city corpus (Beirut, Cairo, Doha, Rabat, Tunis). The
+#: rest of the rows are those five cities' larger MADAR corpus and a
+#: Syrian, Palestinian, Tunisian, Moroccan and Algerian corpus. A variety is
+#: listed when its city block is named by its own dialect features and has
+#: test sentences: FLORES-200 for acm, aeb, apc (with ajp_Arab, merged into
+#: apc), ars, ary and arz, the training rows of that block otherwise.
+#: Hijazi (acw), Omani (acx) and Saidi (aec) are in the data too, but which
+#: block holds them is not settled, so they are not listed. Every source was
+#: checked against the PyTorch checkpoint, greedy, token for token.
+#: Sources: https://huggingface.co/PRAli22/arat5-arabic-dialects-translation,
+#: https://huggingface.co/datasets/PRAli22/Arabic_dialects_to_MSA
 MULTILINGUAL_LANGUAGE_OVERRIDES: Dict[str, Dict] = {
+    "arat5-arabic-dialects-translation": {
+        "src_languages": ["acm", "aeb", "afb", "apc", "apd", "arq",
+                          "ars", "ary", "arz", "ayl", "ayn", "ayp"],
+        "tgt_languages": ["ar"],
+        "notes": "PRAli22 AraT5 fine-tune that rewrites dialectal Arabic as "
+                 "Modern Standard Arabic. Trained on MADAR's city dialects "
+                 "and a Levantine and Maghrebi corpus, short travel and "
+                 "conversation sentences. The input carries no dialect "
+                 "label. Gulf, Iraqi, Mosul, Levantine, Egyptian, Sudanese, "
+                 "Algerian, Libyan, Moroccan, Tunisian, Najdi and Sanaani "
+                 "sources are registered.",
+    },
     "IbRo-nllb": {
         "languages": ["an", "ast", "ca", "es", "gl", "oc"],
         "native_codes": {"an": "arg_Latn", "ast": "ast_Latn", "ca": "cat_Latn",
@@ -564,6 +598,7 @@ LICENSE_DISPLAY: Dict[str, str] = {
     "cc-by-sa-4.0": "CC-BY-SA-4.0",
     "cc-by-nc-4.0": "CC-BY-NC-4.0",
     "gpl-3.0": "GPL-3.0",
+    "agpl-3.0": "AGPL-3.0",
     "afl-3.0": "AFL-3.0",
 }
 
@@ -610,6 +645,7 @@ LICENSE_TIERS: Dict[str, str] = {
     "CC-BY-SA-3.0": "share-alike",
     "CC-BY-SA-4.0": "share-alike",
     "GPL-3.0": "share-alike",
+    "AGPL-3.0": "share-alike",
     "AFL-3.0": "permissive",
     "CC-BY-NC-4.0": "non-commercial",
 }
@@ -788,6 +824,25 @@ SIDE_FILES: Dict[str, Dict[str, str]] = {
         "generation_config": "generation_config.json",
         "special_tokens_map": "special_tokens_map.json",
     },
+    # A T5 trained on plain source text, tokenized from a `tokenizer.json`
+    # (see `_arch`). `tokenizer_config.json` says whether decoding removes
+    # the space before punctuation, as `transformers` does for this model.
+    "t5-fast": {
+        "tokenizer_json": "tokenizer.json",
+        "config": "config.json",
+        "generation_config": "generation_config.json",
+        "tokenizer_config": "tokenizer_config.json",
+        "special_tokens_map": "special_tokens_map.json",
+    },
+    # mBART: NLLB's file shape. `tokenizer.json` states the language ids, so
+    # they are read rather than counted, exactly as for NLLB.
+    "mbart": {
+        "spm": "sentencepiece.bpe.model",
+        "config": "config.json",
+        "generation_config": "generation_config.json",
+        "special_tokens_map": "special_tokens_map.json",
+        "tokenizer_json": "tokenizer.json",
+    },
     # A decoder-only export: one graph with its key/value cache, and a
     # `tokenizers`-library `tokenizer.json`. `tokenizer_config.json` is
     # required because it states `clean_up_tokenization_spaces`, which
@@ -856,6 +911,7 @@ ARCH_EXTRAS: Dict[str, str] = {
     "indictrans2": "indic",
     "opennmt-bpe": "opennmt",
     "pegasus-fast": "fast-tokenizers",
+    "t5-fast": "fast-tokenizers",
     "causal-lm": "fast-tokenizers",
 }
 
@@ -868,6 +924,8 @@ REQUIRED_SIDE_FILES: Dict[str, Tuple[str, ...]] = {
     "indictrans2": ("spm_src", "spm_tgt", "dict_src", "dict_tgt", "config"),
     "opennmt-bpe": ("vocab", "config", "bpe_code"),
     "pegasus-fast": ("tokenizer_json", "config"),
+    "t5-fast": ("tokenizer_json", "config", "tokenizer_config"),
+    "mbart": ("spm", "config", "special_tokens_map"),
     "causal-lm": ("tokenizer_json", "config", "tokenizer_config"),
 }
 
@@ -1376,6 +1434,17 @@ def _arch(detail: dict, files: Dict[str, int],
                 "prose on the model card, not anything readable from the "
                 "artifacts, and guessing one silently translates in whatever "
                 "direction the model prefers")
+        if "spiece.model" not in files and "tokenizer.json" in files:
+            # Not MADLAD, whose `<2xx>` pieces live in `spiece.model`: a T5
+            # fine-tune with a `tokenizers`-library vocabulary and no prefix
+            # on the input. Nothing in the export names its languages, so
+            # it is registered only with a curated entry.
+            if model_id in MULTILINGUAL_LANGUAGE_OVERRIDES:
+                return "t5-fast"
+            raise SkipRepo(
+                "model_type=t5 with a tokenizer.json and no spiece.model: "
+                "not MADLAD, and the export names no languages; add a "
+                f"MULTILINGUAL_LANGUAGE_OVERRIDES entry for {model_id!r}")
         return "madlad"
     if model_type == "IndicTrans":
         return "indictrans2"
@@ -1400,21 +1469,12 @@ def _arch(detail: dict, files: Dict[str, int],
             "model_type")
     if model_type == "mbart":
         # mBART ships the same lone `sentencepiece.bpe.model` +
-        # `special_tokens_map.json` shape as NLLB (see `vinai-translate-vi2en
-        # -v2-onnx`), so falling through to the `vocab.json`-absent branch
-        # below would silently mislabel it "nllb". It is not: mBART selects
-        # its target with a *trailing* `</s> <lang>` decoder-start token and
-        # spells its codes `en_XX`/`vi_VN`, not NLLB's fairseq id+1 offset and
-        # FLORES `eng_Latn` spelling - `SpmSeq2SeqTokenizer` built for NLLB
-        # would tokenize and force the wrong ids on every call. No mBART
-        # loader exists in `linguonnx.translate.tokenizers` or `graph.py`;
-        # this is an honest capability gap, not a guessable one.
-        raise SkipRepo(
-            "model_type=mbart: mBART is a distinct architecture (trailing "
-            "decoder-start language token, en_XX-style codes) that this "
-            "library implements no tokenizer or graph loader for - it is "
-            "not NLLB despite sharing NLLB's single sentencepiece.bpe.model "
-            "+ special_tokens_map.json file shape")
+        # `special_tokens_map.json` shape as NLLB, so falling through to the
+        # `vocab.json`-absent branch below would mislabel it "nllb". The two
+        # differ where it matters: mBART puts the source tag *after* `</s>`
+        # and starts the decoder on the target tag, and it spells its codes
+        # `vi_VN`/`en_XX`.
+        return "mbart"
     # M2M100 and NLLB share `model_type: m2m_100`; the tokenizer tells them
     # apart. M2M100 ships a vocab.json and reads ids from it; NLLB has none and
     # uses fairseq's sp_id + 1 offset instead.
@@ -1684,6 +1744,32 @@ def _multilingual_languages(
             native[tag] = code
     kept = sorted(_without_families(normalized))
     return kept, {tag: code for tag, code in native.items() if tag in kept}
+
+
+def _mbart_native_codes(repo_id: str, files: Dict[str, int],
+                        pair: Sequence[str]) -> Dict[str, str]:
+    """mBART's own token for each side of ``pair``: ``vi`` -> ``vi_VN``.
+
+    mBART spells a language ``<language>_<XX>``. The part after the
+    underscore is fairseq's naming, not a region claim - ``en_XX`` and
+    ``es_XX`` name no region at all - so the language subtag before it is
+    what is matched, and exactly one token in the export must carry it.
+    """
+    if "special_tokens_map.json" not in files:
+        raise SkipRepo("no special_tokens_map.json to read mBART language "
+                       "tokens from")
+    data = json.loads(raw_file(repo_id, "special_tokens_map.json"))
+    tokens = [t for t in data.get("additional_special_tokens") or []
+              if isinstance(t, str)]
+    native: Dict[str, str] = {}
+    for code in pair:
+        matches = [t for t in tokens if t.split("_", 1)[0] == code]
+        if len(matches) != 1:
+            raise SkipRepo(
+                f"mBART export carries {len(matches)} language tokens for "
+                f"{code!r} ({matches}); exactly one is needed to address it")
+        native[code] = matches[0]
+    return dict(sorted(native.items()))
 
 
 def _without_families(codes: Iterable[str]) -> List[str]:
@@ -2278,6 +2364,12 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
         _assert_declared_covers(detail, model_id, spec["languages"])
         shared.update({key: value for key, value in spec.items()
                        if key != "language_token"})
+    elif arch == "mbart":
+        raise SkipRepo(
+            "model_type=mbart with no verified pair in BILINGUAL_FINETUNES: "
+            "an mBART fine-tune keeps the base's whole language-token "
+            "inventory, so the artifacts do not say which directions the "
+            "weights serve")
     elif model_id in MULTILINGUAL_LANGUAGE_OVERRIDES:
         shared.update(MULTILINGUAL_LANGUAGE_OVERRIDES[model_id])
     else:
@@ -2286,6 +2378,9 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
         shared["languages"] = languages
         if native_codes:
             shared["native_codes"] = dict(sorted(native_codes.items()))
+    if arch == "mbart":
+        shared["native_codes"] = _mbart_native_codes(
+            repo_id, files, shared["pair"])
 
     entries: Dict[str, dict] = {}
     for suffix, prefix in (("", ""), ("-int8", "int8/")):

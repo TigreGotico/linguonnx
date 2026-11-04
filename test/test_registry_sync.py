@@ -76,7 +76,7 @@ def test_translate_entry_is_complete(model_id):
     assert entry["arch"] in (
         "marian", "m2m100", "nllb", "madlad", "t5-prefix", "indictrans2",
         "opennmt-bpe",
-        "pegasus-fast", "causal-lm")
+        "pegasus-fast", "t5-fast", "mbart", "causal-lm")
     assert entry["precision"] in ("fp32", "int8")
     assert entry["size_mb"] > 0
 
@@ -143,6 +143,8 @@ def test_translate_entry_carries_side_files_its_tokenizer_needs(model_id):
         "indictrans2": {"spm_src", "spm_tgt", "dict_src", "dict_tgt", "config"},
         "opennmt-bpe": {"vocab", "config", "bpe_code"},
         "pegasus-fast": {"tokenizer_json", "config"},
+        "t5-fast": {"tokenizer_json", "config", "tokenizer_config"},
+        "mbart": {"spm", "config", "special_tokens_map"},
         "causal-lm": {"tokenizer_json", "config", "tokenizer_config"},
     }[entry["arch"]]
     assert required <= set(side), \
@@ -453,6 +455,24 @@ def test_arch_still_reads_nllb_without_vocab_json():
     assert sync_registry._arch(detail, files) == "nllb"
 
 
+def test_arch_reads_mbart_rather_than_nllb():
+    """mBART ships NLLB's file shape; only `model_type` tells them apart."""
+    detail = {"config": {"model_type": "mbart"}}
+    files = {"sentencepiece.bpe.model": 1, "special_tokens_map.json": 1}
+    assert sync_registry._arch(detail, files) == "mbart"
+
+
+def test_mbart_native_codes_match_the_language_subtag(monkeypatch):
+    tokens = ["ar_AR", "en_XX", "es_XX", "vi_VN", "zh_CN"]
+    monkeypatch.setattr(sync_registry, "raw_file", lambda repo, path: json.dumps(
+        {"additional_special_tokens": tokens}))
+    files = {"special_tokens_map.json": 1}
+    assert sync_registry._mbart_native_codes("x/y", files, ["vi", "en"]) == \
+        {"en": "en_XX", "vi": "vi_VN"}
+    with pytest.raises(sync_registry.SkipRepo):
+        sync_registry._mbart_native_codes("x/y", files, ["vi", "pt"])
+
+
 def test_arch_reads_pegasus_fast_from_tokenizer_json():
     """`model_type: pegasus` with a tokenizers-library tokenizer.json (no
     OpenNMT BPE vocab file) is Softcatalà's shape, not ProxectoNos'."""
@@ -610,7 +630,8 @@ def test_hi_to_ta_resolves_direct(translator):
 #: for. Kept as a literal set rather than read from the registry, so that
 #: adding an entry for an architecture nobody wrote a pipeline for fails here.
 RUNNABLE_ARCHS = {"marian", "m2m100", "nllb", "madlad", "t5-prefix",
-                  "indictrans2", "opennmt-bpe", "pegasus-fast", "causal-lm"}
+                  "indictrans2", "opennmt-bpe", "pegasus-fast", "t5-fast",
+                  "mbart", "causal-lm"}
 
 
 @pytest.mark.parametrize("model_id", sorted(TRANSLATE))
