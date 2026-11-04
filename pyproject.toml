@@ -15,7 +15,7 @@ requires-python = ">=3.11"
 dependencies = [
     # Floors, not pins: the oldest release each of these is known to work on.
     # Without them the manifest permits a resolution nobody has ever tested.
-    "onnxruntime>=1.16.0",
+    "onnxruntime>=1.22.0",  # 8-bit MatMulNBits, used by the Plume int8 graphs
     "numpy>=1.21.0",
     "huggingface_hub>=0.20.0",  # stable `revision=` handling in hf_hub_download
     "langcodes>=3.3.0",

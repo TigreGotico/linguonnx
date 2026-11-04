@@ -228,3 +228,25 @@ This script only produces the ONNX graphs and verifies they load. It does
 Those steps are gated separately per the campaign this was written for (see
 the TigreGotico IndicTrans2 ONNX conversion effort) — do not publish a model
 exported with this script without them.
+
+# Decoder-only int8 graphs
+
+`quantize_causal_lm_int8.py` writes the `int8/` graph of a decoder-only export,
+such as Projecte AINA's Plume, from its fp32 `model.onnx`. The Plume graphs use
+8-bit weight-only quantization:
+
+```bash
+python quantize_causal_lm_int8.py Plume128k-onnx/model.onnx Plume128k-onnx/int8 \
+    --weight-only --block-size 32 --accuracy-level 4
+```
+
+The script keeps the token embedding and the output projection in fp32. Dynamic
+int8 quantization with one scale per tensor is not usable for these models. On
+128 FLORES-200 sentences, the Plume128k graph made that way repeated text until
+the token limit in 17 rows, and its chrF against the fp32 output was 50. The
+weight-only graph gives the same tokens as fp32 in 105 of 128 rows, with chrF
+98.7 against the fp32 output.
+
+The graph needs ONNX Runtime 1.22.0 or later. Versions 1.18.1, 1.20.1 and
+1.21.1 refuse 8-bit `MatMulNBits` when they load the graph. Compare the
+output with the fp32 graph on real sentences before you publish a graph.
