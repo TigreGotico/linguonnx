@@ -229,6 +229,21 @@ Those steps are gated separately per the campaign this was written for (see
 the TigreGotico IndicTrans2 ONNX conversion effort) — do not publish a model
 exported with this script without them.
 
+# Seq2seq int8 quantization
+
+`quantize_seq2seq_int8.py` makes the `int8/` graphs of an `optimum` seq2seq
+export from its fp32 graphs:
+
+```
+python scripts/export/quantize_seq2seq_int8.py <fp32 dir> <int8 dir>
+```
+
+It runs ONNX Runtime dynamic quantization on each of the three graphs: QInt8,
+per channel, full range, subgraphs included. Each graph keeps its weights in
+one external data file, `<graph>.onnx_data`. For an NLLB-200-600M export this
+gives about 1.9 GB of int8 graphs against 7.4 GB of fp32 graphs. The DSFSI
+NLLB fine-tunes (`nllb_200_distilled_600m-*`) are built with it.
+
 # Decoder-only int8 graphs
 
 `quantize_causal_lm_int8.py` writes the `int8/` graph of a decoder-only export,

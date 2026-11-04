@@ -206,6 +206,40 @@ def test_hausa_keeps_its_own_token_rather_than_the_swahili_slot():
     assert set(model.native_codes) == {"en", "ha"}, model.native_codes
 
 
+#: Each side's token, as the source side of the model sees it. The target
+#: side is also baked into each export's ``forced_bos_token_id``; the source
+#: side is in no file. For the Masakhane models it was chosen by chrF on 50
+#: FLORES-200 devtest sentences through the upstream PyTorch weights: ig 41.01
+#: vs sw 39.99, ha 38.79 vs sw 38.08, lg 33.32 vs sw 33.45 (a tie, so Luganda
+#: keeps its own token), and for Ewe, which has no M2M100 token, the card's sw
+#: 31.53 vs en 30.90. en->lug is the one export whose baked target is
+#: ``__sw__`` (128088) although M2M100 has ``__lg__``. The DSFSI NLLB
+#: fine-tunes use the FLORES-200 codes of their base.
+_FINETUNE_TOKENS = {
+    "m2m100_418M_en_ibo_rel_news_ft": {"en": "en", "ig": "ig"},
+    "m2m100_418M_ibo_en_rel_news_ft": {"ig": "ig", "en": "en"},
+    "m2m100_418M_hau_en_rel_news_ft": {"ha": "ha", "en": "en"},
+    "m2m100_418M_en_lug_rel_news_ft": {"en": "en", "lg": "sw"},
+    "m2m100_418M_lug_en_rel_news_ft": {"lg": "lg", "en": "en"},
+    "m2m100_418M_ewe_fr_rel_news_ft": {"ewe": "sw", "fr": "fr"},
+    "nllb_200_distilled_600m-eng-amh": {"en": "eng_Latn", "am": "amh_Ethi"},
+    "nllb_200_distilled_600m-amh-eng": {"am": "amh_Ethi", "en": "eng_Latn"},
+    "nllb_200_distilled_600m-eng-yor": {"en": "eng_Latn", "yo": "yor_Latn"},
+    "nllb_200_distilled_600m-yor-eng": {"yo": "yor_Latn", "en": "eng_Latn"},
+    "nllb_200_distilled_600m-eng-zul": {"en": "eng_Latn", "zu": "zul_Latn"},
+    "nllb_200_distilled_600m-zul-eng": {"zu": "zul_Latn", "en": "eng_Latn"},
+}
+
+
+@pytest.mark.parametrize("model_id", [
+    model_id + suffix for model_id in _FINETUNE_TOKENS for suffix in ("", "-int8")])
+def test_each_bilingual_finetune_resolves_both_sides_to_its_own_token(model_id):
+    expected = _FINETUNE_TOKENS[model_id.removesuffix("-int8")]
+    model = TranslationModel(model_id, entry=REGISTRY[model_id])
+    src, tgt = REGISTRY[model_id]["pair"]
+    assert {tag: model.native_code(tag) for tag in (src, tgt)} == expected
+
+
 # --------------------------------------------------------------------------
 # Offline, unit: ids come from the export, never from list position
 # --------------------------------------------------------------------------
