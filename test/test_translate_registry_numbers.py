@@ -42,7 +42,7 @@ from linguonnx.translate import load_translator
 #   load_translator(max_model_mb=CAP, count_cached_as_free=False)
 LANGUAGES_UNCAPPED = 596
 LANGUAGES_UNDER_500 = 255
-FALLBACK_STEPS_UNDER_500 = 38
+FALLBACK_STEPS_UNDER_500 = 40
 
 # README.md's "What ships" table and docs/models.md's opening paragraph quote
 # these directly off `linguonnx/model_index/translate.json` and `lid.json`.
@@ -51,11 +51,11 @@ FALLBACK_STEPS_UNDER_500 = 38
 #   {v["hf_repo"] for v in translate.json.values() if "hf_repo" in v}  -> models
 #   Counter(v.get("precision") for v in translate.json.values())
 #                                               -> int8/fp32/rule-based split
-TRANSLATE_ENTRIES = 417
-TRANSLATE_INT8_ENTRIES = 207
-TRANSLATE_FP32_ENTRIES = 208
+TRANSLATE_ENTRIES = 421
+TRANSLATE_INT8_ENTRIES = 209
+TRANSLATE_FP32_ENTRIES = 210
 TRANSLATE_RULE_ENTRIES = 2
-TRANSLATE_MODELS = 208
+TRANSLATE_MODELS = 210
 LID_ENTRIES = 12
 LID_MODELS = 6
 
@@ -255,6 +255,7 @@ DOCUMENTED_TRANSLATE_FAMILIES = [
     r"^TigreGotico/opus-mt-.+-onnx$",
     r"^TigreGotico/afrigloss-opus-mt-.+-onnx$",
     r"^TigreGotico/IbRo-nllb-onnx$",
+    r"^TigreGotico/Plume(32|128)k-onnx$",
     r"^TigreGotico/madlad400-3b-mt-(oc_aranes|ast-an-oc_aranes|es_ES|es_419)-onnx$",
 ]
 

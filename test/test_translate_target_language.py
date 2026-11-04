@@ -206,6 +206,12 @@ def test_every_multi_target_model_has_a_way_to_name_its_target(model_id, entry):
         assert reachable == set(entry["languages"]), (
             f"{model_id} lists {sorted(entry['languages'])} but its "
             f"instructions only reach {sorted(reachable)}")
+    elif arch == "causal-lm":
+        # The prompt names the target, and a prompt without the slot sends
+        # every request to whatever language the model prefers.
+        assert "{tgt}" in entry.get("prompt_template", ""), (
+            f"{model_id} is a prompted {arch} model and its prompt template "
+            f"does not name the target")
     elif arch in ("m2m100", "nllb"):
         assert pipeline_for(arch).forced_bos.__qualname__.startswith(
             "SpmLangTokenPipeline"), \

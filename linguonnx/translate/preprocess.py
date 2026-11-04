@@ -222,6 +222,35 @@ class T5TextPrefixPipeline(Pipeline):
         return model.tokenizer.decode(ids)
 
 
+@register("causal-lm")
+class PromptPipeline(Pipeline):
+    """A decoder-only translator, prompted with its source and target tags.
+
+    The registry entry's ``prompt_template`` is the prompt quoted from the
+    model card, with ``{src}``, ``{tgt}`` and ``{text}`` slots, and the slots
+    take the model's own language codes.
+
+    The prompt puts a newline before the target tag, so a newline in the
+    text would end the source early. ``TranslationModel.translate`` hands
+    this pipeline one line at a time.
+
+    The decoder returns only the generated ids, so the prompt is never part
+    of the decoded output.
+    """
+
+    def encode(self, model, text, src, tgt, target_token=None):
+        if "\n" in text:
+            raise ValueError(
+                f"{model.model_id} marks the target language with a newline "
+                f"in its prompt, so the text must be a single line")
+        prompt = model.entry["prompt_template"].format(
+            src=model.native_code(src), tgt=model.native_code(tgt), text=text)
+        return self.check_length(model.tokenizer.encode(prompt), model)
+
+    def decode(self, model, ids, src, tgt):
+        return model.tokenizer.decode(ids)
+
+
 # --------------------------------------------------------------------------
 # IndicTrans2
 # --------------------------------------------------------------------------

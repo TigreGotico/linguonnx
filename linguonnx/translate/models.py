@@ -25,6 +25,9 @@ fluent text in the wrong language and nothing raises. So it is concentrated in
 ``opennmt-bpe``
     Nothing to select; the model is the pair. The work is Moses tokenisation
     and BPE, on both ends.
+``causal-lm``
+    A decoder-only model prompted with both language tags. The entry's
+    ``prompt_template`` is the prompt from the model card.
 ``rules``
     No ONNX graph and no download. The entry's ``callable`` names a Python
     function, ``module:function``, that translates one line, and the model is
@@ -48,7 +51,8 @@ from typing import Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple
 from linguonnx.limits import MAX_ENCODER_TOKENS, DecodeError, has_visible_content
 from linguonnx.model_manager import ensure_model_files, registry_entry
 from linguonnx.providers import ProviderSpec, make_session
-from linguonnx.translate.decode import GenerationConfig, Seq2SeqDecoder
+from linguonnx.translate.decode import (CausalLMDecoder, GenerationConfig,
+                                        Seq2SeqDecoder)
 from linguonnx.translate.graph import (Capability, NoRouteError,
                                        entry_runnability, normalize_tag)
 from linguonnx.translate.preprocess import Pipeline, pipeline_for
@@ -288,6 +292,13 @@ class TranslationModel:
 
     @property
     def decoder(self) -> Seq2SeqDecoder:
+        if self._decoder is None and self.arch == "causal-lm":
+            self._decoder = CausalLMDecoder(
+                _session(self.files["model"], self._providers),
+                eos_id=int(self.config["eos_token_id"]),
+                pad_id=int(self.config["pad_token_id"]),
+                max_input_tokens=self._max_input_tokens(),
+            )
         if self._decoder is None:
             config = self.config
             self._decoder = Seq2SeqDecoder(
@@ -385,6 +396,12 @@ class TranslationModel:
             # is translated alone and the line breaks are kept.
             return "\n".join(self.rules(line) if line.strip() else line
                              for line in text.split("\n"))
+        if self.arch == "causal-lm" and "\n" in text:
+            # The prompt marks the target with a newline, so each line is
+            # its own prompt.
+            return "\n".join(
+                self.translate(line, src, tgt, config, target_token)
+                if line.strip() else line for line in text.split("\n"))
         config = config or GenerationConfig()
         # A multi-target Marian group model (opus-mt-en-sla and friends) picks
         # its target language from a prefix token, and picks it *wrong* when

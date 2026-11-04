@@ -565,6 +565,37 @@ class FastUnigramTokenizer:
         return self._tok.decode(ids, skip_special_tokens=False)
 
 
+class FastPromptTokenizer:
+    """A decoder-only model's ``tokenizer.json``, read with ``tokenizers``.
+
+    Encodes a whole prompt the way ``tokenizer(prompt)`` does in
+    `transformers`: the prompt carries its own ``<s>`` and language tags, which
+    are added tokens, and the post-processor adds nothing. Decodes the way
+    ``tokenizer.decode(ids, skip_special_tokens=True).strip()`` does, including
+    the space clean-up the export's ``tokenizer_config.json`` asks for.
+    """
+
+    def __init__(self, tokenizer_json, clean_up_tokenization_spaces: bool = False):
+        try:
+            from tokenizers import Tokenizer
+        except ImportError as exc:
+            raise ImportError(
+                "this model's tokenizer is a `tokenizers`-library "
+                "tokenizer.json, which needs the 'tokenizers' package. "
+                "Install it: pip install 'linguonnx[fast-tokenizers]'") from exc
+        self._tok = Tokenizer.from_file(str(tokenizer_json))
+        self._clean_up = clean_up_tokenization_spaces
+
+    def encode(self, prompt: str) -> List[int]:
+        return self._tok.encode(prompt).ids
+
+    def decode(self, ids: Sequence[int]) -> str:
+        text = self._tok.decode(list(ids), skip_special_tokens=True)
+        if self._clean_up:
+            text = clean_up_tokenization(text)
+        return text.strip()
+
+
 class T5SpmTokenizer:
     """MADLAD (T5). One SentencePiece model; ids are its own piece ids.
 
@@ -1150,4 +1181,11 @@ def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str],
     if arch == "pegasus-fast":
         specials = _marian_special_tokens(files.get("special_tokens_map"))
         return FastUnigramTokenizer(files["tokenizer_json"], **specials)
+    if arch == "causal-lm":
+        tokenizer_config = (_load_json(files["tokenizer_config"])
+                            if files.get("tokenizer_config") else {})
+        return FastPromptTokenizer(
+            files["tokenizer_json"],
+            clean_up_tokenization_spaces=bool(
+                tokenizer_config.get("clean_up_tokenization_spaces", False)))
     raise ValueError(f"unknown architecture {arch!r}")
