@@ -183,7 +183,7 @@ def test_a_script_or_private_use_subtag_is_never_dropped():
     graph = load_translator(max_model_mb=None).graph
     assert ("es", "en") in graph._regional_fallbacks("es-ES", "en")
     for node, base in (("sr-Latn", "sr"), ("zh-Hant", "zh"),
-                       ("ext-PT-x-barrancos", "ext")):
+                       ("ext-PT-x-barranco", "ext")):
         assert base in graph._addressable
         assert graph._regional_fallbacks(node, "en") == []
         assert graph._regional_fallbacks("en", node) == []

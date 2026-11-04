@@ -763,7 +763,7 @@ RULE_BASED_MODELS: Dict[str, Dict] = {
     "pt2barranquenho": {
         "model_id": "pt2barranquenho",
         "arch": "rules",
-        "pair": ["pt", "ext-PT-x-barrancos"],
+        "pair": ["pt", "ext-PT-x-barranco"],
         "callable": "pt2barranquenho:translate",
         "extra": "rules",
         "license": "Apache-2.0",

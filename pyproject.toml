@@ -55,7 +55,7 @@ opennmt = ["sacremoses>=0.0.53", "subword-nmt>=0.3.8"]
 fast-tokenizers = ["tokenizers>=0.15.0"]
 # Rule-based translators: pure-Python packages that a registry entry names in
 # its `callable`, with no ONNX graph. `pt2barranquenho` serves
-# pt -> Barranquenho (`ext-PT-x-barrancos`), `pt2mirandese` pt -> Mirandese.
+# pt -> Barranquenho (`ext-PT-x-barranco`), `pt2mirandese` pt -> Mirandese.
 rules = ["pt2barranquenho>=0.1.0a2", "pt2mirandese>=0.0.1a2"]
 # `onnxruntime` and `onnxruntime-gpu` both provide the `onnxruntime` import
 # namespace and must never be installed together, so `gpu` cannot declare

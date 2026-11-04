@@ -312,7 +312,7 @@ A `rules` entry has no ONNX graph. `TranslationModel.translate` imports the
 function that the entry's `callable` names and gives it each line of the input
 in turn. The line breaks stay as they are. Two such models come from the
 `rules` extra: `pt2barranquenho` translates Portuguese into Barranquenho,
-`ext-PT-x-barrancos`, and `pt2mirandese` translates Portuguese into Mirandese,
+`ext-PT-x-barranco`, and `pt2mirandese` translates Portuguese into Mirandese,
 `mwl`.
 
 ```python
@@ -320,7 +320,7 @@ from linguonnx import load_translator
 
 tx = load_translator()
 text, route = tx.translate("Eu gosto muito de ti.", src="pt",
-                           tgt="ext-PT-x-barrancos", return_route=True)
+                           tgt="ext-PT-x-barranco", return_route=True)
 print(text)              # 'Eu gohtu muntu de ti.'
 print(route.model_ids)   # ('pt2barranquenho',)
 ```
