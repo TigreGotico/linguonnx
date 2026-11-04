@@ -2,7 +2,7 @@
 
 Two JSON files under `linguonnx/model_index/` say what exists: `lid.json` for
 language identification and `translate.json` for translation. They hold 12 and
-449 entries. Every ONNX entry names a HuggingFace repo, the exact files to
+453 entries. Every ONNX entry names a HuggingFace repo, the exact files to
 fetch, the languages covered, the licence and the size. A rule-based entry
 names a Python function instead of files. See
 [Rule-based models](#rule-based-models).
@@ -13,7 +13,7 @@ it sounds.
 
 ## What is in the translation registry
 
-449 entries is 223 int8 and 224 fp32 entries across 224 models, plus 2
+453 entries is 225 int8 and 226 fp32 entries across 226 models, plus 2
 rule-based entries. `load_translator()` defaults to `precision="int8"`; pass
 `precision="fp32"` or `precision=None` for both. A rule-based entry has no
 weights and no precision, so the precision filter never removes it.
@@ -183,7 +183,7 @@ print(entry["arch"], entry["pair"], entry["license"], entry["size_mb"])
 # marian ['pt', 'en'] Apache-2.0 172
 
 print(len(list_models(kind="translate")), len(list_models(kind="lid")))
-# 449 12
+# 453 12
 ```
 
 ## The download cache

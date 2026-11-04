@@ -332,8 +332,8 @@ class SpmSeq2SeqTokenizer:
 
     ``encode`` gives the same ids from SentencePiece: the token goes before
     each word but the first, and once for leading or for trailing
-    whitespace. The `tokenizers` library is not used, because version 1.0
-    no longer matches a normalised added token and drops all of them.
+    whitespace. The `tokenizers` library is not used: 1.0.0-rc.3 no longer
+    matches a normalised added token, and its ids have no 256204 at all.
     ``decode`` reads the token as a word break, so the output has one space
     between words. Only a whitespace text token with ``normalized: true`` is
     accepted; any other text token raises at load time.
@@ -348,7 +348,6 @@ class SpmSeq2SeqTokenizer:
         self.sp = _load_spm(spm_path)
         self._word_break_id: Optional[int] = None
         self._edges: Optional["spm.SentencePieceProcessor"] = None
-        self._text_token_ids: frozenset = frozenset()
         self.clean_up_tokenization_spaces = clean_up_tokenization_spaces
         self.fairseq_offset = fairseq_offset
         self.eos_id, self.pad_id, self.unk_id, self.bos_id = eos_id, pad_id, unk_id, bos_id
@@ -400,7 +399,6 @@ class SpmSeq2SeqTokenizer:
                 self._edges = _load_spm(spm_path)
                 self._edges.OverrideNormalizerSpec(
                     remove_extra_whitespaces=False, add_dummy_prefix=False)
-                self._text_token_ids = frozenset({self._word_break_id})
             self.lang_code_to_id = {code: stated[code] for code in lang_codes
                                     if code in stated}
             missing = [code for code in lang_codes if code not in stated]
@@ -525,7 +523,7 @@ class SpmSeq2SeqTokenizer:
     def decode(self, ids: Sequence[int]) -> str:
         words: List[List[str]] = [[]]
         for i in ids:
-            if i in self._text_token_ids:
+            if i == self._word_break_id:
                 words.append([])
             elif i not in self._specials:
                 words[-1].append(self.id_to_piece(i))

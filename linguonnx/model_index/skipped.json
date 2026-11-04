@@ -1,6 +1,4 @@
 {
-  "TigreGotico/afrigloss-nllb-1.3b-onnx": "the adapter tokenizer.json adds '\\n' as id 256204 and inserts it at every space; the model was trained on that encoding, and SpmSeq2SeqTokenizer does not reproduce it",
-  "TigreGotico/afrigloss-nllb-600m-onnx": "the adapter tokenizer.json adds '\\n' as id 256204 and inserts it at every space; the model was trained on that encoding, and SpmSeq2SeqTokenizer does not reproduce it",
   "TigreGotico/arabic-MARBERT-dialect-identification-city-onnx": "MARBERT city classifier: the upstream fine-tune declares no licence and ships no LICENSE file, and its MARBERT base is released 'exclusively for research' (github.com/UBC-NLP/marbert, section 6). No term grants redistribution, so linguonnx does not register it",
   "TigreGotico/opus-mt-en-ko-onnx": "vocab.json spells only 21% of source.spm's pieces, so the encoder reads most of its own source language as <unk> and answers fluent nonsense (upstream export defect, reproduced byte-for-byte with transformers)"
 }

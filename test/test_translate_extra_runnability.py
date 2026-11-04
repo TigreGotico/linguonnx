@@ -73,11 +73,6 @@ def test_the_registry_names_the_extra_each_architecture_needs():
                 "causal-lm": "fast-tokenizers",
                 "rules": "rules"}
     for model_id, entry in list_models(kind="translate").items():
-        if model_id.startswith("afrigloss-nllb-"):
-            # NLLB exports whose tokenizer.json adds a text token, which only
-            # the `tokenizers` package encodes.
-            assert entry.get("extra") == "fast-tokenizers", model_id
-            continue
         assert entry.get("extra") == expected.get(entry["arch"]), model_id
 
 
