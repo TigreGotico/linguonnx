@@ -212,36 +212,102 @@ def test_each_line_is_its_own_prompt(monkeypatch):
 # The tokenizer
 # --------------------------------------------------------------------------
 
-def _tiny_tokenizer_json(path):
-    tokenizers = pytest.importorskip("tokenizers")
-    from tokenizers import models, pre_tokenizers, decoders
+# Byte-level characters: a space is "Ġ", and "ó" is the bytes C3 B3, written
+# "Ã³". A tab is byte 09, written "ĉ", and has no token here.
+_TINY_VOCAB = {"Ġ": 3, "h": 4, "o": 5, "l": 6, "a": 7, "m": 8, "Ã": 9, "³": 10,
+               "n": 11, ".": 12, "ho": 13, "hol": 14, "hola": 15, "Ġm": 16,
+               "Ã³": 17, "ĠmÃ³": 18, "ĠmÃ³n": 19}
+_TINY_MERGES = ["h o", "ho l", "hol a", "Ã ³", "Ġ m", "Ġm Ã³", "ĠmÃ³ n"]
 
-    vocab = {"<s>": 0, "</s>": 1, "<unk>": 2, "<pad>": 3, "[cat_Latn]": 4,
-             "hola": 5, ".": 6, "món": 7}
-    tok = tokenizers.Tokenizer(models.WordLevel(vocab, unk_token="<unk>"))
-    tok.pre_tokenizer = pre_tokenizers.Whitespace()
-    tok.decoder = decoders.WordPiece(prefix="##", cleanup=False)
-    tok.add_special_tokens(["<s>", "</s>", "<unk>", "<pad>", "[cat_Latn]"])
-    tok.save(str(path))
+
+def _tiny_tokenizer_json(path, **overrides):
+    byte_level = {"type": "ByteLevel", "add_prefix_space": False,
+                  "trim_offsets": True, "use_regex": True}
+    spec = {
+        "version": "1.0", "truncation": None, "padding": None,
+        "added_tokens": [
+            {"id": token_id, "content": content, "single_word": False,
+             "lstrip": False, "rstrip": False, "normalized": False,
+             "special": True}
+            for token_id, content in enumerate(["<s>", "</s>", "[cat_Latn]"])],
+        "normalizer": {"type": "Sequence", "normalizers": [
+            {"type": "Replace", "pattern": {"Regex": " {2,}"}, "content": " "}]},
+        "pre_tokenizer": byte_level, "post_processor": byte_level,
+        "decoder": byte_level,
+        "model": {"type": "BPE", "dropout": None, "unk_token": None,
+                  "continuing_subword_prefix": None, "end_of_word_suffix": None,
+                  "fuse_unk": False, "byte_fallback": False, "ignore_merges": False,
+                  "vocab": _TINY_VOCAB, "merges": _TINY_MERGES}}
+    spec.update(overrides)
+    path.write_text(json.dumps(spec))
+    return path
 
 
 def test_the_tokenizer_encodes_the_prompts_own_specials_and_adds_none(tmp_path):
-    from linguonnx.translate.tokenizers import FastPromptTokenizer
+    from linguonnx.translate.tokenizers import ByteLevelBpeTokenizer
 
-    _tiny_tokenizer_json(tmp_path / "tokenizer.json")
-    tok = FastPromptTokenizer(tmp_path / "tokenizer.json")
-    assert tok.encode("<s> hola [cat_Latn]") == [0, 5, 4]
+    tok = ByteLevelBpeTokenizer(_tiny_tokenizer_json(tmp_path / "tokenizer.json"))
+    # "<s>", then " hola" as "Ġ" + "hola" (no "Ġ h" merge), " món" merged
+    # whole, then the tag.
+    assert tok.encode("<s> hola món[cat_Latn]") == [0, 3, 15, 19, 2]
+
+
+def test_a_byte_with_no_token_is_dropped_and_its_neighbours_still_encode(tmp_path):
+    from linguonnx.translate.tokenizers import ByteLevelBpeTokenizer
+
+    tok = ByteLevelBpeTokenizer(_tiny_tokenizer_json(tmp_path / "tokenizer.json"))
+    # "món" with no space before it has no "m Ã³" merge.
+    assert tok.encode("hola\tmón") == [15, 8, 17, 11]
+
+
+def test_the_normalizer_runs_before_the_split(tmp_path):
+    from linguonnx.translate.tokenizers import ByteLevelBpeTokenizer
+
+    tok = ByteLevelBpeTokenizer(_tiny_tokenizer_json(tmp_path / "tokenizer.json"))
+    assert tok.encode("hola   món") == [15, 19]
 
 
 def test_the_tokenizer_drops_specials_and_cleans_up_spaces(tmp_path):
-    from linguonnx.translate.tokenizers import FastPromptTokenizer
+    from linguonnx.translate.tokenizers import ByteLevelBpeTokenizer
 
-    _tiny_tokenizer_json(tmp_path / "tokenizer.json")
-    ids = [5, 7, 6, 1]
-    assert FastPromptTokenizer(tmp_path / "tokenizer.json",
-                               clean_up_tokenization_spaces=True
-                               ).decode(ids) == "hola món."
-    assert FastPromptTokenizer(tmp_path / "tokenizer.json").decode(ids) == "hola món ."
+    path = _tiny_tokenizer_json(tmp_path / "tokenizer.json")
+    assert ByteLevelBpeTokenizer(path).decode([0, 15, 19, 3, 12, 1]) == "hola món ."
+    assert ByteLevelBpeTokenizer(path, clean_up_tokenization_spaces=True
+                                 ).decode([0, 15, 19, 3, 12, 1]) == "hola món."
+
+
+def test_a_tokenizer_json_with_a_step_the_reader_lacks_is_refused(tmp_path):
+    from linguonnx.translate.tokenizers import ByteLevelBpeTokenizer
+
+    path = _tiny_tokenizer_json(tmp_path / "tokenizer.json",
+                                normalizer={"type": "Lowercase"})
+    with pytest.raises(ValueError, match="Lowercase"):
+        ByteLevelBpeTokenizer(path)
+    path = _tiny_tokenizer_json(tmp_path / "tokenizer.json",
+                                pre_tokenizer={"type": "Whitespace"})
+    with pytest.raises(ValueError, match="not a byte-level BPE"):
+        ByteLevelBpeTokenizer(path)
+
+
+@pytest.mark.network
+@pytest.mark.parametrize("repo", ["TigreGotico/Plume32k-onnx",
+                                  "TigreGotico/Plume128k-onnx"])
+def test_the_plume_tokenizer_matches_the_tokenizers_package(repo):
+    """The golden ids and texts come from the ``tokenizers`` package 0.23.3,
+    on FLORES-200 sentences, Plume prompts, and text with the bytes that
+    have no token."""
+    from huggingface_hub import hf_hub_download
+
+    from linguonnx.translate.tokenizers import ByteLevelBpeTokenizer
+
+    golden = json.loads((ROOT / "test" / "data" / "plume_bpe_golden.json"
+                         ).read_text(encoding="utf-8"))["repos"][repo]
+    tok = ByteLevelBpeTokenizer(hf_hub_download(
+        repo, "tokenizer.json", revision=golden["revision"]))
+    assert [tok.encode(case["text"]) for case in golden["cases"]] == [
+        case["ids"] for case in golden["cases"]]
+    assert [tok.decode(case["ids"]) for case in golden["cases"]] == [
+        case["decoded"] for case in golden["cases"]]
 
 
 # --------------------------------------------------------------------------

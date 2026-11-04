@@ -49,10 +49,11 @@ distance = ["orthography2ipa>=0.1.0"]
 indic = ["regex>=2021.8.3", "sacremoses>=0.0.53", "indic-nlp-library-itt>=0.1.1"]
 # OpenNMT-py + subword-nmt BPE preprocessing for the Proxecto Nos models.
 opennmt = ["sacremoses>=0.0.53", "subword-nmt>=0.3.8"]
-# Softcatalà's `translate-eus-cat`/`translate-oci-cat`: their tokenizer is a
-# `tokenizers`-library tokenizer.json (Unigram model), not a raw SentencePiece
-# `.model` - `sentencepiece` cannot read it.
-fast-tokenizers = ["tokenizers>=0.15.0"]
+# Models whose tokenizer is a `tokenizers`-library tokenizer.json, not a raw
+# SentencePiece `.model`: AfroLID, Softcatalà's Pegasus pairs and AraT5 read it
+# with `tokenizers`. Plume's byte-level BPE is read in pure Python, which needs
+# `regex` for the Unicode classes of its split pattern.
+fast-tokenizers = ["tokenizers>=0.15.0", "regex>=2021.8.3"]
 # Rule-based translators: pure-Python packages that a registry entry names in
 # its `callable`, with no ONNX graph. `pt2barranquenho` serves
 # pt -> Barranquenho (`ext-PT-x-barrancos`), `pt2mirandese` pt -> Mirandese.
