@@ -397,19 +397,7 @@ _KNOWN_ARCH_MISMATCH: Tuple[str, ...] = (
 
 #: Exports this library cannot tokenize the way the model was trained, keyed
 #: by model id. ``translate_entries`` skips them with the reason.
-#:
-#: The AfriGloss NLLB fine-tunes ship an adapter ``tokenizer.json`` that adds
-#: ``"\n"`` as id 256204 with ``normalized: true``. The ``tokenizers``
-#: library then inserts that id at every space, and the models were trained
-#: on that encoding: 74 of 86 outputs from the 1.3B model contain ``\n``.
-#: ``SpmSeq2SeqTokenizer`` encodes with SentencePiece and never inserts it.
-_UNSUPPORTED_TOKENIZATION: Dict[str, str] = {
-    model_id: (
-        "the adapter tokenizer.json adds '\\n' as id 256204 and inserts it at "
-        "every space; the model was trained on that encoding, and "
-        "SpmSeq2SeqTokenizer does not reproduce it")
-    for model_id in ("afrigloss-nllb-600m", "afrigloss-nllb-1.3b")
-}
+_UNSUPPORTED_TOKENIZATION: Dict[str, str] = {}
 
 #: Hand-verified fix-ups for a *multilingual* Marian export whose target is
 #: chosen by a `<2xx>` prefix token read straight out of its own vocab.json
@@ -459,6 +447,19 @@ MARIAN_MULTILINGUAL_OVERRIDES: Dict[str, Dict] = {
 #: requests away from the small Catalan models and fail them under a 500 MB
 #: budget.
 #: Source: https://huggingface.co/Transducens/IbRo-nllb
+#: ``afrigloss-nllb-600m`` and ``afrigloss-nllb-1.3b``: AfriSpeech's
+#: glossary-constrained LoRA fine-tunes of NLLB-200. The card states English
+#: and French into seven languages. Its training sets,
+#: ``AfriSpeech/gloss-mt-train-en`` and ``-fr``, have English and French
+#: sources; they hold subsets for hundreds of targets, but the card claims
+#: these seven. The targets use the base NLLB-200 tokens; Twi is
+#: ``twi_Latn``, as the card names it. Their ``tokenizer.json`` adds a text
+#: token, which only the `tokenizers` library encodes - see
+#: ``SpmSeq2SeqTokenizer``.
+#: Source: https://huggingface.co/AfriSpeech/afrigloss-nllb-1.3b
+AFRIGLOSS_NLLB_SOURCES = ["en", "fr"]
+AFRIGLOSS_NLLB_TARGETS = ["ee", "ha", "ig", "sn", "sw", "tw", "yo"]
+
 MULTILINGUAL_LANGUAGE_OVERRIDES: Dict[str, Dict] = {
     "IbRo-nllb": {
         "languages": ["an", "ast", "ca", "es", "gl", "oc"],
@@ -475,6 +476,21 @@ MULTILINGUAL_LANGUAGE_OVERRIDES: Dict[str, Dict] = {
                  "tokenizer still carries. The Valencian token val_Latn is "
                  "not registered; ca-valencia routes as ca.",
     },
+    **{model_id: {
+        "languages": sorted(AFRIGLOSS_NLLB_SOURCES + AFRIGLOSS_NLLB_TARGETS),
+        "native_codes": {"ee": "ewe_Latn", "en": "eng_Latn", "fr": "fra_Latn",
+                         "ha": "hau_Latn", "ig": "ibo_Latn", "sn": "sna_Latn",
+                         "sw": "swh_Latn", "tw": "twi_Latn", "yo": "yor_Latn"},
+        "directions": [[src, tgt] for src in AFRIGLOSS_NLLB_SOURCES
+                       for tgt in AFRIGLOSS_NLLB_TARGETS],
+        "extra": "fast-tokenizers",
+        "notes": "AfriSpeech glossary-constrained NLLB-200 fine-tune. Trained "
+                 "directions: English and French into Twi, Swahili, Yoruba, "
+                 "Hausa, Igbo, Ewe and Shona. Coverage is these 14 edges, "
+                 "not the 202 tokens the base tokenizer still carries. A "
+                 "target-language term in angle brackets in the source, "
+                 "<term>, is carried into the output with its brackets.",
+    } for model_id in ("afrigloss-nllb-600m", "afrigloss-nllb-1.3b")},
     "m2m100-418M-smugri": {
         "languages": ["en", "et", "fi", "lv", "liv", "vro", "sma", "se"],
         "native_codes": {"se": "sme"},

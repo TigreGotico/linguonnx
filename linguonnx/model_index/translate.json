@@ -331,6 +331,436 @@
     },
     "size_mb": 3040
   },
+  "afrigloss-nllb-1.3b": {
+    "arch": "nllb",
+    "directions": [
+      [
+        "en",
+        "ee"
+      ],
+      [
+        "en",
+        "ha"
+      ],
+      [
+        "en",
+        "ig"
+      ],
+      [
+        "en",
+        "sn"
+      ],
+      [
+        "en",
+        "sw"
+      ],
+      [
+        "en",
+        "tw"
+      ],
+      [
+        "en",
+        "yo"
+      ],
+      [
+        "fr",
+        "ee"
+      ],
+      [
+        "fr",
+        "ha"
+      ],
+      [
+        "fr",
+        "ig"
+      ],
+      [
+        "fr",
+        "sn"
+      ],
+      [
+        "fr",
+        "sw"
+      ],
+      [
+        "fr",
+        "tw"
+      ],
+      [
+        "fr",
+        "yo"
+      ]
+    ],
+    "extra": "fast-tokenizers",
+    "extra_files": [
+      "decoder_model.onnx_data",
+      "decoder_with_past_model.onnx_data",
+      "encoder_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-nllb-1.3b-onnx",
+    "languages": [
+      "ee",
+      "en",
+      "fr",
+      "ha",
+      "ig",
+      "sn",
+      "sw",
+      "tw",
+      "yo"
+    ],
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-nllb-1.3b",
+    "native_codes": {
+      "ee": "ewe_Latn",
+      "en": "eng_Latn",
+      "fr": "fra_Latn",
+      "ha": "hau_Latn",
+      "ig": "ibo_Latn",
+      "sn": "sna_Latn",
+      "sw": "swh_Latn",
+      "tw": "twi_Latn",
+      "yo": "yor_Latn"
+    },
+    "notes": "AfriSpeech glossary-constrained NLLB-200 fine-tune. Trained directions: English and French into Twi, Swahili, Yoruba, Hausa, Igbo, Ewe and Shona. Coverage is these 14 edges, not the 202 tokens the base tokenizer still carries. A target-language term in angle brackets in the source, <term>, is carried into the output with its brackets.",
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
+    },
+    "size_mb": 11949
+  },
+  "afrigloss-nllb-1.3b-int8": {
+    "arch": "nllb",
+    "directions": [
+      [
+        "en",
+        "ee"
+      ],
+      [
+        "en",
+        "ha"
+      ],
+      [
+        "en",
+        "ig"
+      ],
+      [
+        "en",
+        "sn"
+      ],
+      [
+        "en",
+        "sw"
+      ],
+      [
+        "en",
+        "tw"
+      ],
+      [
+        "en",
+        "yo"
+      ],
+      [
+        "fr",
+        "ee"
+      ],
+      [
+        "fr",
+        "ha"
+      ],
+      [
+        "fr",
+        "ig"
+      ],
+      [
+        "fr",
+        "sn"
+      ],
+      [
+        "fr",
+        "sw"
+      ],
+      [
+        "fr",
+        "tw"
+      ],
+      [
+        "fr",
+        "yo"
+      ]
+    ],
+    "extra": "fast-tokenizers",
+    "extra_files": [
+      "int8/decoder_model.onnx_data",
+      "int8/decoder_with_past_model.onnx_data",
+      "int8/encoder_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-nllb-1.3b-onnx",
+    "languages": [
+      "ee",
+      "en",
+      "fr",
+      "ha",
+      "ig",
+      "sn",
+      "sw",
+      "tw",
+      "yo"
+    ],
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-nllb-1.3b-int8",
+    "native_codes": {
+      "ee": "ewe_Latn",
+      "en": "eng_Latn",
+      "fr": "fra_Latn",
+      "ha": "hau_Latn",
+      "ig": "ibo_Latn",
+      "sn": "sna_Latn",
+      "sw": "swh_Latn",
+      "tw": "twi_Latn",
+      "yo": "yor_Latn"
+    },
+    "notes": "AfriSpeech glossary-constrained NLLB-200 fine-tune. Trained directions: English and French into Twi, Swahili, Yoruba, Hausa, Igbo, Ewe and Shona. Coverage is these 14 edges, not the 202 tokens the base tokenizer still carries. A target-language term in angle brackets in the source, <term>, is carried into the output with its brackets.",
+    "precision": "int8",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
+    },
+    "size_mb": 3040
+  },
+  "afrigloss-nllb-600m": {
+    "arch": "nllb",
+    "directions": [
+      [
+        "en",
+        "ee"
+      ],
+      [
+        "en",
+        "ha"
+      ],
+      [
+        "en",
+        "ig"
+      ],
+      [
+        "en",
+        "sn"
+      ],
+      [
+        "en",
+        "sw"
+      ],
+      [
+        "en",
+        "tw"
+      ],
+      [
+        "en",
+        "yo"
+      ],
+      [
+        "fr",
+        "ee"
+      ],
+      [
+        "fr",
+        "ha"
+      ],
+      [
+        "fr",
+        "ig"
+      ],
+      [
+        "fr",
+        "sn"
+      ],
+      [
+        "fr",
+        "sw"
+      ],
+      [
+        "fr",
+        "tw"
+      ],
+      [
+        "fr",
+        "yo"
+      ]
+    ],
+    "extra": "fast-tokenizers",
+    "extra_files": [
+      "decoder_model.onnx_data",
+      "decoder_with_past_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-nllb-600m-onnx",
+    "languages": [
+      "ee",
+      "en",
+      "fr",
+      "ha",
+      "ig",
+      "sn",
+      "sw",
+      "tw",
+      "yo"
+    ],
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-nllb-600m",
+    "native_codes": {
+      "ee": "ewe_Latn",
+      "en": "eng_Latn",
+      "fr": "fra_Latn",
+      "ha": "hau_Latn",
+      "ig": "ibo_Latn",
+      "sn": "sna_Latn",
+      "sw": "swh_Latn",
+      "tw": "twi_Latn",
+      "yo": "yor_Latn"
+    },
+    "notes": "AfriSpeech glossary-constrained NLLB-200 fine-tune. Trained directions: English and French into Twi, Swahili, Yoruba, Hausa, Igbo, Ewe and Shona. Coverage is these 14 edges, not the 202 tokens the base tokenizer still carries. A target-language term in angle brackets in the source, <term>, is carried into the output with its brackets.",
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
+    },
+    "size_mb": 7414
+  },
+  "afrigloss-nllb-600m-int8": {
+    "arch": "nllb",
+    "directions": [
+      [
+        "en",
+        "ee"
+      ],
+      [
+        "en",
+        "ha"
+      ],
+      [
+        "en",
+        "ig"
+      ],
+      [
+        "en",
+        "sn"
+      ],
+      [
+        "en",
+        "sw"
+      ],
+      [
+        "en",
+        "tw"
+      ],
+      [
+        "en",
+        "yo"
+      ],
+      [
+        "fr",
+        "ee"
+      ],
+      [
+        "fr",
+        "ha"
+      ],
+      [
+        "fr",
+        "ig"
+      ],
+      [
+        "fr",
+        "sn"
+      ],
+      [
+        "fr",
+        "sw"
+      ],
+      [
+        "fr",
+        "tw"
+      ],
+      [
+        "fr",
+        "yo"
+      ]
+    ],
+    "extra": "fast-tokenizers",
+    "extra_files": [
+      "int8/decoder_model.onnx_data",
+      "int8/decoder_with_past_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/afrigloss-nllb-600m-onnx",
+    "languages": [
+      "ee",
+      "en",
+      "fr",
+      "ha",
+      "ig",
+      "sn",
+      "sw",
+      "tw",
+      "yo"
+    ],
+    "license": "CC-BY-NC-4.0",
+    "license_tier": "non-commercial",
+    "model_id": "afrigloss-nllb-600m-int8",
+    "native_codes": {
+      "ee": "ewe_Latn",
+      "en": "eng_Latn",
+      "fr": "fra_Latn",
+      "ha": "hau_Latn",
+      "ig": "ibo_Latn",
+      "sn": "sna_Latn",
+      "sw": "swh_Latn",
+      "tw": "twi_Latn",
+      "yo": "yor_Latn"
+    },
+    "notes": "AfriSpeech glossary-constrained NLLB-200 fine-tune. Trained directions: English and French into Twi, Swahili, Yoruba, Hausa, Igbo, Ewe and Shona. Coverage is these 14 edges, not the 202 tokens the base tokenizer still carries. A target-language term in angle brackets in the source, <term>, is carried into the output with its brackets.",
+    "precision": "int8",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
+    },
+    "size_mb": 1899
+  },
   "afrigloss-opus-mt-en-ee": {
     "arch": "marian",
     "base_model": "AfriSpeech/afrigloss-opus-mt-en-ee",

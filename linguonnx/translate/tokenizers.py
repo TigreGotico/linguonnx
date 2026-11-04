@@ -146,6 +146,18 @@ def _load_spm(path) -> "spm.SentencePieceProcessor":
     return processor
 
 
+def _load_fast_tokenizer(path):
+    """A `tokenizers`-library ``tokenizer.json``, read by that library."""
+    try:
+        from tokenizers import Tokenizer
+    except ImportError as exc:
+        raise ImportError(
+            "this model's tokenizer is a `tokenizers`-library "
+            "tokenizer.json, which needs the 'tokenizers' package. "
+            "Install it: pip install 'linguonnx[fast-tokenizers]'") from exc
+    return Tokenizer.from_file(str(path))
+
+
 # --------------------------------------------------------------------------
 # M2M100 / NLLB
 # --------------------------------------------------------------------------
@@ -222,14 +234,28 @@ def tokenizer_json_added_tokens(path) -> tuple[dict[str, int], set]:
 
     ``tokenizer.json`` states each id, so it is read instead of counted.
     """
-    added = _load_json(path).get("added_tokens") or []
+    languages, others, _ = _split_added_tokens(_load_json(path), path)
+    return languages, others
+
+
+def _split_added_tokens(spec: dict, path) -> tuple[dict[str, int], set, set]:
+    """``(language_ids, other_special_ids, text_token_ids)`` of one tokenizer.json.
+
+    A token marked ``"special": false`` is text, not a language: the
+    `tokenizers` library matches it inside the input.
+    """
+    added = spec.get("added_tokens") or []
     languages: dict[str, int] = {}
     others = set()
+    text = set()
     for token in added:
         if not isinstance(token, dict):
             continue
         content, token_id = token.get("content"), token.get("id")
         if not isinstance(content, str) or not isinstance(token_id, int):
+            continue
+        if token.get("special") is False:
+            text.add(token_id)
             continue
         if _BRACKETED_SPECIAL.match(content):
             others.add(token_id)
@@ -241,10 +267,10 @@ def tokenizer_json_added_tokens(path) -> tuple[dict[str, int], set]:
     if not languages:
         raise ValueError(
             f"{path} carries no added token that could be a language; every "
-            f"one of its {len(added)} added tokens is a bracketed special. "
-            f"An export whose language block cannot be read here must not "
-            f"fall back to counting positions.")
-    return languages, others
+            f"one of its {len(added)} added tokens is a bracketed special or "
+            f"text. An export whose language block cannot be read here must "
+            f"not fall back to counting positions.")
+    return languages, others, text
 
 
 class SpmSeq2SeqTokenizer:
@@ -283,6 +309,18 @@ class SpmSeq2SeqTokenizer:
     So a code the export has no token for is now a hard error, here, at load
     time. A model that cannot address a language has to say so rather than
     quietly address a different one.
+
+    Text tokens
+    -----------
+    A ``tokenizer.json`` can add a token that is text, not a special
+    (``"special": false``). SentencePiece does not know it, so such an export
+    is encoded with the `tokenizers` library instead. The AfriGloss NLLB
+    fine-tunes add ``"\\n"`` as id 256204 with ``normalized: true``. The
+    normaliser turns that content into a space, so the token matches every
+    space of the input: ``The children`` encodes as ``▁The``, 256204,
+    ``▁children``. The models were trained on that encoding and write the
+    token between words of their output. ``decode`` reads a text token as a
+    word break, so the output has one space between words.
     """
 
     def __init__(self, spm_path, lang_codes: Sequence[str],
@@ -292,6 +330,8 @@ class SpmSeq2SeqTokenizer:
                  bos_id: int = 0, declared_codes: Optional[Sequence[str]] = None,
                  clean_up_tokenization_spaces: bool = False):
         self.sp = _load_spm(spm_path)
+        self._fast = None
+        self._text_token_ids: frozenset = frozenset()
         self.clean_up_tokenization_spaces = clean_up_tokenization_spaces
         self.fairseq_offset = fairseq_offset
         self.eos_id, self.pad_id, self.unk_id, self.bos_id = eos_id, pad_id, unk_id, bos_id
@@ -334,8 +374,11 @@ class SpmSeq2SeqTokenizer:
             # Authoritative for the same reason `added_tokens.json` is: it
             # states each id rather than letting one be counted. See
             # `tokenizer_json_added_tokens`.
-            stated, other_specials = tokenizer_json_added_tokens(
-                tokenizer_json_path)
+            stated, other_specials, text_tokens = _split_added_tokens(
+                _load_json(tokenizer_json_path), tokenizer_json_path)
+            if text_tokens:
+                self._fast = _load_fast_tokenizer(tokenizer_json_path)
+                self._text_token_ids = frozenset(text_tokens)
             self.lang_code_to_id = {code: stated[code] for code in lang_codes
                                     if code in stated}
             missing = [code for code in lang_codes if code not in stated]
@@ -433,14 +476,22 @@ class SpmSeq2SeqTokenizer:
     # -- encode / decode -------------------------------------------------
 
     def encode(self, text: str, src_lang: str) -> List[int]:
-        pieces = self.sp.encode(text, out_type=str)
-        return ([self.lang_id(src_lang)]
-                + [self.piece_to_id(p) for p in pieces]
-                + [self.eos_id])
+        if self._fast is not None:
+            body = self._fast.encode(text, add_special_tokens=False).ids
+        else:
+            body = [self.piece_to_id(p)
+                    for p in self.sp.encode(text, out_type=str)]
+        return [self.lang_id(src_lang)] + body + [self.eos_id]
 
     def decode(self, ids: Sequence[int]) -> str:
-        pieces = [self.id_to_piece(i) for i in ids if i not in self._specials]
-        text = self.sp.DecodePieces(pieces)
+        words: List[List[str]] = [[]]
+        for i in ids:
+            if i in self._text_token_ids:
+                words.append([])
+            elif i not in self._specials:
+                words[-1].append(self.id_to_piece(i))
+        text = " ".join(self.sp.DecodePieces(pieces)
+                        for pieces in words if pieces)
         if self.clean_up_tokenization_spaces:
             text = clean_up_tokenization(text)
         return text
@@ -533,14 +584,7 @@ class FastUnigramTokenizer:
 
     def __init__(self, tokenizer_json, eos_token: str = "</s>",
                  pad_token: str = "<blank>", unk_token: str = "<unk>"):
-        try:
-            from tokenizers import Tokenizer
-        except ImportError as exc:
-            raise ImportError(
-                "this model's tokenizer is a `tokenizers`-library "
-                "tokenizer.json, which needs the 'tokenizers' package. "
-                "Install it: pip install 'linguonnx[fast-tokenizers]'") from exc
-        self._tok = Tokenizer.from_file(str(tokenizer_json))
+        self._tok = _load_fast_tokenizer(tokenizer_json)
         vocab = self._tok.get_vocab()
         self.eos_id = vocab[eos_token]
         self.pad_id = vocab[pad_token]

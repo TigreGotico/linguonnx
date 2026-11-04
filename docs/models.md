@@ -2,7 +2,7 @@
 
 Two JSON files under `linguonnx/model_index/` say what exists: `lid.json` for
 language identification and `translate.json` for translation. They hold 10 and
-417 entries. Every ONNX entry names a HuggingFace repo, the exact files to
+421 entries. Every ONNX entry names a HuggingFace repo, the exact files to
 fetch, the languages covered, the licence and the size. A rule-based entry
 names a Python function instead of files. See
 [Rule-based models](#rule-based-models).
@@ -13,7 +13,7 @@ it sounds.
 
 ## What is in the translation registry
 
-417 entries is 207 int8 and 208 fp32 entries across 208 models, plus 2
+421 entries is 209 int8 and 210 fp32 entries across 210 models, plus 2
 rule-based entries. `load_translator()` defaults to `precision="int8"`; pass
 `precision="fp32"` or `precision=None` for both. A rule-based entry has no
 weights and no precision, so the precision filter never removes it.
@@ -42,6 +42,7 @@ weights and no precision, so the precision filter never removes it.
 | `translate-eus-cat`, `translate-oci-cat` | Pegasus (fast) | `eu-ca`, `oc-ca` | 590 MB each | MIT |
 | `opus-mt-*` (124) | Marian | one pair each | 78 MB – 716 MB | Apache-2.0 or CC-BY-4.0 |
 | `afrigloss-opus-mt-*` (14) | Marian fine-tune | one pair each; en → {ee, ha, ig, sn, sw, tw, yo}, fr → {ee, ha, ig, sn, sw, tw, yo} | 216 MB – 904 MB | **CC-BY-NC-4.0**; fr-ee, fr-ha, fr-ig, fr-sn: Apache-2.0 |
+| `afrigloss-nllb-600m`, `-1.3b` | NLLB-200 fine-tune | {en, fr} → {ee, ha, ig, sn, sw, tw, yo}: 14 directions | 1.9 GB – 11.9 GB | **CC-BY-NC-4.0** |
 | `IbRo-nllb` | NLLB-1.3B fine-tune | es ↔ {an, ast, ca, gl, oc (Aranese)}, ca ↔ oc: 12 directions | 3.04 GB – 11.9 GB | Apache-2.0 |
 | `madlad400-3b-mt-oc_aranes`, `-ast-an-oc_aranes` | MADLAD-400-3B fine-tune | {ca, en, es, fr} ↔ oc (Aranese): 8 directions; {ca, en, es, fr} ↔ {an, ast, oc}: 24 directions | 4.95 GB – 19.7 GB | Apache-2.0 |
 | `madlad400-3b-mt-es_ES`, `-es_419` | MADLAD-400-3B fine-tune | every MADLAD language → `es-ES`, or → `es-419` | 4.95 GB – 19.7 GB | Apache-2.0 |
@@ -72,9 +73,10 @@ ur-en  vi-en  xh-en  zh-en
 Together they reach 596 languages over the default graph. MADLAD supplies most
 of the tail: nearly three hundred languages that no other model here has.
 
-Twenty-eight entries are non-commercial and out of the default graph:
-`nllb-600M`, `aina-es-oc`, `aina-translator-es-an`, `aina-translator-es-ast`
-and ten of the `afrigloss-opus-mt-*` pairs, in both precisions. See [licences.md](licences.md).
+Thirty-two entries are non-commercial and out of the default graph:
+`nllb-600M`, `aina-es-oc`, `aina-translator-es-an`, `aina-translator-es-ast`,
+`afrigloss-nllb-600m`, `afrigloss-nllb-1.3b` and ten of the
+`afrigloss-opus-mt-*` pairs, in both precisions. See [licences.md](licences.md).
 
 `aina-translator-es-ca` ships fp32 only; no int8 export is in the registry
 yet.
@@ -178,7 +180,7 @@ print(entry["arch"], entry["pair"], entry["license"], entry["size_mb"])
 # marian ['pt', 'en'] Apache-2.0 172
 
 print(len(list_models(kind="translate")), len(list_models(kind="lid")))
-# 417 10
+# 421 10
 ```
 
 ## The download cache
@@ -496,6 +498,16 @@ change the term itself. Plain input gives plain output. `en-yo` keeps the
 `>>yor<<` token of its base vocabulary but was trained without it, so its entry
 sends no target token. Only an `opus-mt-*` entry takes a target token from its
 vocabulary.
+
+**Text tokens.** The `afrigloss-nllb-*` exports ship a `tokenizer.json` that
+adds `"\n"` as a text token, id 256204. Its content normalises to a space, so
+the token matches every space of the input, and the models were trained on
+that encoding. SentencePiece does not insert it. An NLLB export with a text
+token is therefore encoded with the `tokenizers` package, and its entry names
+the `fast-tokenizers` extra. The decoder reads the token as a word break, so
+the output has one space between words.
+The `afrigloss-nllb-*` models also keep a `<term>` in angle brackets, as the
+`afrigloss-opus-mt-*` models do.
 
 **Tokenizer clean-up.** An NLLB export whose `tokenizer_config.json` sets
 `clean_up_tokenization_spaces` gets the `transformers` clean-up after decoding:
