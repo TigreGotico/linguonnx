@@ -51,11 +51,11 @@ FALLBACK_STEPS_UNDER_500 = 39
 #   {v["hf_repo"] for v in translate.json.values() if "hf_repo" in v}  -> models
 #   Counter(v.get("precision") for v in translate.json.values())
 #                                               -> int8/fp32/rule-based split
-TRANSLATE_ENTRIES = 419
+TRANSLATE_ENTRIES = 420
 TRANSLATE_INT8_ENTRIES = 208
-TRANSLATE_FP32_ENTRIES = 209
+TRANSLATE_FP32_ENTRIES = 210
 TRANSLATE_RULE_ENTRIES = 2
-TRANSLATE_MODELS = 209
+TRANSLATE_MODELS = 210
 LID_ENTRIES = 12
 LID_MODELS = 6
 
@@ -253,6 +253,7 @@ DOCUMENTED_TRANSLATE_FAMILIES = [
     r"^TigreGotico/translate-eus-cat-onnx$",
     r"^TigreGotico/translate-oci-cat-onnx$",
     r"^TigreGotico/arat5-arabic-dialects-translation-onnx$",
+    r"^TigreGotico/vinai-translate-vi2en-v2-onnx$",
     r"^TigreGotico/opus-mt-.+-onnx$",
     r"^TigreGotico/afrigloss-opus-mt-.+-onnx$",
     r"^TigreGotico/IbRo-nllb-onnx$",

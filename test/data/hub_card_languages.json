@@ -1159,6 +1159,10 @@
     "ca"
   ],
   "TigreGotico/utmos-onnx": null,
+  "TigreGotico/vinai-translate-vi2en-v2-onnx": [
+    "vi",
+    "en"
+  ],
   "TigreGotico/voiceclonnx-bicodec": [
     "en"
   ],
