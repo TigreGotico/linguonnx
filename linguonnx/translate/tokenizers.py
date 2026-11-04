@@ -232,16 +232,17 @@ def tokenizer_json_added_tokens(path) -> tuple[dict[str, int], set]:
     return languages, others
 
 
-def _split_added_tokens(spec: dict, path) -> tuple[dict[str, int], set, set]:
-    """``(language_ids, other_special_ids, text_token_ids)`` of one tokenizer.json.
+def _split_added_tokens(spec: dict, path) -> tuple[dict[str, int], set, list]:
+    """``(language_ids, other_special_ids, text_tokens)`` of one tokenizer.json.
 
     A token marked ``"special": false`` is text, not a language: the
-    `tokenizers` library matches it inside the input.
+    `tokenizers` library matches it inside the input. ``text_tokens`` holds
+    those entries as the file states them.
     """
     added = spec.get("added_tokens") or []
     languages: dict[str, int] = {}
     others = set()
-    text = set()
+    text = []
     for token in added:
         if not isinstance(token, dict):
             continue
@@ -249,7 +250,7 @@ def _split_added_tokens(spec: dict, path) -> tuple[dict[str, int], set, set]:
         if not isinstance(content, str) or not isinstance(token_id, int):
             continue
         if token.get("special") is False:
-            text.add(token_id)
+            text.append(token)
             continue
         if _BRACKETED_SPECIAL.match(content):
             others.add(token_id)
@@ -265,6 +266,19 @@ def _split_added_tokens(spec: dict, path) -> tuple[dict[str, int], set, set]:
             f"text. An export whose language block cannot be read here must "
             f"not fall back to counting positions.")
     return languages, others, text
+
+
+def _word_break_token(text_tokens: list, path) -> int:
+    """The id of the one text token this tokenizer.json adds, which must be
+    whitespace with ``normalized: true``: a word break."""
+    if len(text_tokens) == 1 and text_tokens[0]["content"].isspace() \
+            and text_tokens[0].get("normalized") is True:
+        return text_tokens[0]["id"]
+    raise ValueError(
+        f"{path} adds text tokens {[t['content'] for t in text_tokens]!r}. "
+        f"Only one whitespace token with normalized: true, a word break, is "
+        f"encoded here; any other text token would be left out of the input "
+        f"ids and the model would read text it was not trained on.")
 
 
 class SpmSeq2SeqTokenizer:
@@ -307,14 +321,20 @@ class SpmSeq2SeqTokenizer:
     Text tokens
     -----------
     A ``tokenizer.json`` can add a token that is text, not a special
-    (``"special": false``). SentencePiece does not know it, so such an export
-    is encoded with the `tokenizers` library instead. The AfriGloss NLLB
-    fine-tunes add ``"\\n"`` as id 256204 with ``normalized: true``. The
-    normaliser turns that content into a space, so the token matches every
-    space of the input: ``The children`` encodes as ``▁The``, 256204,
-    ``▁children``. The models were trained on that encoding and write the
-    token between words of their output. ``decode`` reads a text token as a
-    word break, so the output has one space between words.
+    (``"special": false``). The AfriGloss NLLB fine-tunes add ``"\\n"`` as id
+    256204 with ``normalized: true``. The normaliser turns that content into
+    a space, so the `tokenizers` library matches the token at every space of
+    the input: ``The children`` encodes as ``▁The``, 256204, ``▁children``.
+    The models were trained on that encoding and write the token between
+    words of their output.
+
+    ``encode`` gives the same ids from SentencePiece: the token goes before
+    each word but the first, and once for leading or for trailing
+    whitespace. The `tokenizers` library is not used, because version 1.0
+    no longer matches a normalised added token and drops all of them.
+    ``decode`` reads the token as a word break, so the output has one space
+    between words. Only a whitespace text token with ``normalized: true`` is
+    accepted; any other text token raises at load time.
     """
 
     def __init__(self, spm_path, lang_codes: Sequence[str],
@@ -324,7 +344,8 @@ class SpmSeq2SeqTokenizer:
                  bos_id: int = 0, declared_codes: Optional[Sequence[str]] = None,
                  clean_up_tokenization_spaces: bool = False):
         self.sp = _load_spm(spm_path)
-        self._fast = None
+        self._word_break_id: Optional[int] = None
+        self._edges: Optional["spm.SentencePieceProcessor"] = None
         self._text_token_ids: frozenset = frozenset()
         self.clean_up_tokenization_spaces = clean_up_tokenization_spaces
         self.fairseq_offset = fairseq_offset
@@ -371,8 +392,13 @@ class SpmSeq2SeqTokenizer:
             stated, other_specials, text_tokens = _split_added_tokens(
                 _load_json(tokenizer_json_path), tokenizer_json_path)
             if text_tokens:
-                self._fast = load_fast_tokenizer(tokenizer_json_path)
-                self._text_token_ids = frozenset(text_tokens)
+                self._word_break_id = _word_break_token(text_tokens,
+                                                        tokenizer_json_path)
+                # The same normaliser with the input's own edges kept.
+                self._edges = _load_spm(spm_path)
+                self._edges.OverrideNormalizerSpec(
+                    remove_extra_whitespaces=False, add_dummy_prefix=False)
+                self._text_token_ids = frozenset({self._word_break_id})
             self.lang_code_to_id = {code: stated[code] for code in lang_codes
                                     if code in stated}
             missing = [code for code in lang_codes if code not in stated]
@@ -470,12 +496,29 @@ class SpmSeq2SeqTokenizer:
     # -- encode / decode -------------------------------------------------
 
     def encode(self, text: str, src_lang: str) -> List[int]:
-        if self._fast is not None:
-            body = self._fast.encode(text, add_special_tokens=False).ids
-        else:
-            body = [self.piece_to_id(p)
-                    for p in self.sp.encode(text, out_type=str)]
+        pieces = self.sp.encode(text, out_type=str)
+        body = [self.piece_to_id(p) for p in pieces]
+        if self._word_break_id is not None:
+            body = self._mark_word_breaks(text, pieces, body)
         return [self.lang_id(src_lang)] + body + [self.eos_id]
+
+    def _mark_word_breaks(self, text: str, pieces: Sequence[str],
+                          ids: Sequence[int]) -> List[int]:
+        """Put the word-break token where the `tokenizers` library matches
+        it: before each word but the first, and once for leading or for
+        trailing whitespace. Whitespace is what the normaliser makes a space,
+        which includes U+200B and U+200E."""
+        marked: List[int] = []
+        for index, (piece, token_id) in enumerate(zip(pieces, ids)):
+            if index and piece.startswith(_WORD_MARK):
+                marked.append(self._word_break_id)
+            marked.append(token_id)
+        normalized = self._edges.normalize(text)
+        if normalized.startswith(_WORD_MARK):
+            marked.insert(0, self._word_break_id)
+        if normalized.endswith(_WORD_MARK) and normalized.strip(_WORD_MARK):
+            marked.append(self._word_break_id)
+        return marked
 
     def decode(self, ids: Sequence[int]) -> str:
         words: List[List[str]] = [[]]

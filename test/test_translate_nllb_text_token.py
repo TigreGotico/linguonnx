@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import sentencepiece as spm
 
 from linguonnx.model_manager import list_models
 from linguonnx.translate.models import capability_from_entry
@@ -36,8 +37,6 @@ def tiny_export(tmp_path_factory):
     """A SentencePiece model plus a `tokenizers` file with NLLB's id layout:
     ``<s> <pad> </s> <unk>``, the pieces at ``sp_id + 1``, the languages, and
     the text token ``"\\n"`` last."""
-    spm = pytest.importorskip("sentencepiece")
-    tokenizers = pytest.importorskip("tokenizers")
     path = tmp_path_factory.mktemp("nllb-text-token")
     corpus = path / "corpus.txt"
     corpus.write_text("\n".join(["hola mon", "bon dia", "adiu lo monde"] * 40),
@@ -51,22 +50,30 @@ def tiny_export(tmp_path_factory):
     vocab = [("<s>", 0.0), ("<pad>", 0.0), ("</s>", 0.0), ("<unk>", 0.0)]
     vocab += [(sp.IdToPiece(i), sp.GetScore(i))
               for i in range(3, sp.GetPieceSize())]
-    fast = tokenizers.Tokenizer(tokenizers.models.Unigram(vocab, unk_id=3))
-    fast.normalizer = tokenizers.normalizers.Replace("\n", " ")
-    fast.pre_tokenizer = tokenizers.pre_tokenizers.Metaspace(
-        replacement="▁", prepend_scheme="always", split=True)
-    fast.decoder = tokenizers.decoders.Metaspace(
-        replacement="▁", prepend_scheme="always", split=True)
-    fast.add_special_tokens(LANGS)
-    fast.add_tokens([tokenizers.AddedToken("\n", normalized=True,
-                                           special=False)])
-    fast.save(str(path / "tokenizer.json"))
+    metaspace = {"type": "Metaspace", "replacement": "\u2581",
+                 "prepend_scheme": "always", "split": True}
+    added = [{"id": len(vocab) + i, "content": code, "single_word": False,
+              "lstrip": False, "rstrip": False, "normalized": False,
+              "special": True} for i, code in enumerate(LANGS)]
+    added.append({"id": len(vocab) + len(LANGS), "content": "\n",
+                  "single_word": False, "lstrip": False, "rstrip": False,
+                  "normalized": True, "special": False})
+    spec = {"version": "1.0", "truncation": None, "padding": None,
+            "added_tokens": added,
+            "normalizer": {"type": "Replace", "pattern": {"String": "\n"},
+                           "content": " "},
+            "pre_tokenizer": metaspace, "post_processor": None,
+            "decoder": metaspace,
+            "model": {"type": "Unigram", "unk_id": 3,
+                      "vocab": [list(entry) for entry in vocab],
+                      "byte_fallback": False}}
+    (path / "tokenizer.json").write_text(json.dumps(spec), encoding="utf-8")
     (path / "special_tokens_map.json").write_text(
         json.dumps({"additional_special_tokens": LANGS}), encoding="utf-8")
     files = {"spm": path / "tiny.model", "tokenizer_json": path / "tokenizer.json",
              "special_tokens_map": path / "special_tokens_map.json"}
     ids = {word: [i + 1 for i in sp.encode(word)] for word in WORDS}
-    return files, ids, fast.token_to_id("\n"), fast.token_to_id("eng_Latn")
+    return files, ids, added[-1]["id"], added[LANGS.index("eng_Latn")]["id"]
 
 
 @pytest.fixture(scope="module")
@@ -100,6 +107,36 @@ def test_a_text_token_at_the_edges_or_twice_adds_no_space(tiny_export,
     assert tokenizer.decode(out) == "hola dia"
 
 
+@pytest.mark.parametrize("text, before, after", [
+    (" hola mon", True, False), ("hola mon\n", False, True),
+    ("\t hola mon  ", True, True), ("\u200bhola mon", True, False),
+    ("hola mon\u200e", False, True)])
+def test_edge_whitespace_gives_one_text_token(tiny_export, tokenizer, text,
+                                              before, after):
+    _, ids, text_id, eng = tiny_export
+    body = ids["hola"] + [text_id] + ids["mon"]
+    expected = [eng] + [text_id] * before + body + [text_id] * after \
+        + [tokenizer.eos_id]
+    assert tokenizer.encode(text, "eng_Latn") == expected
+
+
+def test_whitespace_alone_is_one_text_token(tiny_export, tokenizer):
+    _, _, text_id, eng = tiny_export
+    assert tokenizer.encode(" \t ", "eng_Latn") \
+        == [eng, text_id, tokenizer.eos_id]
+
+
+def test_a_text_token_that_is_not_whitespace_is_refused(tiny_export,
+                                                        tmp_path):
+    files, _, _, _ = tiny_export
+    spec = json.loads(files["tokenizer_json"].read_text(encoding="utf-8"))
+    spec["added_tokens"][-1]["content"] = "<br>"
+    changed = tmp_path / "tokenizer.json"
+    changed.write_text(json.dumps(spec), encoding="utf-8")
+    with pytest.raises(ValueError, match="<br>"):
+        load_tokenizer("nllb", {**files, "tokenizer_json": changed}, LANGS)
+
+
 def test_a_round_trip_gives_the_input_back(tokenizer):
     text = "bon dia hola mon"
     assert tokenizer.decode(tokenizer.encode(text, "eng_Latn")) == text
@@ -130,7 +167,7 @@ def test_afrigloss_nllb_covers_english_and_french_into_seven(model_id):
         (src, tgt) for src in ("en", "fr") for tgt in TARGETS)
     assert entry["native_codes"]["tw"] == "twi_Latn"
     assert entry["native_codes"]["sw"] == "swh_Latn"
-    assert entry["extra"] == "fast-tokenizers"
+    assert "extra" not in entry
     assert entry["side_files"]["tokenizer_json"] == "tokenizer.json"
 
 
@@ -174,3 +211,14 @@ def test_afrigloss_nllb_encodes_and_decodes_as_transformers(model_id):
         assert tokenizer.encode(row["text"], row["src"]) == row["input_ids"]
         expected = re.sub(" {2,}", " ", row["decoded"]).strip()
         assert tokenizer.decode(row["output_ids"]) == expected
+
+
+@pytest.mark.network
+@pytest.mark.parametrize("model_id", ["afrigloss-nllb-600m", "afrigloss-nllb-1.3b"])
+def test_afrigloss_nllb_edge_whitespace_encodes_as_transformers(model_id):
+    """Leading, trailing and repeated whitespace, and the characters the
+    normaliser makes a space, give the upstream tokenizer's ids."""
+    tokenizer = _export_tokenizer(model_id)
+    for row in REFERENCE["whitespace_edges"]:
+        assert tokenizer.encode(row["text"], "eng_Latn") == row["input_ids"], \
+            row["text"]

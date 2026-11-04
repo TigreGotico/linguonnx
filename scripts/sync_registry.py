@@ -479,9 +479,8 @@ MARIAN_MULTILINGUAL_OVERRIDES: Dict[str, Dict] = {
 #: ``AfriSpeech/gloss-mt-train-en`` and ``-fr``, have English and French
 #: sources; they hold subsets for hundreds of targets, but the card claims
 #: these seven. The targets use the base NLLB-200 tokens; Twi is
-#: ``twi_Latn``, as the card names it. Their ``tokenizer.json`` adds a text
-#: token, which only the `tokenizers` library encodes - see
-#: ``SpmSeq2SeqTokenizer``.
+#: ``twi_Latn``, as the card names it. Their ``tokenizer.json`` adds a
+#: word-break text token - see ``SpmSeq2SeqTokenizer``.
 #: Source: https://huggingface.co/AfriSpeech/afrigloss-nllb-1.3b
 AFRIGLOSS_NLLB_SOURCES = ["en", "fr"]
 AFRIGLOSS_NLLB_TARGETS = ["ee", "ha", "ig", "sn", "sw", "tw", "yo"]
@@ -521,7 +520,6 @@ MULTILINGUAL_LANGUAGE_OVERRIDES: Dict[str, Dict] = {
                          "sw": "swh_Latn", "tw": "twi_Latn", "yo": "yor_Latn"},
         "directions": [[src, tgt] for src in AFRIGLOSS_NLLB_SOURCES
                        for tgt in AFRIGLOSS_NLLB_TARGETS],
-        "extra": "fast-tokenizers",
         "notes": "AfriSpeech glossary-constrained NLLB-200 fine-tune. Trained "
                  "directions: English and French into Twi, Swahili, Yoruba, "
                  "Hausa, Igbo, Ewe and Shona. Coverage is these 14 edges, "

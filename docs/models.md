@@ -504,10 +504,11 @@ vocabulary.
 **Text tokens.** The `afrigloss-nllb-*` exports ship a `tokenizer.json` that
 adds `"\n"` as a text token, id 256204. Its content normalises to a space, so
 the token matches every space of the input, and the models were trained on
-that encoding. SentencePiece does not insert it. An NLLB export with a text
-token is therefore encoded with the `tokenizers` package, and its entry names
-the `fast-tokenizers` extra. The decoder reads the token as a word break, so
-the output has one space between words.
+that encoding. The encoder puts the token before each word but the first,
+and once for leading or for trailing whitespace, as the `tokenizers` library
+0.x does. linguonnx does this from SentencePiece, so these entries need no
+extra. The decoder reads the token as a word break, so the output has one
+space between words.
 The `afrigloss-nllb-*` models also keep a `<term>` in angle brackets, as the
 `afrigloss-opus-mt-*` models do.
 
