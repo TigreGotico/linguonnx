@@ -1,4 +1,34 @@
 {
+  "afrolid_1.5": {
+    "engine": "transformer-onnx",
+    "hf_repo": "TigreGotico/afrolid_1.5-onnx",
+    "license": "Apache-2.0",
+    "model_id": "afrolid_1.5",
+    "notes": "AfroLID v1.5 (UBC-NLP), an XLM-R classifier over 517 African languages; its ISO 639-3 labels are reported as BCP-47 tags. Upstream behaviour, reproduced with the unmodified PyTorch checkpoint: short Yoruba sentences can come out as Wolof or Fula with a top-1 probability under 0.4 (1 of 8 FLORES-200 devtest Yoruba sentences, 'O ko ago ilekun WiFi, O wi.'). Longer Yoruba is classified yor with or without tone marks. Text in a language outside the 517 still gets an African label, at times with a probability over 0.9 (English, French, Portuguese and Chinese FLORES-200 sentences); the model's nan_lang label did not fire for any of them.",
+    "num_labels": 518,
+    "onnx_file": "model.onnx",
+    "precision": "fp32",
+    "side_files": {
+      "tokenizer_json": "tokenizer.json",
+      "config": "config.json"
+    },
+    "size_mb": 1148
+  },
+  "afrolid_1.5-int8": {
+    "engine": "transformer-onnx",
+    "hf_repo": "TigreGotico/afrolid_1.5-onnx",
+    "license": "Apache-2.0",
+    "model_id": "afrolid_1.5-int8",
+    "notes": "AfroLID v1.5 (UBC-NLP), an XLM-R classifier over 517 African languages; its ISO 639-3 labels are reported as BCP-47 tags. Upstream behaviour, reproduced with the unmodified PyTorch checkpoint: short Yoruba sentences can come out as Wolof or Fula with a top-1 probability under 0.4 (1 of 8 FLORES-200 devtest Yoruba sentences, 'O ko ago ilekun WiFi, O wi.'). Longer Yoruba is classified yor with or without tone marks. Text in a language outside the 517 still gets an African label, at times with a probability over 0.9 (English, French, Portuguese and Chinese FLORES-200 sentences); the model's nan_lang label did not fire for any of them.",
+    "num_labels": 518,
+    "onnx_file": "model.int8.onnx",
+    "precision": "int8",
+    "side_files": {
+      "tokenizer_json": "tokenizer.json",
+      "config": "config.json"
+    },
+    "size_mb": 313
+  },
   "glotlid": {
     "engine": "fasttext-onnx",
     "hf_repo": "TigreGotico/glotlid-onnx",

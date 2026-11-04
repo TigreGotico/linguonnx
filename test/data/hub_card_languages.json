@@ -120,6 +120,7 @@
     "fr",
     "yo"
   ],
+  "TigreGotico/afrolid_1.5-onnx": null,
   "TigreGotico/aina-translator-ca-de-onnx": [
     "ca",
     "de"
@@ -196,6 +197,7 @@
     "zh",
     "ca"
   ],
+  "TigreGotico/arabic-MARBERT-dialect-identification-city-onnx": null,
   "TigreGotico/audiosronnx-apbwe": null,
   "TigreGotico/audiosronnx-callenhancer": null,
   "TigreGotico/audiosronnx-cmgan": null,

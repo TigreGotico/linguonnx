@@ -6,7 +6,8 @@
 from linguonnx import load_detector
 
 det = load_detector()                 # glotlid-int8, the default
-# load_detector("lid176-int8") for another model: openlid-int8, openlid-v2-int8
+# load_detector("lid176-int8") for another model: openlid-int8,
+# openlid-v2-int8, afrolid_1.5-int8
 
 print(det.detect("Egun on, zer moduz?"))          # 'eu' — best-guess BCP-47 tag
 print(det.detect_probs("Bon dia a tothom", 3))    # {'ca': 0.998, ...}
@@ -19,7 +20,7 @@ print(det.loss)                                   # 'softmax'
 voice stack wants. `detect_raw` gives you the model's own label untouched, for
 when you need the exact variety and script the classifier chose.
 
-## The four models
+## The models
 
 | model_id | file | size | labels | precision | licence |
 |---|---|---|---|---|---|
@@ -31,11 +32,12 @@ when you need the exact variety and script the classifier chose.
 | `openlid` | `openlid.onnx` | 1.23 GB | 201 | fp32 | GPL-3.0 |
 | `openlid-v2-int8` | `openlid-v2.int8.onnx` | 305 MB | 200 | int8 | GPL-3.0 |
 | `openlid-v2` | `openlid-v2.onnx` | 1.22 GB | 200 | fp32 | GPL-3.0 |
+| `afrolid_1.5-int8` | `model.int8.onnx` | 313 MB | 518 | int8 | Apache-2.0 |
+| `afrolid_1.5` | `model.onnx` | 1.15 GB | 518 | fp32 | Apache-2.0 |
 
 [**GlotLID**](https://huggingface.co/TigreGotico/glotlid-onnx) has 2102
 language-script labels, by far the widest coverage, and is the default. It is
-also the only Apache-2.0 model here, which is the other reason it is the
-default.
+also Apache-2.0, which is the other reason it is the default.
 
 [**lid.176**](https://huggingface.co/TigreGotico/lid176-onnx) is Meta's
 original fastText identifier: 176 languages and only 33 MB in int8, so it is
@@ -48,6 +50,17 @@ accented text or it will guess.
 and 200 curated FLORES-200 varieties, trained on audited data. Prefer v2
 unless you need parity with the original OpenLID paper. Both are GPL-3.0.
 
+[**AfroLID v1.5**](https://huggingface.co/TigreGotico/afrolid_1.5-onnx) is
+UBC-NLP's identifier for 517 African languages and varieties, many of which
+no other model here knows. It is a transformer, not a fastText model. See
+[Transformer classifiers](#transformer-classifiers).
+
+AfroLID labels every input with an African language, so give it text you
+already know is African. English, French, Portuguese and Chinese sentences
+come back as Wolof, Kinyarwanda or Oromo, sometimes with a probability over
+0.9. Short Yoruba sentences can come back as Wolof or Fula with a low
+probability. The original PyTorch model does the same.
+
 ### Precision
 
 int8 is the default because it is almost free. GlotLID's HuggingFace repo
@@ -58,11 +71,18 @@ publisher's 59-language set — which is what you would expect from quantising a
 16-dimension model that was already small. Use `lid176` fp32 when 131 MB is
 affordable.
 
+AfroLID was measured against the original PyTorch model on 112 FLORES-200
+devtest sentences in 14 African languages. The fp32 graph gives the same
+top-5 labels on all 112, with probabilities within 1e-6. The int8 graph keeps
+the top-1 label on 111. The one change is a near tie on a Lingala sentence,
+where fp32 says Swahili at 0.59 and int8 says Lingala at 0.51.
+
 ## How a fastText model becomes an ONNX graph
 
-Every model here is a fastText classifier. fastText's actual math — averaging
-embedding rows, multiplying by the output matrix, softmax — is representable
-as an ONNX graph, so that part runs as a normal ONNX Runtime session:
+Every model here except AfroLID is a fastText classifier. fastText's actual
+math — averaging embedding rows, multiplying by the output matrix, softmax —
+is representable as an ONNX graph, so that part runs as a normal ONNX
+Runtime session:
 
 ```
 input_ids: int64[num_features]  ->  probs: float32[num_labels]
@@ -71,8 +91,8 @@ input_ids: int64[num_features]  ->  probs: float32[num_labels]
 What ONNX cannot do portably is fastText's *preprocessing*: tokenising text
 and hashing character n-grams into `input_ids`. That half stays in Python, in
 `linguonnx/detect/hashing.py`, vendored from the reference implementation
-published alongside the ONNX weights. Every model in the registry uses the
-same hashing and differs only in the `nwords`/`minn`/`maxn`/`bucket` values
+published alongside the ONNX weights. Every fastText model in the registry
+uses the same hashing and differs only in the `nwords`/`minn`/`maxn`/`bucket` values
 read from its `config.json`.
 
 It is a straight port of fastText's `Dictionary` class, including the detail
@@ -99,6 +119,31 @@ from label counts.
 Which path a model takes is decided by the `loss` field on its registry entry,
 falling back to the `loss` in its own `config.json` and then to `softmax` —
 never by the model's name. `det.loss` reports what was chosen.
+
+## Transformer classifiers
+
+AfroLID is an XLM-R encoder with a sequence-classification head, and its
+registry entry names the `transformer-onnx` engine instead of
+`fasttext-onnx`. `linguonnx.detect.transformer` tokenizes with the export's
+own `tokenizer.json` through the `tokenizers` package, which needs the
+`fast-tokenizers` extra:
+
+```
+pip install 'linguonnx[fast-tokenizers]'
+```
+
+The graph returns logits, and a softmax over them gives one probability per
+`id2label` entry in the export's `config.json`. The API is the same as for
+the fastText models. `detect_raw` returns the model's own label (`yor`), and
+`detect` and `detect_probs` return BCP-47 tags (`yo`).
+
+Leading and trailing whitespace is stripped before tokenizing. The
+SentencePiece tokenizer AfroLID was trained with drops it, while the
+`tokenizer.json` port turns a trailing space into a lone `▁` piece. Text
+longer than the model's 512 positions raises `InputTooLongError`.
+
+AfroLID's label `nan_lang` is not one of its 517 languages, and it does not
+mean Min Nan Chinese (`nan`). It is reported as `und` (undetermined).
 
 ## Varieties, and collapsing them
 

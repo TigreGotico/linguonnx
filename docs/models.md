@@ -1,7 +1,7 @@
 # The model registry
 
 Two JSON files under `linguonnx/model_index/` say what exists: `lid.json` for
-language identification and `translate.json` for translation. They hold 10 and
+language identification and `translate.json` for translation. They hold 12 and
 421 entries. Every ONNX entry names a HuggingFace repo, the exact files to
 fetch, the languages covered, the licence and the size. A rule-based entry
 names a Python function instead of files. See
@@ -118,10 +118,12 @@ claimed.
 | `lid218e` / `lid218e-int8` | 218 | 1 MB / 295 MB | **CC-BY-NC-4.0** |
 | `openlid` / `openlid-int8` | 201 | 1.23 GB / 310 MB | GPL-3.0 |
 | `openlid-v2` / `openlid-v2-int8` | 200 | 1.22 GB / 305 MB | GPL-3.0 |
+| `afrolid_1.5` / `afrolid_1.5-int8` | 518 | 1.15 GB / 313 MB | Apache-2.0 |
 
-Each entry also carries the `loss` the model was trained with, which is how
-`linguonnx` knows to walk a Huffman tree for lid.176 rather than reading
-softmax outputs. See [detect.md](detect.md).
+Each fastText entry also carries the `loss` the model was trained with, which
+is how `linguonnx` knows to walk a Huffman tree for lid.176 rather than
+reading softmax outputs. AfroLID's entry names the `transformer-onnx` engine
+instead. See [detect.md](detect.md).
 
 ## Rule-based models
 
@@ -180,7 +182,7 @@ print(entry["arch"], entry["pair"], entry["license"], entry["size_mb"])
 # marian ['pt', 'en'] Apache-2.0 172
 
 print(len(list_models(kind="translate")), len(list_models(kind="lid")))
-# 421 10
+# 421 12
 ```
 
 ## The download cache

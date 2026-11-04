@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.20.0a1](https://github.com/TigreGotico/linguonnx/tree/0.20.0a1) (2026-11-04)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.19.0a2...0.20.0a1)
+
+**Merged pull requests:**
+
+- feat: run transformer sequence-classification LID models \(AfroLID v1.5\) [\#123](https://github.com/TigreGotico/linguonnx/pull/123) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.19.0a2](https://github.com/TigreGotico/linguonnx/tree/0.19.0a2) (2026-11-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.19.0a1...0.19.0a2)
@@ -382,7 +390,6 @@
 **Merged pull requests:**
 
 - Release 0.5.1a1 [\#18](https://github.com/TigreGotico/linguonnx/pull/18) ([github-actions[bot]](https://github.com/apps/github-actions))
-- docs: split README into docs/, add examples, record short-text caveat [\#17](https://github.com/TigreGotico/linguonnx/pull/17) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.5.0a1](https://github.com/TigreGotico/linguonnx/tree/0.5.0a1) (2026-08-02)
 
