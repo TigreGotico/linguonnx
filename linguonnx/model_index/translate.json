@@ -17398,5 +17398,36 @@
       "special_tokens_map": "int8/special_tokens_map.json"
     },
     "size_mb": 590
+  },
+  "vinai-translate-vi2en-v2": {
+    "arch": "mbart",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/vinai-translate-vi2en-v2-onnx",
+    "license": "AGPL-3.0",
+    "license_tier": "share-alike",
+    "model_id": "vinai-translate-vi2en-v2",
+    "native_codes": {
+      "en": "en_XX",
+      "vi": "vi_VN"
+    },
+    "notes": "VinAI Translate (mBART), Vietnamese -> English. One-way: VinAI publishes English -> Vietnamese as a separate model.",
+    "pair": [
+      "vi",
+      "en"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
+    },
+    "size_mb": 3504
   }
 }

@@ -2,7 +2,7 @@
 
 Two JSON files under `linguonnx/model_index/` say what exists: `lid.json` for
 language identification and `translate.json` for translation. They hold 12 and
-419 entries. Every ONNX entry names a HuggingFace repo, the exact files to
+420 entries. Every ONNX entry names a HuggingFace repo, the exact files to
 fetch, the languages covered, the licence and the size. A rule-based entry
 names a Python function instead of files. See
 [Rule-based models](#rule-based-models).
@@ -13,7 +13,7 @@ it sounds.
 
 ## What is in the translation registry
 
-419 entries is 208 int8 and 209 fp32 entries across 209 models, plus 2
+420 entries is 208 int8 and 210 fp32 entries across 210 models, plus 2
 rule-based entries. `load_translator()` defaults to `precision="int8"`; pass
 `precision="fp32"` or `precision=None` for both. A rule-based entry has no
 weights and no precision, so the precision filter never removes it.
@@ -41,6 +41,7 @@ weights and no precision, so the precision filter never removes it.
 | `m2m100_418M_*` African fine-tunes (12) | M2M100 | one pair each; fr↔{bam, bbj, mos}, fr → {fon, ewe}, en↔hau, en↔nso | 1.21 GB – 3.18 GB | Apache-2.0 for the `nso` pair; **AFL-3.0 for the rest** |
 | `translate-eus-cat`, `translate-oci-cat` | Pegasus (fast) | `eu-ca`, `oc-ca` | 590 MB each | MIT |
 | `arat5-arabic-dialects-translation` | T5 (fast), AraT5 fine-tune | 12 Arabic varieties → Modern Standard Arabic (`ar`), **one-way**: acm, aeb, afb, apc, apd, arq, ars, ary, arz, ayl, ayn, ayp | 2.0 GB | Apache-2.0 |
+| `vinai-translate-vi2en-v2` | mBART fine-tune | Vietnamese → English, **one-way**; fp32 only, no int8 | 3.5 GB (fp32) | **AGPL-3.0** |
 | `opus-mt-*` (124) | Marian | one pair each | 78 MB – 716 MB | Apache-2.0 or CC-BY-4.0 |
 | `afrigloss-opus-mt-*` (14) | Marian fine-tune | one pair each; en → {ee, ha, ig, sn, sw, tw, yo}, fr → {ee, ha, ig, sn, sw, tw, yo} | 216 MB – 904 MB | **CC-BY-NC-4.0**; fr-ee, fr-ha, fr-ig, fr-sn: Apache-2.0 |
 | `IbRo-nllb` | NLLB-1.3B fine-tune | es ↔ {an, ast, ca, gl, oc (Aranese)}, ca ↔ oc: 12 directions | 3.04 GB – 11.9 GB | Apache-2.0 |
@@ -181,7 +182,7 @@ print(entry["arch"], entry["pair"], entry["license"], entry["size_mb"])
 # marian ['pt', 'en'] Apache-2.0 172
 
 print(len(list_models(kind="translate")), len(list_models(kind="lid")))
-# 419 12
+# 420 12
 ```
 
 ## The download cache

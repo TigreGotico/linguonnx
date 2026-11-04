@@ -15,12 +15,6 @@ IndicTrans2's FLORES tags and the AINA bilingual entries - not a
 ``normalize_tag`` alias, which would apply the substitution to every caller
 of ``ns``/``nso`` project-wide rather than just this one model.
 
-``vinai-translate-vi2en-v2`` (mBART) is an architecture this library
-implements no loader for - `scripts/sync_registry.py` records it with that
-reason rather than letting it mislabel itself "nllb" (it shares NLLB's lone
-``sentencepiece.bpe.model`` + ``special_tokens_map.json`` shape, which is
-what let the mislabel happen unnoticed before this fix).
-
 ``afrolid_1.5`` is an XLM-R sequence classifier that ``linguonnx.detect``
 runs with its ``transformer-onnx`` engine. Its card says ``other``; the
 AfroLID repository states Apache-2.0 for the pre-trained models, and the
@@ -92,7 +86,6 @@ def test_the_registry_still_has_bilingual_finetune_entries():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("hf_repo,expect_substring", [
-    ("TigreGotico/vinai-translate-vi2en-v2-onnx", "mbart"),
     ("TigreGotico/arabic-MARBERT-dialect-identification-city-onnx",
      "exclusively for research"),
 ])
@@ -101,13 +94,6 @@ def test_unregisterable_repos_are_recorded_with_their_real_reason(
     reason = SKIPPED.get(hf_repo)
     assert reason, f"{hf_repo} is missing from skipped.json entirely"
     assert expect_substring in reason
-
-
-def test_vinai_is_not_claimed_by_the_registry():
-    """mBART is not an architecture `linguonnx.translate` implements; the
-    model may not appear under any model_id."""
-    claimed = {entry.get("hf_repo") for entry in TRANSLATE.values()}
-    assert "TigreGotico/vinai-translate-vi2en-v2-onnx" not in claimed
 
 
 @pytest.mark.parametrize("model_id,onnx_file", [

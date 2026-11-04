@@ -18,6 +18,11 @@ directly rather than taking the dependency.
     block after the ordinary vocabulary, in the order given by
     ``special_tokens_map.json``.
 
+`MBartTokenizer`
+    mBART. NLLB's fairseq offset and positional language block, but the source
+    tag goes *after* the sentence: ``pieces + [</s>, src_lang]``. The codes are
+    mBART's own (``vi_VN``, ``en_XX``).
+
 `MarianTokenizer`
     opus-mt. A separate SentencePiece model per side, a shared ``vocab.json``,
     and ``</s>`` appended with no language token at all - the model *is* the
@@ -34,7 +39,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import sentencepiece as spm
 
-__all__ = ["normalize_punctuation", "SpmSeq2SeqTokenizer", "MarianTokenizer",
+__all__ = ["normalize_punctuation", "SpmSeq2SeqTokenizer", "MBartTokenizer",
+           "MarianTokenizer",
            "FastUnigramTokenizer", "T5SpmTokenizer", "T5TextPrefixTokenizer",
            "UnigramTextPrefixTokenizer", "IndicTransTokenizer",
            "OpenNmtBpeTokenizer", "load_tokenizer", "artifact_lang_codes",
@@ -444,6 +450,21 @@ class SpmSeq2SeqTokenizer:
         if self.clean_up_tokenization_spaces:
             text = clean_up_tokenization(text)
         return text
+
+
+class MBartTokenizer(SpmSeq2SeqTokenizer):
+    """mBART: ``pieces + [</s>, src_lang]``.
+
+    The vocabulary is laid out like NLLB's - SentencePiece ids shifted by the
+    fairseq offset of 1, then one token per language - and only the place of
+    the source tag differs. ``transformers``' ``MBartTokenizer`` sets
+    ``prefix_tokens = []`` and ``suffix_tokens = [eos, src_lang]``.
+    """
+
+    def encode(self, text: str, src_lang: str) -> List[int]:
+        pieces = self.sp.encode(text, out_type=str)
+        return ([self.piece_to_id(p) for p in pieces]
+                + [self.eos_id, self.lang_id(src_lang)])
 
 
 def clean_up_tokenization(text: str) -> str:
@@ -1143,6 +1164,11 @@ def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str],
             declared_codes=lang_codes,
             clean_up_tokenization_spaces=bool(
                 tokenizer_config.get("clean_up_tokenization_spaces", False)))
+    if arch == "mbart":
+        return MBartTokenizer(
+            files["spm"], artifact_lang_codes(files), fairseq_offset=1,
+            tokenizer_json_path=files.get("tokenizer_json"),
+            declared_codes=lang_codes)
     if arch == "madlad":
         return T5SpmTokenizer(files["spm"])
     if arch == "t5-prefix":
