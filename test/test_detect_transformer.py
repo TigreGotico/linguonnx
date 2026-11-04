@@ -1,7 +1,8 @@
 """The ``transformer-onnx`` LID engine, offline.
 
-A real ``tokenizers`` tokenizer.json (a small word-level one with XLM-R's
-``Metaspace`` pre-tokenizer and ``<s> ... </s>`` post-processor) and a
+A ``tokenizer.json`` read by the real ``tokenizers`` package (a small
+word-level one with XLM-R's ``Metaspace`` pre-tokenizer and ``<s> ... </s>``
+post-processor) and a
 stand-in ONNX session: the tests check
 the ids the graph receives and the probabilities the detector reports, with
 the softmax computed here by hand.
@@ -13,11 +14,6 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
-
-from tokenizers import Tokenizer
-from tokenizers.models import WordLevel
-from tokenizers.pre_tokenizers import Metaspace
-from tokenizers.processors import TemplateProcessing
 
 from linguonnx.detect import LanguageDetector
 from linguonnx.limits import InputTooLongError
@@ -34,11 +30,23 @@ def _softmax_by_hand(logits):
 
 
 def _write_files(tmp_path, **config_overrides):
-    tok = Tokenizer(WordLevel(VOCAB, unk_token="<unk>"))
-    tok.pre_tokenizer = Metaspace()
-    tok.post_processor = TemplateProcessing(
-        single="<s> $A </s>", special_tokens=[("<s>", 0), ("</s>", 2)])
-    tok.save(str(tmp_path / "tokenizer.json"))
+    special = [{"SpecialToken": {"id": "<s>", "type_id": 0}},
+               {"Sequence": {"id": "A", "type_id": 0}},
+               {"SpecialToken": {"id": "</s>", "type_id": 0}}]
+    (tmp_path / "tokenizer.json").write_text(json.dumps({
+        "version": "1.0", "truncation": None, "padding": None,
+        "added_tokens": [], "normalizer": None,
+        "pre_tokenizer": {"type": "Metaspace", "replacement": "\u2581",
+                          "prepend_scheme": "always", "split": True},
+        "post_processor": {
+            "type": "TemplateProcessing", "single": special,
+            "pair": [{"Sequence": {"id": "A", "type_id": 0}},
+                     {"Sequence": {"id": "B", "type_id": 1}}],
+            "special_tokens": {
+                "<s>": {"id": "<s>", "ids": [0], "tokens": ["<s>"]},
+                "</s>": {"id": "</s>", "ids": [2], "tokens": ["</s>"]}}},
+        "decoder": None,
+        "model": {"type": "WordLevel", "vocab": VOCAB, "unk_token": "<unk>"}}))
     config = {"model_type": "xlm-roberta", "max_position_embeddings": 8,
               "pad_token_id": 1, "id2label": ID2LABEL,
               "architectures": ["XLMRobertaForSequenceClassification"]}
