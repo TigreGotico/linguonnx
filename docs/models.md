@@ -2,7 +2,7 @@
 
 Two JSON files under `linguonnx/model_index/` say what exists: `lid.json` for
 language identification and `translate.json` for translation. They hold 12 and
-424 entries. Every ONNX entry names a HuggingFace repo, the exact files to
+449 entries. Every ONNX entry names a HuggingFace repo, the exact files to
 fetch, the languages covered, the licence and the size. A rule-based entry
 names a Python function instead of files. See
 [Rule-based models](#rule-based-models).
@@ -13,7 +13,7 @@ it sounds.
 
 ## What is in the translation registry
 
-424 entries is 210 int8 and 212 fp32 entries across 212 models, plus 2
+449 entries is 223 int8 and 224 fp32 entries across 224 models, plus 2
 rule-based entries. `load_translator()` defaults to `precision="int8"`; pass
 `precision="fp32"` or `precision=None` for both. A rule-based entry has no
 weights and no precision, so the precision filter never removes it.
@@ -38,7 +38,8 @@ weights and no precision, so the precision filter never removes it.
 | `nos-coda_iacobus-*` (6) | OpenNMT | one pair each; en/es/pt → gl, es↔pt, en↔es | 499 MB – 814 MB | MIT |
 | `nos-mt-*` (7) | OpenNMT | one pair each; en↔gl, es↔gl, es → {arg, arn, ast} | 445 MB – 747 MB | MIT |
 | `mt-hitz-*` (6) | Marian | `ca-eu`, `en-eu`, `es-eu`, `eu-en`, `eu-es`, `gl-eu` | 90 MB – 153 MB | Apache-2.0 |
-| `m2m100_418M_*` African fine-tunes (12) | M2M100 | one pair each; fr↔{bam, bbj, mos}, fr → {fon, ewe}, en↔hau, en↔nso | 1.21 GB – 3.18 GB | Apache-2.0 for the `nso` pair; **AFL-3.0 for the rest** |
+| `m2m100_418M_*` African fine-tunes (18) | M2M100 | one pair each; fr↔{bam, bbj, ewe, fon, mos}, en↔{hau, ibo, lug, nso} | 1.21 GB – 4.76 GB | Apache-2.0 for the `nso` pair; **AFL-3.0 for the rest** |
+| `nllb_200_distilled_600m-*` (6) | NLLB-200-600M fine-tune (DSFSI) | one pair each; en↔{am, yo, zu} | 1.90 GB – 7.41 GB | Apache-2.0 |
 | `translate-eus-cat`, `translate-oci-cat` | Pegasus (fast) | `eu-ca`, `oc-ca` | 590 MB each | MIT |
 | `arat5-arabic-dialects-translation` | T5 (fast), AraT5 fine-tune | 12 Arabic varieties → Modern Standard Arabic (`ar`), **one-way**: acm, aeb, afb, apc, apd, arq, ars, ary, arz, ayl, ayn, ayp | 2.0 GB | Apache-2.0 |
 | `vinai-translate-vi2en-v2` | mBART fine-tune | Vietnamese → English, **one-way**; fp32 only, no int8 | 3.5 GB (fp32) | **AGPL-3.0** |
@@ -80,11 +81,8 @@ Thirty-two entries are non-commercial and out of the default graph:
 `afrigloss-nllb-600m`, `afrigloss-nllb-1.3b` and ten of the
 `afrigloss-opus-mt-*` pairs, in both precisions. See [licences.md](licences.md).
 
-`aina-translator-es-ca` ships fp32 only; no int8 export is in the registry
-yet.
-
 The `m2m100_418M_*` African fine-tunes carry Apache-2.0 for the `en-nso` and
-`nso-en` pair, and AFL-3.0 for the other ten. AFL-3.0 grants use, modification
+`nso-en` pair, and AFL-3.0 for the other sixteen. AFL-3.0 grants use, modification
 and redistribution but adds a patent-retaliation clause and a naming
 restriction absent from Apache-2.0 and MIT, so it needs the same care as a
 non-commercial licence when a downstream project sets its own terms.
@@ -184,7 +182,7 @@ print(entry["arch"], entry["pair"], entry["license"], entry["size_mb"])
 # marian ['pt', 'en'] Apache-2.0 172
 
 print(len(list_models(kind="translate")), len(list_models(kind="lid")))
-# 424 12
+# 449 12
 ```
 
 ## The download cache

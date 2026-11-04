@@ -62,16 +62,17 @@ def test_arch_reads_t5_fast_only_for_a_curated_tokenizer_json_export():
 
 
 def _word_level(tmp_path, truncate_at=None):
-    from tokenizers import Tokenizer, models, pre_tokenizers
-
     vocab = {"<pad>": 0, "</s>": 1, "<unk>": 2, ".": 3}
     vocab.update({word: 4 + i for i, word in enumerate("abcdefgh")})
-    tokenizer = Tokenizer(models.WordLevel(vocab, unk_token="<unk>"))
-    tokenizer.pre_tokenizer = pre_tokenizers.Whitespace()
-    if truncate_at:
-        tokenizer.enable_truncation(truncate_at)
+    truncation = truncate_at and {"direction": "Right", "max_length": truncate_at,
+                                  "strategy": "LongestFirst", "stride": 0}
     path = tmp_path / "tokenizer.json"
-    tokenizer.save(str(path))
+    path.write_text(json.dumps({
+        "version": "1.0", "truncation": truncation, "padding": None,
+        "added_tokens": [], "normalizer": None,
+        "pre_tokenizer": {"type": "Whitespace"}, "post_processor": None,
+        "decoder": None,
+        "model": {"type": "WordLevel", "vocab": vocab, "unk_token": "<unk>"}}))
     return path
 
 
@@ -81,6 +82,24 @@ def test_a_truncation_setting_in_tokenizer_json_does_not_cut_the_input(tmp_path)
     path = _word_level(tmp_path, truncate_at=4)
     tokenizer = FastUnigramTokenizer(path, pad_token="<pad>")
     assert tokenizer.encode("a b c d e f g h") == [4, 5, 6, 7, 8, 9, 10, 11, 1]
+
+
+def test_a_unigram_vocabulary_gives_each_special_token_its_list_position(tmp_path):
+    """The Softcatala Pegasus exports hold a Unigram model, whose vocabulary is
+    a list of ``[piece, score]``: a token's id is its position in that list."""
+    pieces = ["<blank>", "<unk>", "</s>", "\u2581a", "\u2581b"]
+    path = tmp_path / "tokenizer.json"
+    path.write_text(json.dumps({
+        "version": "1.0", "truncation": None, "padding": None,
+        "added_tokens": [], "normalizer": None,
+        "pre_tokenizer": {"type": "Metaspace", "replacement": "\u2581",
+                          "prepend_scheme": "always", "split": True},
+        "post_processor": None, "decoder": None,
+        "model": {"type": "Unigram", "unk_id": 1, "byte_fallback": False,
+                  "vocab": [[piece, -1.0] for piece in pieces]}}))
+    tokenizer = FastUnigramTokenizer(path)
+    assert (tokenizer.pad_id, tokenizer.unk_id, tokenizer.eos_id) == (0, 1, 2)
+    assert tokenizer.encode("a b") == [3, 4, 2]
 
 
 def test_t5_fast_decoding_applies_the_configured_clean_up(tmp_path):

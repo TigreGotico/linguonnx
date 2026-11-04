@@ -42,7 +42,7 @@ from linguonnx.translate import load_translator
 #   load_translator(max_model_mb=CAP, count_cached_as_free=False)
 LANGUAGES_UNCAPPED = 606
 LANGUAGES_UNDER_500 = 255
-FALLBACK_STEPS_UNDER_500 = 39
+FALLBACK_STEPS_UNDER_500 = 40
 
 # README.md's "What ships" table and docs/models.md's opening paragraph quote
 # these directly off `linguonnx/model_index/translate.json` and `lid.json`.
@@ -51,11 +51,11 @@ FALLBACK_STEPS_UNDER_500 = 39
 #   {v["hf_repo"] for v in translate.json.values() if "hf_repo" in v}  -> models
 #   Counter(v.get("precision") for v in translate.json.values())
 #                                               -> int8/fp32/rule-based split
-TRANSLATE_ENTRIES = 424
-TRANSLATE_INT8_ENTRIES = 210
-TRANSLATE_FP32_ENTRIES = 212
+TRANSLATE_ENTRIES = 449
+TRANSLATE_INT8_ENTRIES = 223
+TRANSLATE_FP32_ENTRIES = 224
 TRANSLATE_RULE_ENTRIES = 2
-TRANSLATE_MODELS = 212
+TRANSLATE_MODELS = 224
 LID_ENTRIES = 12
 LID_MODELS = 6
 
@@ -250,6 +250,7 @@ DOCUMENTED_TRANSLATE_FAMILIES = [
     r"^TigreGotico/nos-mt-.+-onnx$",
     r"^TigreGotico/mt-hitz-.+-onnx$",
     r"^TigreGotico/m2m100_418[Mm][-_].+-onnx$",  # African fine-tunes
+    r"^TigreGotico/nllb_200_distilled_600m-[a-z]{3}-[a-z]{3}-onnx$",  # DSFSI fine-tunes
     r"^TigreGotico/translate-eus-cat-onnx$",
     r"^TigreGotico/translate-oci-cat-onnx$",
     r"^TigreGotico/arat5-arabic-dialects-translation-onnx$",

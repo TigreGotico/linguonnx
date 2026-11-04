@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.23.1a1](https://github.com/TigreGotico/linguonnx/tree/0.23.1a1) (2026-11-04)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.23.0a1...0.23.1a1)
+
+**Merged pull requests:**
+
+- fix: read tokenizer.json files with tokenizers 1.0 [\#133](https://github.com/TigreGotico/linguonnx/pull/133) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.23.0a1](https://github.com/TigreGotico/linguonnx/tree/0.23.0a1) (2026-11-04)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.22.0a1...0.23.0a1)
+
+**Merged pull requests:**
+
+- feat: register the Masakhane and DSFSI bilingual fine-tunes [\#131](https://github.com/TigreGotico/linguonnx/pull/131) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.22.0a1](https://github.com/TigreGotico/linguonnx/tree/0.22.0a1) (2026-11-04)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.21.0a1...0.22.0a1)
@@ -367,17 +383,9 @@
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.4a1...0.5.4a2)
 
-**Merged pull requests:**
-
-- fix: validate a caller-supplied route before executing it [\#25](https://github.com/TigreGotico/linguonnx/pull/25) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [0.5.4a1](https://github.com/TigreGotico/linguonnx/tree/0.5.4a1) (2026-08-02)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.3a1...0.5.4a1)
-
-**Merged pull requests:**
-
-- fix: make routing agree with what translation can execute [\#23](https://github.com/TigreGotico/linguonnx/pull/23) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.5.3a1](https://github.com/TigreGotico/linguonnx/tree/0.5.3a1) (2026-08-02)
 

@@ -152,21 +152,6 @@ def _load_spm(path) -> "spm.SentencePieceProcessor":
     return processor
 
 
-def _load_fast_tokenizer(path):
-    """A `tokenizers`-library ``tokenizer.json``, read by that library."""
-    try:
-        from tokenizers import Tokenizer
-    except ImportError as exc:
-        raise ImportError(
-            "this model's tokenizer is a `tokenizers`-library "
-            "tokenizer.json, which needs the 'tokenizers' package. "
-            "Install it: pip install 'linguonnx[fast-tokenizers]'") from exc
-    tokenizer = Tokenizer.from_file(str(path))
-    tokenizer.no_truncation()
-    tokenizer.no_padding()
-    return tokenizer
-
-
 # --------------------------------------------------------------------------
 # M2M100 / NLLB
 # --------------------------------------------------------------------------
@@ -386,7 +371,7 @@ class SpmSeq2SeqTokenizer:
             stated, other_specials, text_tokens = _split_added_tokens(
                 _load_json(tokenizer_json_path), tokenizer_json_path)
             if text_tokens:
-                self._fast = _load_fast_tokenizer(tokenizer_json_path)
+                self._fast = load_fast_tokenizer(tokenizer_json_path)
                 self._text_token_ids = frozenset(text_tokens)
             self.lang_code_to_id = {code: stated[code] for code in lang_codes
                                     if code in stated}
@@ -592,6 +577,46 @@ class MarianTokenizer:
         return self.spm_target.DecodePieces(pieces)
 
 
+def load_fast_tokenizer(tokenizer_json):
+    """``tokenizer_json`` read by the ``tokenizers`` package, with the file's
+    own truncation and padding switched off.
+
+    `transformers` applies neither unless a caller asks for it, and a model
+    exported from it was given whole, unpadded sentences. The encoder bounds
+    in :mod:`linguonnx.limits` refuse an input that is too long instead.
+    """
+    try:
+        import tokenizers
+    except ImportError as exc:
+        raise ImportError(
+            "this model's tokenizer is a `tokenizers`-library "
+            "tokenizer.json, which needs the 'tokenizers' package. "
+            "Install it: pip install 'linguonnx[fast-tokenizers]'") from exc
+    tok = tokenizers.Tokenizer.from_file(str(tokenizer_json))
+    # tokenizers 1.0 replaced no_truncation() and no_padding() with
+    # properties that take None.
+    if int(tokenizers.__version__.split(".")[0]) >= 1:
+        tok.truncation = None
+        tok.padding = None
+    else:
+        tok.no_truncation()
+        tok.no_padding()
+    return tok
+
+
+def _token_ids(tokenizer_json) -> Dict[str, int]:
+    """Token to id over a ``tokenizer.json``'s model vocabulary and its added
+    tokens. A Unigram vocabulary is a list of ``[piece, score]``, where the
+    position is the id; the other models map each token to its id."""
+    spec = _load_json(tokenizer_json)
+    vocab = spec["model"]["vocab"]
+    ids = ({piece: index for index, (piece, _) in enumerate(vocab)}
+           if isinstance(vocab, list) else dict(vocab))
+    ids.update({entry["content"]: int(entry["id"])
+                for entry in spec.get("added_tokens", ())})
+    return ids
+
+
 class FastUnigramTokenizer:
     """Softcatalà's ``translate-eus-cat``/``translate-oci-cat``: a Marian-
     shaped Pegasus export whose tokenizer is not a raw SentencePiece
@@ -613,18 +638,16 @@ class FastUnigramTokenizer:
     A ``tokenizer.json`` can carry a ``truncation`` setting, and the AraT5
     one does: 64 tokens. The ``tokenizers`` package applies it on every
     ``encode``, so a longer sentence is cut with nothing raised and the model
-    translates the first half of it fluently. `transformers` switches it off
-    unless a caller asks for truncation, so it is switched off here too, and
-    the encoder bounds in :mod:`linguonnx.limits` refuse an input that is too
-    long instead.
+    translates the first half of it fluently. :func:`load_fast_tokenizer`
+    switches it off.
     """
 
     def __init__(self, tokenizer_json, eos_token: str = "</s>",
                  pad_token: str = "<blank>", unk_token: str = "<unk>",
                  clean_up_tokenization_spaces: bool = False):
-        self._tok = _load_fast_tokenizer(tokenizer_json)
+        self._tok = load_fast_tokenizer(tokenizer_json)
         self.clean_up_tokenization_spaces = clean_up_tokenization_spaces
-        vocab = self._tok.get_vocab()
+        vocab = _token_ids(tokenizer_json)
         self.eos_id = vocab[eos_token]
         self.pad_id = vocab[pad_token]
         self.unk_id = vocab[unk_token]

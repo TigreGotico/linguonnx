@@ -247,6 +247,22 @@ BILINGUAL_FINETUNES: Dict[str, Dict] = {
     #: generation_config.json bakes in forced_bos_token_id=128034.
     #: Source: https://huggingface.co/masakhane/m2m100_418M_en_hau_rel_news_ft
     "m2m100_418M_en_hau_rel_news_ft": {"pair": ["en", "ha"], "notes": "M2M100-418M fine-tune, English -> Hausa."},
+    #: The rest of the family that has its own M2M100 token on the African
+    #: side. Each export bakes the target into `forced_bos_token_id`: `__ig__`
+    #: for en->ibo, `__en__` for the three into English, and `__sw__` (128088)
+    #: for en->lug, which upstream chose although M2M100 has `__lg__`. The
+    #: source token of the into-English models is not in any file: on 50
+    #: FLORES-200 devtest sentences the African side's own token scores chrF
+    #: 41.01 (ig) vs 39.99 (sw), 38.79 (ha) vs 38.08 (sw) and 33.32 (lg) vs
+    #: 33.45 (sw), so each takes its own token. Ewe has no M2M100 token; the
+    #: card selects `sw` for it, which scores 31.53 against 30.90 for `en`.
+    #: Source: https://huggingface.co/masakhane/m2m100_418M_<pair>
+    "m2m100_418M_en_ibo_rel_news_ft": {"pair": ["en", "ig"], "notes": "M2M100-418M fine-tune, English -> Igbo."},
+    "m2m100_418M_ibo_en_rel_news_ft": {"pair": ["ig", "en"], "notes": "M2M100-418M fine-tune, Igbo -> English."},
+    "m2m100_418M_hau_en_rel_news_ft": {"pair": ["ha", "en"], "notes": "M2M100-418M fine-tune, Hausa -> English."},
+    "m2m100_418M_en_lug_rel_news_ft": {"pair": ["en", "lg"], "native_codes": {"lg": "sw"}, "notes": "M2M100-418M fine-tune, English -> Luganda. Its Luganda target token is '__sw__'."},
+    "m2m100_418M_lug_en_rel_news_ft": {"pair": ["lg", "en"], "notes": "M2M100-418M fine-tune, Luganda -> English."},
+    "m2m100_418M_ewe_fr_rel_news_ft": {"pair": ["ewe", "fr"], "native_codes": {"ee": "sw"}, "notes": "M2M100-418M fine-tune, Ewe -> French."},
 
     #: DSFSI (Data Science for Social Impact, University of Pretoria)
     #: fine-tunes of `facebook/m2m100_418M`, same shape as the Masakhane
@@ -274,6 +290,18 @@ BILINGUAL_FINETUNES: Dict[str, Dict] = {
                                      "the base model's full 100-language "
                                      "inventory, 98 unclaimed. nso's own token "
                                      "is '__ns__'."},
+
+    #: DSFSI fine-tunes of `facebook/nllb-200-distilled-600M`, one direction
+    #: each. The tokenizer keeps the base model's 202 language tokens; the card
+    #: names the two languages and selects them with NLLB's own tokens
+    #: (`src_lang="eng_Latn"` and the target's FLORES code).
+    #: Source: https://huggingface.co/dsfsi/nllb_200_distilled_600m-<pair>
+    "nllb_200_distilled_600m-eng-amh": {"pair": ["en", "am"], "native_codes": {"en": "eng_Latn", "am": "amh_Ethi"}, "notes": "DSFSI NLLB-200-600M fine-tune, English -> Amharic."},
+    "nllb_200_distilled_600m-amh-eng": {"pair": ["am", "en"], "native_codes": {"en": "eng_Latn", "am": "amh_Ethi"}, "notes": "DSFSI NLLB-200-600M fine-tune, Amharic -> English."},
+    "nllb_200_distilled_600m-eng-yor": {"pair": ["en", "yo"], "native_codes": {"en": "eng_Latn", "yo": "yor_Latn"}, "notes": "DSFSI NLLB-200-600M fine-tune, English -> Yoruba."},
+    "nllb_200_distilled_600m-yor-eng": {"pair": ["yo", "en"], "native_codes": {"en": "eng_Latn", "yo": "yor_Latn"}, "notes": "DSFSI NLLB-200-600M fine-tune, Yoruba -> English."},
+    "nllb_200_distilled_600m-eng-zul": {"pair": ["en", "zu"], "native_codes": {"en": "eng_Latn", "zu": "zul_Latn"}, "notes": "DSFSI NLLB-200-600M fine-tune, English -> Zulu."},
+    "nllb_200_distilled_600m-zul-eng": {"pair": ["zu", "en"], "native_codes": {"en": "eng_Latn", "zu": "zul_Latn"}, "notes": "DSFSI NLLB-200-600M fine-tune, Zulu -> English."},
 
     #: ProxectoNos' `nos-mt-*` family - the same OpenNMT-py/Pegasus-shaped
     #: export as `nos-coda_iacobus`, one hand-verified one-way pair each,

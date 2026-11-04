@@ -31,9 +31,10 @@
       "generation_config": "generation_config.json",
       "tokenizer_config": "tokenizer_config.json",
       "added_tokens": "added_tokens.json",
-      "special_tokens_map": "special_tokens_map.json"
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
     },
-    "size_mb": 599
+    "size_mb": 601
   },
   "AKK-60m-int8": {
     "arch": "t5-prefix",
@@ -67,9 +68,10 @@
       "generation_config": "int8/generation_config.json",
       "tokenizer_config": "int8/tokenizer_config.json",
       "added_tokens": "int8/added_tokens.json",
-      "special_tokens_map": "int8/special_tokens_map.json"
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
     },
-    "size_mb": 151
+    "size_mb": 154
   },
   "AKK_300m": {
     "arch": "t5-prefix",
@@ -103,9 +105,10 @@
       "generation_config": "generation_config.json",
       "tokenizer_config": "tokenizer_config.json",
       "added_tokens": "added_tokens.json",
-      "special_tokens_map": "special_tokens_map.json"
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
     },
-    "size_mb": 2903
+    "size_mb": 2920
   },
   "AKK_300m-int8": {
     "arch": "t5-prefix",
@@ -139,9 +142,10 @@
       "generation_config": "int8/generation_config.json",
       "tokenizer_config": "int8/tokenizer_config.json",
       "added_tokens": "int8/added_tokens.json",
-      "special_tokens_map": "int8/special_tokens_map.json"
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
     },
-    "size_mb": 731
+    "size_mb": 748
   },
   "IbRo-nllb": {
     "arch": "nllb",
@@ -2344,6 +2348,36 @@
     },
     "size_mb": 3460
   },
+  "aina-translator-es-ca-int8": {
+    "arch": "marian",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/aina-translator-es-ca-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "aina-translator-es-ca-int8",
+    "notes": "Marian, Spanish -> Catalan.",
+    "pair": [
+      "es",
+      "ca"
+    ],
+    "precision": "int8",
+    "provenance_org": "Projecte AINA",
+    "release_date": "2024-02-09",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 1988
+  },
   "aina-translator-eu-ca": {
     "arch": "marian",
     "extra_files": [],
@@ -2978,7 +3012,7 @@
       "generation_config": "generation_config.json",
       "tokenizer_config": "tokenizer_config.json"
     },
-    "size_mb": 6860,
+    "size_mb": 7143,
     "src_languages": [
       "en"
     ],
@@ -3077,7 +3111,7 @@
       "generation_config": "int8/generation_config.json",
       "tokenizer_config": "int8/tokenizer_config.json"
     },
-    "size_mb": 1770,
+    "size_mb": 1801,
     "src_languages": [
       "en"
     ],
@@ -4552,6 +4586,198 @@
     },
     "size_mb": 3175
   },
+  "m2m100_418M_en_ibo_rel_news_ft": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_en_ibo_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_en_ibo_rel_news_ft",
+    "notes": "M2M100-418M fine-tune, English -> Igbo.",
+    "pair": [
+      "en",
+      "ig"
+    ],
+    "precision": "fp32",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 4760
+  },
+  "m2m100_418M_en_ibo_rel_news_ft-int8": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_en_ibo_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_en_ibo_rel_news_ft-int8",
+    "notes": "M2M100-418M fine-tune, English -> Igbo.",
+    "pair": [
+      "en",
+      "ig"
+    ],
+    "precision": "int8",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 3175
+  },
+  "m2m100_418M_en_lug_rel_news_ft": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_en_lug_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_en_lug_rel_news_ft",
+    "native_codes": {
+      "lg": "sw"
+    },
+    "notes": "M2M100-418M fine-tune, English -> Luganda. Its Luganda target token is '__sw__'.",
+    "pair": [
+      "en",
+      "lg"
+    ],
+    "precision": "fp32",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 4760
+  },
+  "m2m100_418M_en_lug_rel_news_ft-int8": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_en_lug_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_en_lug_rel_news_ft-int8",
+    "native_codes": {
+      "lg": "sw"
+    },
+    "notes": "M2M100-418M fine-tune, English -> Luganda. Its Luganda target token is '__sw__'.",
+    "pair": [
+      "en",
+      "lg"
+    ],
+    "precision": "int8",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 3175
+  },
+  "m2m100_418M_ewe_fr_rel_news_ft": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_ewe_fr_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_ewe_fr_rel_news_ft",
+    "native_codes": {
+      "ee": "sw"
+    },
+    "notes": "M2M100-418M fine-tune, Ewe -> French.",
+    "pair": [
+      "ewe",
+      "fr"
+    ],
+    "precision": "fp32",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 4760
+  },
+  "m2m100_418M_ewe_fr_rel_news_ft-int8": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_ewe_fr_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_ewe_fr_rel_news_ft-int8",
+    "native_codes": {
+      "ee": "sw"
+    },
+    "notes": "M2M100-418M fine-tune, Ewe -> French.",
+    "pair": [
+      "ewe",
+      "fr"
+    ],
+    "precision": "int8",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 1207
+  },
   "m2m100_418M_fon_fr_rel_news_ft": {
     "arch": "m2m100",
     "extra_files": [],
@@ -4947,6 +5173,186 @@
       "added_tokens": "int8/added_tokens.json"
     },
     "size_mb": 1207
+  },
+  "m2m100_418M_hau_en_rel_news_ft": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_hau_en_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_hau_en_rel_news_ft",
+    "notes": "M2M100-418M fine-tune, Hausa -> English.",
+    "pair": [
+      "ha",
+      "en"
+    ],
+    "precision": "fp32",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 4760
+  },
+  "m2m100_418M_hau_en_rel_news_ft-int8": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_hau_en_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_hau_en_rel_news_ft-int8",
+    "notes": "M2M100-418M fine-tune, Hausa -> English.",
+    "pair": [
+      "ha",
+      "en"
+    ],
+    "precision": "int8",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 3175
+  },
+  "m2m100_418M_ibo_en_rel_news_ft": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_ibo_en_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_ibo_en_rel_news_ft",
+    "notes": "M2M100-418M fine-tune, Igbo -> English.",
+    "pair": [
+      "ig",
+      "en"
+    ],
+    "precision": "fp32",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 4760
+  },
+  "m2m100_418M_ibo_en_rel_news_ft-int8": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_ibo_en_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_ibo_en_rel_news_ft-int8",
+    "notes": "M2M100-418M fine-tune, Igbo -> English.",
+    "pair": [
+      "ig",
+      "en"
+    ],
+    "precision": "int8",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 3175
+  },
+  "m2m100_418M_lug_en_rel_news_ft": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_lug_en_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_lug_en_rel_news_ft",
+    "notes": "M2M100-418M fine-tune, Luganda -> English.",
+    "pair": [
+      "lg",
+      "en"
+    ],
+    "precision": "fp32",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "vocab": "vocab.json",
+      "added_tokens": "added_tokens.json"
+    },
+    "size_mb": 4760
+  },
+  "m2m100_418M_lug_en_rel_news_ft-int8": {
+    "arch": "m2m100",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/m2m100_418M_lug_en_rel_news_ft-onnx",
+    "license": "AFL-3.0",
+    "license_tier": "permissive",
+    "model_id": "m2m100_418M_lug_en_rel_news_ft-int8",
+    "notes": "M2M100-418M fine-tune, Luganda -> English.",
+    "pair": [
+      "lg",
+      "en"
+    ],
+    "precision": "int8",
+    "provenance_org": "Masakhane",
+    "release_date": "2022-04-09",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "vocab": "int8/vocab.json",
+      "added_tokens": "int8/added_tokens.json"
+    },
+    "size_mb": 3175
   },
   "m2m100_418M_mos_fr_rel_news_ft": {
     "arch": "m2m100",
@@ -9093,6 +9499,210 @@
     "license": "CC-BY-NC-4.0",
     "license_tier": "non-commercial",
     "model_id": "nllb-600M",
+    "native_codes": {
+      "ace": "ace_Latn",
+      "ace-Arab": "ace_Arab",
+      "acm": "acm_Arab",
+      "acq": "acq_Arab",
+      "aeb": "aeb_Arab",
+      "af": "afr_Latn",
+      "ajp": "ajp_Arab",
+      "ak": "aka_Latn",
+      "am": "amh_Ethi",
+      "apc": "apc_Arab",
+      "ar": "arb_Arab",
+      "ars": "ars_Arab",
+      "ary": "ary_Arab",
+      "arz": "arz_Arab",
+      "as": "asm_Beng",
+      "ast": "ast_Latn",
+      "awa": "awa_Deva",
+      "ayr": "ayr_Latn",
+      "az": "azj_Latn",
+      "azb": "azb_Arab",
+      "ba": "bak_Cyrl",
+      "ban": "ban_Latn",
+      "be": "bel_Cyrl",
+      "bem": "bem_Latn",
+      "bg": "bul_Cyrl",
+      "bho": "bho_Deva",
+      "bjn": "bjn_Latn",
+      "bjn-Arab": "bjn_Arab",
+      "bm": "bam_Latn",
+      "bn": "ben_Beng",
+      "bo": "bod_Tibt",
+      "bs": "bos_Latn",
+      "bug": "bug_Latn",
+      "ca": "cat_Latn",
+      "ceb": "ceb_Latn",
+      "cjk": "cjk_Latn",
+      "ckb": "ckb_Arab",
+      "crh": "crh_Latn",
+      "cs": "ces_Latn",
+      "cy": "cym_Latn",
+      "da": "dan_Latn",
+      "de": "deu_Latn",
+      "dik": "dik_Latn",
+      "dyu": "dyu_Latn",
+      "dz": "dzo_Tibt",
+      "ee": "ewe_Latn",
+      "el": "ell_Grek",
+      "en": "eng_Latn",
+      "eo": "epo_Latn",
+      "es": "spa_Latn",
+      "et": "est_Latn",
+      "eu": "eus_Latn",
+      "fa": "pes_Arab",
+      "fa-AF": "prs_Arab",
+      "fi": "fin_Latn",
+      "fil": "tgl_Latn",
+      "fj": "fij_Latn",
+      "fo": "fao_Latn",
+      "fon": "fon_Latn",
+      "fr": "fra_Latn",
+      "fur": "fur_Latn",
+      "fuv": "fuv_Latn",
+      "ga": "gle_Latn",
+      "gaz": "gaz_Latn",
+      "gd": "gla_Latn",
+      "gl": "glg_Latn",
+      "gn": "grn_Latn",
+      "gu": "guj_Gujr",
+      "ha": "hau_Latn",
+      "he": "heb_Hebr",
+      "hi": "hin_Deva",
+      "hne": "hne_Deva",
+      "hr": "hrv_Latn",
+      "ht": "hat_Latn",
+      "hu": "hun_Latn",
+      "hy": "hye_Armn",
+      "id": "ind_Latn",
+      "ig": "ibo_Latn",
+      "ilo": "ilo_Latn",
+      "is": "isl_Latn",
+      "it": "ita_Latn",
+      "ja": "jpn_Jpan",
+      "jv": "jav_Latn",
+      "ka": "kat_Geor",
+      "kab": "kab_Latn",
+      "kac": "kac_Latn",
+      "kam": "kam_Latn",
+      "kbp": "kbp_Latn",
+      "kea": "kea_Latn",
+      "kg": "kon_Latn",
+      "ki": "kik_Latn",
+      "kk": "kaz_Cyrl",
+      "km": "khm_Khmr",
+      "kmb": "kmb_Latn",
+      "kmr": "kmr_Latn",
+      "kn": "kan_Knda",
+      "knc": "knc_Latn",
+      "knc-Arab": "knc_Arab",
+      "ko": "kor_Hang",
+      "ks": "kas_Arab",
+      "ks-Deva": "kas_Deva",
+      "ky": "kir_Cyrl",
+      "lb": "ltz_Latn",
+      "lg": "lug_Latn",
+      "li": "lim_Latn",
+      "lij": "lij_Latn",
+      "lmo": "lmo_Latn",
+      "ln": "lin_Latn",
+      "lo": "lao_Laoo",
+      "lt": "lit_Latn",
+      "ltg": "ltg_Latn",
+      "lua": "lua_Latn",
+      "luo": "luo_Latn",
+      "lus": "lus_Latn",
+      "lv": "lvs_Latn",
+      "mag": "mag_Deva",
+      "mai": "mai_Deva",
+      "mg": "plt_Latn",
+      "mi": "mri_Latn",
+      "min": "min_Latn",
+      "mk": "mkd_Cyrl",
+      "ml": "mal_Mlym",
+      "mn": "khk_Cyrl",
+      "mni": "mni_Beng",
+      "mos": "mos_Latn",
+      "mr": "mar_Deva",
+      "ms": "zsm_Latn",
+      "mt": "mlt_Latn",
+      "my": "mya_Mymr",
+      "nb": "nob_Latn",
+      "ne": "npi_Deva",
+      "nl": "nld_Latn",
+      "nn": "nno_Latn",
+      "nso": "nso_Latn",
+      "nus": "nus_Latn",
+      "ny": "nya_Latn",
+      "oc": "oci_Latn",
+      "or": "ory_Orya",
+      "pa": "pan_Guru",
+      "pag": "pag_Latn",
+      "pap": "pap_Latn",
+      "pl": "pol_Latn",
+      "ps": "pbt_Arab",
+      "pt": "por_Latn",
+      "quy": "quy_Latn",
+      "rn": "run_Latn",
+      "ro": "ron_Latn",
+      "ru": "rus_Cyrl",
+      "rw": "kin_Latn",
+      "sa": "san_Deva",
+      "sat-Beng": "sat_Beng",
+      "sc": "srd_Latn",
+      "scn": "scn_Latn",
+      "sd": "snd_Arab",
+      "sg": "sag_Latn",
+      "shn": "shn_Mymr",
+      "si": "sin_Sinh",
+      "sk": "slk_Latn",
+      "sl": "slv_Latn",
+      "sm": "smo_Latn",
+      "sn": "sna_Latn",
+      "so": "som_Latn",
+      "sq": "als_Latn",
+      "sr-Cyrl": "srp_Cyrl",
+      "ss": "ssw_Latn",
+      "st": "sot_Latn",
+      "su": "sun_Latn",
+      "sv": "swe_Latn",
+      "sw": "swh_Latn",
+      "szl": "szl_Latn",
+      "ta": "tam_Taml",
+      "taq": "taq_Latn",
+      "taq-Tfng": "taq_Tfng",
+      "te": "tel_Telu",
+      "tg": "tgk_Cyrl",
+      "th": "tha_Thai",
+      "ti": "tir_Ethi",
+      "tk": "tuk_Latn",
+      "tn": "tsn_Latn",
+      "tpi": "tpi_Latn",
+      "tr": "tur_Latn",
+      "ts": "tso_Latn",
+      "tt": "tat_Cyrl",
+      "tum": "tum_Latn",
+      "tw": "twi_Latn",
+      "tzm": "tzm_Tfng",
+      "ug": "uig_Arab",
+      "uk": "ukr_Cyrl",
+      "umb": "umb_Latn",
+      "ur": "urd_Arab",
+      "uz": "uzn_Latn",
+      "vec": "vec_Latn",
+      "vi": "vie_Latn",
+      "war": "war_Latn",
+      "wo": "wol_Latn",
+      "xh": "xho_Latn",
+      "yi": "ydd_Hebr",
+      "yo": "yor_Latn",
+      "yue": "yue_Hant",
+      "zh-Hans": "zho_Hans",
+      "zh-Hant": "zho_Hant",
+      "zu": "zul_Latn"
+    },
     "precision": "fp32",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
@@ -9322,6 +9932,210 @@
     "license": "CC-BY-NC-4.0",
     "license_tier": "non-commercial",
     "model_id": "nllb-600M-int8",
+    "native_codes": {
+      "ace": "ace_Latn",
+      "ace-Arab": "ace_Arab",
+      "acm": "acm_Arab",
+      "acq": "acq_Arab",
+      "aeb": "aeb_Arab",
+      "af": "afr_Latn",
+      "ajp": "ajp_Arab",
+      "ak": "aka_Latn",
+      "am": "amh_Ethi",
+      "apc": "apc_Arab",
+      "ar": "arb_Arab",
+      "ars": "ars_Arab",
+      "ary": "ary_Arab",
+      "arz": "arz_Arab",
+      "as": "asm_Beng",
+      "ast": "ast_Latn",
+      "awa": "awa_Deva",
+      "ayr": "ayr_Latn",
+      "az": "azj_Latn",
+      "azb": "azb_Arab",
+      "ba": "bak_Cyrl",
+      "ban": "ban_Latn",
+      "be": "bel_Cyrl",
+      "bem": "bem_Latn",
+      "bg": "bul_Cyrl",
+      "bho": "bho_Deva",
+      "bjn": "bjn_Latn",
+      "bjn-Arab": "bjn_Arab",
+      "bm": "bam_Latn",
+      "bn": "ben_Beng",
+      "bo": "bod_Tibt",
+      "bs": "bos_Latn",
+      "bug": "bug_Latn",
+      "ca": "cat_Latn",
+      "ceb": "ceb_Latn",
+      "cjk": "cjk_Latn",
+      "ckb": "ckb_Arab",
+      "crh": "crh_Latn",
+      "cs": "ces_Latn",
+      "cy": "cym_Latn",
+      "da": "dan_Latn",
+      "de": "deu_Latn",
+      "dik": "dik_Latn",
+      "dyu": "dyu_Latn",
+      "dz": "dzo_Tibt",
+      "ee": "ewe_Latn",
+      "el": "ell_Grek",
+      "en": "eng_Latn",
+      "eo": "epo_Latn",
+      "es": "spa_Latn",
+      "et": "est_Latn",
+      "eu": "eus_Latn",
+      "fa": "pes_Arab",
+      "fa-AF": "prs_Arab",
+      "fi": "fin_Latn",
+      "fil": "tgl_Latn",
+      "fj": "fij_Latn",
+      "fo": "fao_Latn",
+      "fon": "fon_Latn",
+      "fr": "fra_Latn",
+      "fur": "fur_Latn",
+      "fuv": "fuv_Latn",
+      "ga": "gle_Latn",
+      "gaz": "gaz_Latn",
+      "gd": "gla_Latn",
+      "gl": "glg_Latn",
+      "gn": "grn_Latn",
+      "gu": "guj_Gujr",
+      "ha": "hau_Latn",
+      "he": "heb_Hebr",
+      "hi": "hin_Deva",
+      "hne": "hne_Deva",
+      "hr": "hrv_Latn",
+      "ht": "hat_Latn",
+      "hu": "hun_Latn",
+      "hy": "hye_Armn",
+      "id": "ind_Latn",
+      "ig": "ibo_Latn",
+      "ilo": "ilo_Latn",
+      "is": "isl_Latn",
+      "it": "ita_Latn",
+      "ja": "jpn_Jpan",
+      "jv": "jav_Latn",
+      "ka": "kat_Geor",
+      "kab": "kab_Latn",
+      "kac": "kac_Latn",
+      "kam": "kam_Latn",
+      "kbp": "kbp_Latn",
+      "kea": "kea_Latn",
+      "kg": "kon_Latn",
+      "ki": "kik_Latn",
+      "kk": "kaz_Cyrl",
+      "km": "khm_Khmr",
+      "kmb": "kmb_Latn",
+      "kmr": "kmr_Latn",
+      "kn": "kan_Knda",
+      "knc": "knc_Latn",
+      "knc-Arab": "knc_Arab",
+      "ko": "kor_Hang",
+      "ks": "kas_Arab",
+      "ks-Deva": "kas_Deva",
+      "ky": "kir_Cyrl",
+      "lb": "ltz_Latn",
+      "lg": "lug_Latn",
+      "li": "lim_Latn",
+      "lij": "lij_Latn",
+      "lmo": "lmo_Latn",
+      "ln": "lin_Latn",
+      "lo": "lao_Laoo",
+      "lt": "lit_Latn",
+      "ltg": "ltg_Latn",
+      "lua": "lua_Latn",
+      "luo": "luo_Latn",
+      "lus": "lus_Latn",
+      "lv": "lvs_Latn",
+      "mag": "mag_Deva",
+      "mai": "mai_Deva",
+      "mg": "plt_Latn",
+      "mi": "mri_Latn",
+      "min": "min_Latn",
+      "mk": "mkd_Cyrl",
+      "ml": "mal_Mlym",
+      "mn": "khk_Cyrl",
+      "mni": "mni_Beng",
+      "mos": "mos_Latn",
+      "mr": "mar_Deva",
+      "ms": "zsm_Latn",
+      "mt": "mlt_Latn",
+      "my": "mya_Mymr",
+      "nb": "nob_Latn",
+      "ne": "npi_Deva",
+      "nl": "nld_Latn",
+      "nn": "nno_Latn",
+      "nso": "nso_Latn",
+      "nus": "nus_Latn",
+      "ny": "nya_Latn",
+      "oc": "oci_Latn",
+      "or": "ory_Orya",
+      "pa": "pan_Guru",
+      "pag": "pag_Latn",
+      "pap": "pap_Latn",
+      "pl": "pol_Latn",
+      "ps": "pbt_Arab",
+      "pt": "por_Latn",
+      "quy": "quy_Latn",
+      "rn": "run_Latn",
+      "ro": "ron_Latn",
+      "ru": "rus_Cyrl",
+      "rw": "kin_Latn",
+      "sa": "san_Deva",
+      "sat-Beng": "sat_Beng",
+      "sc": "srd_Latn",
+      "scn": "scn_Latn",
+      "sd": "snd_Arab",
+      "sg": "sag_Latn",
+      "shn": "shn_Mymr",
+      "si": "sin_Sinh",
+      "sk": "slk_Latn",
+      "sl": "slv_Latn",
+      "sm": "smo_Latn",
+      "sn": "sna_Latn",
+      "so": "som_Latn",
+      "sq": "als_Latn",
+      "sr-Cyrl": "srp_Cyrl",
+      "ss": "ssw_Latn",
+      "st": "sot_Latn",
+      "su": "sun_Latn",
+      "sv": "swe_Latn",
+      "sw": "swh_Latn",
+      "szl": "szl_Latn",
+      "ta": "tam_Taml",
+      "taq": "taq_Latn",
+      "taq-Tfng": "taq_Tfng",
+      "te": "tel_Telu",
+      "tg": "tgk_Cyrl",
+      "th": "tha_Thai",
+      "ti": "tir_Ethi",
+      "tk": "tuk_Latn",
+      "tn": "tsn_Latn",
+      "tpi": "tpi_Latn",
+      "tr": "tur_Latn",
+      "ts": "tso_Latn",
+      "tt": "tat_Cyrl",
+      "tum": "tum_Latn",
+      "tw": "twi_Latn",
+      "tzm": "tzm_Tfng",
+      "ug": "uig_Arab",
+      "uk": "ukr_Cyrl",
+      "umb": "umb_Latn",
+      "ur": "urd_Arab",
+      "uz": "uzn_Latn",
+      "vec": "vec_Latn",
+      "vi": "vie_Latn",
+      "war": "war_Latn",
+      "wo": "wol_Latn",
+      "xh": "xho_Latn",
+      "yi": "ydd_Hebr",
+      "yo": "yor_Latn",
+      "yue": "yue_Hant",
+      "zh-Hans": "zho_Hans",
+      "zh-Hant": "zho_Hant",
+      "zu": "zul_Latn"
+    },
     "precision": "int8",
     "side_files": {
       "spm": "sentencepiece.bpe.model",
@@ -9329,6 +10143,420 @@
       "generation_config": "int8/generation_config.json",
       "special_tokens_map": "special_tokens_map.json",
       "tokenizer_json": "tokenizer.json"
+    },
+    "size_mb": 1899
+  },
+  "nllb_200_distilled_600m-amh-eng": {
+    "arch": "nllb",
+    "extra_files": [
+      "decoder_model.onnx_data",
+      "decoder_with_past_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nllb_200_distilled_600m-amh-eng-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "nllb_200_distilled_600m-amh-eng",
+    "native_codes": {
+      "en": "eng_Latn",
+      "am": "amh_Ethi"
+    },
+    "notes": "DSFSI NLLB-200-600M fine-tune, Amharic -> English.",
+    "pair": [
+      "am",
+      "en"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
+    },
+    "size_mb": 7414
+  },
+  "nllb_200_distilled_600m-amh-eng-int8": {
+    "arch": "nllb",
+    "extra_files": [
+      "int8/decoder_model.onnx_data",
+      "int8/decoder_with_past_model.onnx_data",
+      "int8/encoder_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nllb_200_distilled_600m-amh-eng-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "nllb_200_distilled_600m-amh-eng-int8",
+    "native_codes": {
+      "en": "eng_Latn",
+      "am": "amh_Ethi"
+    },
+    "notes": "DSFSI NLLB-200-600M fine-tune, Amharic -> English.",
+    "pair": [
+      "am",
+      "en"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "tokenizer_json": "int8/tokenizer.json"
+    },
+    "size_mb": 1899
+  },
+  "nllb_200_distilled_600m-eng-amh": {
+    "arch": "nllb",
+    "extra_files": [
+      "decoder_model.onnx_data",
+      "decoder_with_past_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nllb_200_distilled_600m-eng-amh-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "nllb_200_distilled_600m-eng-amh",
+    "native_codes": {
+      "en": "eng_Latn",
+      "am": "amh_Ethi"
+    },
+    "notes": "DSFSI NLLB-200-600M fine-tune, English -> Amharic.",
+    "pair": [
+      "en",
+      "am"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
+    },
+    "size_mb": 7414
+  },
+  "nllb_200_distilled_600m-eng-amh-int8": {
+    "arch": "nllb",
+    "extra_files": [
+      "int8/decoder_model.onnx_data",
+      "int8/decoder_with_past_model.onnx_data",
+      "int8/encoder_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nllb_200_distilled_600m-eng-amh-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "nllb_200_distilled_600m-eng-amh-int8",
+    "native_codes": {
+      "en": "eng_Latn",
+      "am": "amh_Ethi"
+    },
+    "notes": "DSFSI NLLB-200-600M fine-tune, English -> Amharic.",
+    "pair": [
+      "en",
+      "am"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "tokenizer_json": "int8/tokenizer.json"
+    },
+    "size_mb": 1899
+  },
+  "nllb_200_distilled_600m-eng-yor": {
+    "arch": "nllb",
+    "extra_files": [
+      "decoder_model.onnx_data",
+      "decoder_with_past_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nllb_200_distilled_600m-eng-yor-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "nllb_200_distilled_600m-eng-yor",
+    "native_codes": {
+      "en": "eng_Latn",
+      "yo": "yor_Latn"
+    },
+    "notes": "DSFSI NLLB-200-600M fine-tune, English -> Yoruba.",
+    "pair": [
+      "en",
+      "yo"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
+    },
+    "size_mb": 7414
+  },
+  "nllb_200_distilled_600m-eng-yor-int8": {
+    "arch": "nllb",
+    "extra_files": [
+      "int8/decoder_model.onnx_data",
+      "int8/decoder_with_past_model.onnx_data",
+      "int8/encoder_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nllb_200_distilled_600m-eng-yor-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "nllb_200_distilled_600m-eng-yor-int8",
+    "native_codes": {
+      "en": "eng_Latn",
+      "yo": "yor_Latn"
+    },
+    "notes": "DSFSI NLLB-200-600M fine-tune, English -> Yoruba.",
+    "pair": [
+      "en",
+      "yo"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "tokenizer_json": "int8/tokenizer.json"
+    },
+    "size_mb": 1899
+  },
+  "nllb_200_distilled_600m-eng-zul": {
+    "arch": "nllb",
+    "extra_files": [
+      "decoder_model.onnx_data",
+      "decoder_with_past_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nllb_200_distilled_600m-eng-zul-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "nllb_200_distilled_600m-eng-zul",
+    "native_codes": {
+      "en": "eng_Latn",
+      "zu": "zul_Latn"
+    },
+    "notes": "DSFSI NLLB-200-600M fine-tune, English -> Zulu.",
+    "pair": [
+      "en",
+      "zu"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
+    },
+    "size_mb": 7414
+  },
+  "nllb_200_distilled_600m-eng-zul-int8": {
+    "arch": "nllb",
+    "extra_files": [
+      "int8/decoder_model.onnx_data",
+      "int8/decoder_with_past_model.onnx_data",
+      "int8/encoder_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nllb_200_distilled_600m-eng-zul-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "nllb_200_distilled_600m-eng-zul-int8",
+    "native_codes": {
+      "en": "eng_Latn",
+      "zu": "zul_Latn"
+    },
+    "notes": "DSFSI NLLB-200-600M fine-tune, English -> Zulu.",
+    "pair": [
+      "en",
+      "zu"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "tokenizer_json": "int8/tokenizer.json"
+    },
+    "size_mb": 1899
+  },
+  "nllb_200_distilled_600m-yor-eng": {
+    "arch": "nllb",
+    "extra_files": [
+      "decoder_model.onnx_data",
+      "decoder_with_past_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nllb_200_distilled_600m-yor-eng-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "nllb_200_distilled_600m-yor-eng",
+    "native_codes": {
+      "en": "eng_Latn",
+      "yo": "yor_Latn"
+    },
+    "notes": "DSFSI NLLB-200-600M fine-tune, Yoruba -> English.",
+    "pair": [
+      "yo",
+      "en"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
+    },
+    "size_mb": 7414
+  },
+  "nllb_200_distilled_600m-yor-eng-int8": {
+    "arch": "nllb",
+    "extra_files": [
+      "int8/decoder_model.onnx_data",
+      "int8/decoder_with_past_model.onnx_data",
+      "int8/encoder_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nllb_200_distilled_600m-yor-eng-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "nllb_200_distilled_600m-yor-eng-int8",
+    "native_codes": {
+      "en": "eng_Latn",
+      "yo": "yor_Latn"
+    },
+    "notes": "DSFSI NLLB-200-600M fine-tune, Yoruba -> English.",
+    "pair": [
+      "yo",
+      "en"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "tokenizer_json": "int8/tokenizer.json"
+    },
+    "size_mb": 1899
+  },
+  "nllb_200_distilled_600m-zul-eng": {
+    "arch": "nllb",
+    "extra_files": [
+      "decoder_model.onnx_data",
+      "decoder_with_past_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nllb_200_distilled_600m-zul-eng-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "nllb_200_distilled_600m-zul-eng",
+    "native_codes": {
+      "en": "eng_Latn",
+      "zu": "zul_Latn"
+    },
+    "notes": "DSFSI NLLB-200-600M fine-tune, Zulu -> English.",
+    "pair": [
+      "zu",
+      "en"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "spm": "sentencepiece.bpe.model",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json",
+      "tokenizer_json": "tokenizer.json"
+    },
+    "size_mb": 7414
+  },
+  "nllb_200_distilled_600m-zul-eng-int8": {
+    "arch": "nllb",
+    "extra_files": [
+      "int8/decoder_model.onnx_data",
+      "int8/decoder_with_past_model.onnx_data",
+      "int8/encoder_model.onnx_data"
+    ],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/nllb_200_distilled_600m-zul-eng-onnx",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "nllb_200_distilled_600m-zul-eng-int8",
+    "native_codes": {
+      "en": "eng_Latn",
+      "zu": "zul_Latn"
+    },
+    "notes": "DSFSI NLLB-200-600M fine-tune, Zulu -> English.",
+    "pair": [
+      "zu",
+      "en"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "spm": "int8/sentencepiece.bpe.model",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json",
+      "tokenizer_json": "int8/tokenizer.json"
     },
     "size_mb": 1899
   },
