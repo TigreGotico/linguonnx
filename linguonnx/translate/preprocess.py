@@ -64,6 +64,12 @@ class Pipeline:
         """The decoder's first generated token, when the architecture forces one."""
         return None
 
+    def decoder_start(self, model, tgt: str) -> Optional[int]:
+        """The decoder's first input token, when the architecture picks it per
+        call. ``None`` keeps the ``decoder_start_token_id`` of the model's
+        config."""
+        return None
+
     def decode(self, model, ids: Sequence[int], src: str, tgt: str) -> str:
         raise NotImplementedError
 
@@ -135,7 +141,30 @@ class SpmLangTokenPipeline(Pipeline):
         return model.tokenizer.decode(ids)
 
 
-@register("marian", "pegasus-fast")
+@register("mbart")
+class MBartPipeline(Pipeline):
+    """mBART. Source tag after the input's ``</s>``, target tag as decoder start.
+
+    The target tag is the decoder's first *input*, not a token forced as its
+    first output: fairseq trained mBART's decoder on ``[tgt_lang] pieces``,
+    and the upstream usage passes
+    ``decoder_start_token_id=lang_code_to_id["en_XX"]``.
+    Forcing it as the first output instead puts a start token in front of it,
+    a two-token prefix the model was never trained on.
+    """
+
+    def encode(self, model, text, src, tgt, target_token=None):
+        return self.check_length(
+            model.tokenizer.encode(text, model.native_code(src)), model)
+
+    def decoder_start(self, model, tgt):
+        return model.tokenizer.lang_id(model.native_code(tgt))
+
+    def decode(self, model, ids, src, tgt):
+        return model.tokenizer.decode(ids)
+
+
+@register("marian", "pegasus-fast", "t5-fast")
 class MarianPipeline(Pipeline):
     """opus-mt. The model is the pair; only group models take a target token.
 
@@ -146,6 +175,12 @@ class MarianPipeline(Pipeline):
     ``.model``) but the same ``encode(text, target_token=...)`` /
     ``decode(ids)`` shape, and like Marian's dedicated pairs it never needs a
     target token.
+
+    ``t5-fast`` is a T5 fine-tune trained on plain source text, with no
+    ``<2xx>`` piece and no instruction in front of it, tokenized from a
+    ``tokenizer.json``. The model is the direction, as for Marian, so it
+    shares this pipeline rather than the two T5 ones, which both put a
+    prefix on the input.
     """
 
     def encode(self, model, text, src, tgt, target_token=None):

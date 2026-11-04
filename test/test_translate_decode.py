@@ -251,6 +251,29 @@ def test_forced_bos_is_the_first_generated_token_greedy(toy):
     assert out == _reference_greedy(9, 10)
 
 
+@pytest.mark.parametrize("beams", [1, 3])
+def test_a_per_call_decoder_start_replaces_the_configured_one(toy, beams):
+    """mBART starts the decoder on the target language's tag. The toy's state
+    begins at the start token, so the output follows the start it was given."""
+    start = 5
+    config = GenerationConfig(num_beams=beams, max_new_tokens=12)
+    logits = lambda history: TABLE[(start + sum(history)) % N_STATES] \
+        .astype(np.float64)
+    reference = (_reference_greedy(None, 12, logits_for=logits) if beams == 1
+                 else _reference_beam(None, beams, 12, logits_for=logits))
+    assert toy.generate(INPUT, config=config,
+                        decoder_start_token_id=start) == reference
+    assert reference != (_reference_greedy(None, 12) if beams == 1
+                         else _reference_beam(None, beams, 12))
+
+
+def test_no_start_token_from_config_or_caller_raises(toy):
+    decoder = Seq2SeqDecoder(toy.encoder, toy.decoder, toy.decoder_past,
+                             eos_id=EOS, pad_id=PAD, decoder_start_id=None)
+    with pytest.raises(ValueError, match="decoder start token"):
+        decoder.generate(INPUT)
+
+
 def test_beam_matches_the_reference_beam_search(toy):
     """The cache-reordering test: logits depend on the whole history, so a
     mis-ordered KV cache gives a different sequence."""

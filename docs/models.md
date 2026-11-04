@@ -2,7 +2,7 @@
 
 Two JSON files under `linguonnx/model_index/` say what exists: `lid.json` for
 language identification and `translate.json` for translation. They hold 12 and
-421 entries. Every ONNX entry names a HuggingFace repo, the exact files to
+424 entries. Every ONNX entry names a HuggingFace repo, the exact files to
 fetch, the languages covered, the licence and the size. A rule-based entry
 names a Python function instead of files. See
 [Rule-based models](#rule-based-models).
@@ -13,7 +13,7 @@ it sounds.
 
 ## What is in the translation registry
 
-421 entries is 209 int8 and 210 fp32 entries across 210 models, plus 2
+424 entries is 210 int8 and 212 fp32 entries across 212 models, plus 2
 rule-based entries. `load_translator()` defaults to `precision="int8"`; pass
 `precision="fp32"` or `precision=None` for both. A rule-based entry has no
 weights and no precision, so the precision filter never removes it.
@@ -40,6 +40,8 @@ weights and no precision, so the precision filter never removes it.
 | `mt-hitz-*` (6) | Marian | `ca-eu`, `en-eu`, `es-eu`, `eu-en`, `eu-es`, `gl-eu` | 90 MB – 153 MB | Apache-2.0 |
 | `m2m100_418M_*` African fine-tunes (12) | M2M100 | one pair each; fr↔{bam, bbj, mos}, fr → {fon, ewe}, en↔hau, en↔nso | 1.21 GB – 3.18 GB | Apache-2.0 for the `nso` pair; **AFL-3.0 for the rest** |
 | `translate-eus-cat`, `translate-oci-cat` | Pegasus (fast) | `eu-ca`, `oc-ca` | 590 MB each | MIT |
+| `arat5-arabic-dialects-translation` | T5 (fast), AraT5 fine-tune | 12 Arabic varieties → Modern Standard Arabic (`ar`), **one-way**: acm, aeb, afb, apc, apd, arq, ars, ary, arz, ayl, ayn, ayp | 2.0 GB | Apache-2.0 |
+| `vinai-translate-vi2en-v2` | mBART fine-tune | Vietnamese → English, **one-way**; fp32 only, no int8 | 3.5 GB (fp32) | **AGPL-3.0** |
 | `opus-mt-*` (124) | Marian | one pair each | 78 MB – 716 MB | Apache-2.0 or CC-BY-4.0 |
 | `afrigloss-opus-mt-*` (14) | Marian fine-tune | one pair each; en → {ee, ha, ig, sn, sw, tw, yo}, fr → {ee, ha, ig, sn, sw, tw, yo} | 216 MB – 904 MB | **CC-BY-NC-4.0**; fr-ee, fr-ha, fr-ig, fr-sn: Apache-2.0 |
 | `afrigloss-nllb-600m`, `-1.3b` | NLLB-200 fine-tune | {en, fr} → {ee, ha, ig, sn, sw, tw, yo}: 14 directions | 1.9 GB – 11.9 GB | **CC-BY-NC-4.0** |
@@ -70,7 +72,7 @@ tc-big-zle-en  th-en  tl-en  tn-en  tr-az  tr-en  ts-en  uk-en
 ur-en  vi-en  xh-en  zh-en
 ```
 
-Together they reach 596 languages over the default graph. MADLAD supplies most
+Together they reach 606 languages over the default graph. MADLAD supplies most
 of the tail: nearly three hundred languages that no other model here has.
 
 Thirty-two entries are non-commercial and out of the default graph:
@@ -182,7 +184,7 @@ print(entry["arch"], entry["pair"], entry["license"], entry["size_mb"])
 # marian ['pt', 'en'] Apache-2.0 172
 
 print(len(list_models(kind="translate")), len(list_models(kind="lid")))
-# 421 12
+# 424 12
 ```
 
 ## The download cache
@@ -516,6 +518,17 @@ The `afrigloss-nllb-*` models also keep a `<term>` in angle brackets, as the
 no space before `.`, `,`, `?` and `!`, and English contractions joined.
 `IbRo-nllb` emits a separate full-stop piece in Asturian and relies on it. The
 registry records the file only for an export that sets the flag.
+
+**Arabic varieties.** `arat5-arabic-dialects-translation` rewrites dialectal
+Arabic as Modern Standard Arabic. Its input carries no dialect label and no
+prefix, and its `tokenizer.json` holds a BPE model, so it loads through the
+`tokenizers` package (`fast-tokenizers` extra). The card names no varieties.
+The training data is MADAR's 25 city dialects plus a Levantine and Maghrebi
+corpus, and the registered sources are the varieties whose city blocks in that
+data are named by their own dialect features. Hijazi, Omani and Saidi Arabic
+are in the data too but are not registered, because which block holds each is
+not settled. The `tokenizer.json` also sets truncation at 64 tokens, which
+`transformers` ignores unless asked; linguonnx switches it off the same way.
 
 **Valencian.** `IbRo-nllb` also has a Valencian token, `val_Latn`, which the
 registry does not register. The router treats `ca-valencia` as `ca`, so a
