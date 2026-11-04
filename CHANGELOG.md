@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.22.0a1](https://github.com/TigreGotico/linguonnx/tree/0.22.0a1) (2026-11-04)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.21.0a1...0.22.0a1)
+
+**Merged pull requests:**
+
+- feat\(translate\): run mBART and register vinai-translate-vi2en-v2 [\#129](https://github.com/TigreGotico/linguonnx/pull/129) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.21.0a1](https://github.com/TigreGotico/linguonnx/tree/0.21.0a1) (2026-11-04)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.20.0a1...0.21.0a1)
@@ -374,10 +382,6 @@
 ## [0.5.3a1](https://github.com/TigreGotico/linguonnx/tree/0.5.3a1) (2026-08-02)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.2a1...0.5.3a1)
-
-**Merged pull requests:**
-
-- fix: bound untrusted input and validate decoding knobs [\#20](https://github.com/TigreGotico/linguonnx/pull/20) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.5.2a1](https://github.com/TigreGotico/linguonnx/tree/0.5.2a1) (2026-08-02)
 
