@@ -160,13 +160,19 @@ def test_translate_entry_carries_side_files_its_tokenizer_needs(model_id):
 def test_lid_entry_is_complete(model_id):
     entry = LID[model_id]
     for key in ("model_id", "hf_repo", "onnx_file", "side_files", "license",
-                "engine", "loss", "num_labels", "size_mb", "precision"):
+                "engine", "num_labels", "size_mb", "precision"):
         assert key in entry, f"{model_id} is missing {key!r}"
     assert entry["license"].strip()
     assert entry["onnx_file"].endswith(".onnx")
     assert entry["num_labels"] > 0
     assert entry["size_mb"] > 0
-    assert {"vocab", "labels", "config"} <= set(entry["side_files"])
+    required = {
+        "fasttext-onnx": {"vocab", "labels", "config"},
+        "transformer-onnx": {"tokenizer_json", "config"},
+    }[entry["engine"]]
+    assert required <= set(entry["side_files"])
+    if entry["engine"] == "fasttext-onnx":
+        assert entry["loss"] in ("softmax", "hs")
 
 
 def test_every_entry_declares_exactly_one_kind_of_coverage():
@@ -1457,3 +1463,71 @@ class TestARuleBasedEntrySurvivesAResync:
         assert sync.main([]) == 0
         assert self._registry(sync)["pt2barranquenho"]["quality"] == \
             {"chrf_vs_ref": 50.0}
+
+
+class TestTransformerLidEntries:
+    """`lid_entries` on a transformer sequence-classification export, offline."""
+
+    FILES = {"model.onnx": 1_000_000_000, "model.int8.onnx": 250_000_000,
+             "config.json": 10_000, "tokenizer.json": 30_000_000}
+    CONFIG = {"architectures": ["XLMRobertaForSequenceClassification"],
+              "model_type": "xlm-roberta",
+              "problem_type": "single_label_classification",
+              "id2label": {"0": "yor", "1": "hau", "2": "nan_lang"}}
+
+    @pytest.fixture
+    def sync(self):
+        return _load_sync_registry()
+
+    def _entries(self, sync, monkeypatch, name, config, license="apache-2.0"):
+        monkeypatch.setattr(sync, "raw_file",
+                            lambda repo_id, path: json.dumps(config))
+        detail = {"cardData": {"license": license},
+                  "siblings": [{"rfilename": f, "size": n}
+                               for f, n in self.FILES.items()]}
+        assert sync.classify(sync._files_of(detail)) == "lid"
+        return sync.lid_entries(f"TigreGotico/{name}-onnx", detail, "")
+
+    def test_both_precisions_are_registered_for_the_transformer_engine(
+            self, sync, monkeypatch):
+        entries = self._entries(sync, monkeypatch, "some-lid", self.CONFIG)
+        assert sorted(entries) == ["some-lid", "some-lid-int8"]
+        fp32, int8 = entries["some-lid"], entries["some-lid-int8"]
+        assert fp32["engine"] == int8["engine"] == "transformer-onnx"
+        assert fp32["onnx_file"] == "model.onnx"
+        assert int8["onnx_file"] == "model.int8.onnx"
+        assert fp32["side_files"] == {"tokenizer_json": "tokenizer.json",
+                                      "config": "config.json"}
+        assert fp32["num_labels"] == 3
+        assert fp32["license"] == "Apache-2.0"
+        assert fp32["size_mb"] == 1030
+        assert "loss" not in fp32
+
+    def test_a_classifier_whose_labels_are_not_languages_is_refused(
+            self, sync, monkeypatch):
+        config = dict(self.CONFIG, id2label={"0": "Cairo", "1": "Doha"})
+        with pytest.raises(sync.SkipRepo, match="not language codes"):
+            self._entries(sync, monkeypatch, "some-lid", config)
+
+    def test_a_causal_lm_is_refused(self, sync, monkeypatch):
+        config = {"architectures": ["GemmaForCausalLM"], "model_type": "gemma"}
+        with pytest.raises(sync.SkipRepo, match="not a sequence classifier"):
+            self._entries(sync, monkeypatch, "some-lm", config)
+
+    def test_a_multi_label_head_is_refused(self, sync, monkeypatch):
+        config = dict(self.CONFIG, problem_type="multi_label_classification")
+        with pytest.raises(sync.SkipRepo, match="softmax"):
+            self._entries(sync, monkeypatch, "some-lid", config)
+
+    def test_afrolid_takes_the_upstream_licence_over_its_card(
+            self, sync, monkeypatch):
+        entries = self._entries(sync, monkeypatch, "afrolid_1.5", self.CONFIG,
+                                license="other")
+        assert {e["license"] for e in entries.values()} == {"Apache-2.0"}
+        assert all("Yoruba" in e["notes"] for e in entries.values())
+
+    def test_marbert_is_refused_for_its_terms(self, sync, monkeypatch):
+        with pytest.raises(sync.SkipRepo, match="exclusively for research"):
+            self._entries(sync, monkeypatch,
+                          "arabic-MARBERT-dialect-identification-city",
+                          self.CONFIG, license="other")

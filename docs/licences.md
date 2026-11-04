@@ -26,8 +26,11 @@ routes the more permissive chain wins.
 Nothing is filtered here, because a detector is one model and you chose it by
 name. But the choice matters:
 
-- **GlotLID** is Apache-2.0. It is the default, and stays the default, because
-  it is the only permissive option.
+- **GlotLID** is Apache-2.0. It is the default because it is permissive and
+  has the widest coverage.
+- **AfroLID** is Apache-2.0 as well. Its Hub card declares no licence; the
+  AfroLID repository states that its Apache-2.0 licence applies to the
+  pre-trained models. It covers African languages only.
 - **OpenLID and OpenLID-v2 are GPL-3.0**, inherited from the upstream models.
   If your project cares about licence compatibility, do not use them.
 - **lid.176** is CC-BY-SA-3.0, which has its own share-alike condition. It is
