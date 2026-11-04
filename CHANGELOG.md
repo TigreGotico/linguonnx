@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.21.0a1](https://github.com/TigreGotico/linguonnx/tree/0.21.0a1) (2026-11-04)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.20.0a1...0.21.0a1)
+
+**Merged pull requests:**
+
+- feat: run AraT5 dialect-to-MSA translation as t5-fast [\#127](https://github.com/TigreGotico/linguonnx/pull/127) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.20.0a1](https://github.com/TigreGotico/linguonnx/tree/0.20.0a1) (2026-11-04)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.19.0a2...0.20.0a1)
@@ -375,29 +383,21 @@
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.1...0.5.2a1)
 
-**Merged pull requests:**
-
-- fix: harden model download, caching and licence enforcement [\#19](https://github.com/TigreGotico/linguonnx/pull/19) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [0.5.1](https://github.com/TigreGotico/linguonnx/tree/0.5.1) (2026-08-02)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.1a1...0.5.1)
 
 ## [0.5.1a1](https://github.com/TigreGotico/linguonnx/tree/0.5.1a1) (2026-08-02)
 
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0a1...0.5.1a1)
-
-**Merged pull requests:**
-
-- Release 0.5.1a1 [\#18](https://github.com/TigreGotico/linguonnx/pull/18) ([github-actions[bot]](https://github.com/apps/github-actions))
-
-## [0.5.0a1](https://github.com/TigreGotico/linguonnx/tree/0.5.0a1) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0...0.5.0a1)
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0...0.5.1a1)
 
 ## [0.5.0](https://github.com/TigreGotico/linguonnx/tree/0.5.0) (2026-08-02)
 
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.4.0a1...0.5.0)
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0a1...0.5.0)
+
+## [0.5.0a1](https://github.com/TigreGotico/linguonnx/tree/0.5.0a1) (2026-08-02)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.4.0a1...0.5.0a1)
 
 ## [0.4.0a1](https://github.com/TigreGotico/linguonnx/tree/0.4.0a1) (2026-08-02)
 
