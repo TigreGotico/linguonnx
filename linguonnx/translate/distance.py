@@ -25,7 +25,7 @@ orderings the routing layer needs, e.g. ``pt->es`` 0.21 against ``pt->en``
 Do **not** switch this to ``full_distance`` or ``ancestry_similarity``. Their
 ancestry component is unreliable today: every Romance medieval stage in
 orthography2ipa (``ca-x-medieval``, ``es-ES-x-medieval``, ``pt-PT-x-medieval``,
-``roa-x-galaicopt``) carries an empty ancestry list, so Ibero-Romance languages
+``roa-x-galaico-pt``) carries an empty ancestry list, so Ibero-Romance languages
 never meet at a shared ancestor. ``full_distance`` therefore ranks English
 closer to Catalan than Spanish is. Check that data gap first if you ever want
 to revisit this.

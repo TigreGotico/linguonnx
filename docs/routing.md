@@ -79,7 +79,7 @@ so a missing package excludes the entry in the same way. The reason names the
 extra to install:
 
 ```
-no route from 'pt' to 'ext-PT-x-barrancos' within 2 hop(s) -- model(s) cover
+no route from 'pt' to 'ext-PT-x-barranco' within 2 hop(s) -- model(s) cover
 this pair but cannot be run: pt2barranquenho (the 'pt2barranquenho' package is
 not installed; install linguonnx[rules])
 ```
@@ -90,7 +90,7 @@ the `Route` shows the pivot and the licence of each hop:
 
 ```python
 tx = load_translator()
-route = tx.route("en", "ext-PT-x-barrancos")
+route = tx.route("en", "ext-PT-x-barranco")
 print(route.pivots)     # ('pt',)
 print(route.licenses)   # ('CC-BY-4.0', 'Apache-2.0')
 ```

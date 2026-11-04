@@ -17187,7 +17187,7 @@
     "notes": "Rule-based European Portuguese -> Barranquenho translator (TigreGotico/pt2barranquenho). It translates one line at a time and keeps {slots}. It has no reverse direction.",
     "pair": [
       "pt",
-      "ext-PT-x-barrancos"
+      "ext-PT-x-barranco"
     ],
     "size_mb": 0
   },
