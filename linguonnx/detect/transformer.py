@@ -18,6 +18,7 @@ from typing import Dict, List
 import numpy as np
 
 from linguonnx.limits import MAX_DETECT_CHARS, InputTooLongError, check_length
+from linguonnx.translate.tokenizers import load_fast_tokenizer
 
 # RoBERTa-family models number their positions from ``pad_token_id + 1``, so
 # that many rows of the position table can never hold a token.
@@ -43,21 +44,12 @@ class SequenceClassifier:
 
     def __init__(self, tokenizer_json, config: Dict, session,
                  max_chars: int = MAX_DETECT_CHARS):
-        try:
-            from tokenizers import Tokenizer
-        except ImportError as exc:
-            raise ImportError(
-                "this model's tokenizer is a `tokenizers`-library "
-                "tokenizer.json, which needs the 'tokenizers' package. "
-                "Install it: pip install 'linguonnx[fast-tokenizers]'") from exc
         problem_type = config.get("problem_type") or "single_label_classification"
         if problem_type != "single_label_classification":
             raise ValueError(
                 f"problem_type {problem_type!r}: only a softmax "
                 "(single_label_classification) head is a language decision")
-        self._tok = Tokenizer.from_file(str(tokenizer_json))
-        self._tok.no_truncation()
-        self._tok.no_padding()
+        self._tok = load_fast_tokenizer(tokenizer_json)
         self.labels = id2label(config)
         self.max_chars = max_chars
         self.max_tokens = max_input_tokens(config)
