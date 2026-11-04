@@ -335,435 +335,453 @@
     },
     "size_mb": 3040
   },
-  "afrigloss-nllb-1.3b": {
-    "arch": "nllb",
+  "Plume128k": {
+    "arch": "causal-lm",
     "directions": [
       [
-        "en",
-        "ee"
+        "ca",
+        "de"
+      ],
+      [
+        "ca",
+        "en"
+      ],
+      [
+        "ca",
+        "es"
+      ],
+      [
+        "ca",
+        "eu"
+      ],
+      [
+        "ca",
+        "fr"
+      ],
+      [
+        "ca",
+        "gl"
+      ],
+      [
+        "ca",
+        "it"
+      ],
+      [
+        "ca",
+        "pt"
+      ],
+      [
+        "de",
+        "ca"
       ],
       [
         "en",
-        "ha"
+        "ca"
       ],
       [
-        "en",
-        "ig"
+        "es",
+        "ca"
       ],
       [
-        "en",
-        "sn"
-      ],
-      [
-        "en",
-        "sw"
-      ],
-      [
-        "en",
-        "tw"
-      ],
-      [
-        "en",
-        "yo"
+        "eu",
+        "ca"
       ],
       [
         "fr",
-        "ee"
+        "ca"
       ],
       [
-        "fr",
-        "ha"
+        "gl",
+        "ca"
       ],
       [
-        "fr",
-        "ig"
+        "it",
+        "ca"
       ],
       [
-        "fr",
-        "sn"
-      ],
-      [
-        "fr",
-        "sw"
-      ],
-      [
-        "fr",
-        "tw"
-      ],
-      [
-        "fr",
-        "yo"
+        "pt",
+        "ca"
       ]
     ],
     "extra": "fast-tokenizers",
     "extra_files": [
-      "decoder_model.onnx_data",
-      "decoder_with_past_model.onnx_data",
-      "encoder_model.onnx_data"
+      "model.onnx_data"
     ],
     "graphs": {
-      "encoder": "encoder_model.onnx",
-      "decoder": "decoder_model.onnx",
-      "decoder_with_past": "decoder_with_past_model.onnx"
+      "model": "model.onnx"
     },
-    "hf_repo": "TigreGotico/afrigloss-nllb-1.3b-onnx",
+    "hf_repo": "TigreGotico/Plume128k-onnx",
     "languages": [
-      "ee",
+      "ca",
+      "de",
       "en",
+      "es",
+      "eu",
       "fr",
-      "ha",
-      "ig",
-      "sn",
-      "sw",
-      "tw",
-      "yo"
+      "gl",
+      "it",
+      "pt"
     ],
-    "license": "CC-BY-NC-4.0",
-    "license_tier": "non-commercial",
-    "model_id": "afrigloss-nllb-1.3b",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "Plume128k",
     "native_codes": {
-      "ee": "ewe_Latn",
+      "ca": "cat_Latn",
+      "de": "deu_Latn",
       "en": "eng_Latn",
+      "es": "spa_Latn",
+      "eu": "eus_Latn",
       "fr": "fra_Latn",
-      "ha": "hau_Latn",
-      "ig": "ibo_Latn",
-      "sn": "sna_Latn",
-      "sw": "swh_Latn",
-      "tw": "twi_Latn",
-      "yo": "yor_Latn"
+      "gl": "glg_Latn",
+      "it": "ita_Latn",
+      "pt": "por_Latn"
     },
-    "notes": "AfriSpeech glossary-constrained NLLB-200 fine-tune. Trained directions: English and French into Twi, Swahili, Yoruba, Hausa, Igbo, Ewe and Shona. Coverage is these 14 edges, not the 202 tokens the base tokenizer still carries. A target-language term in angle brackets in the source, <term>, is carried into the output with its brackets.",
+    "notes": "Projecte AINA Plume, 2B Gemma-architecture decoder-only translator with a 128k vocabulary, trained only on Catalan-centric parallel data. Registered directions: Catalan <-> German, English, Spanish, Basque, French, Galician, Italian and Portuguese, the 16 supervised ones.",
     "precision": "fp32",
+    "prompt_template": "<s> [{src}] {text} \n[{tgt}]",
     "side_files": {
-      "spm": "sentencepiece.bpe.model",
+      "tokenizer_json": "tokenizer.json",
       "config": "config.json",
       "generation_config": "generation_config.json",
-      "special_tokens_map": "special_tokens_map.json",
-      "tokenizer_json": "tokenizer.json"
+      "tokenizer_config": "tokenizer_config.json"
     },
-    "size_mb": 11949
+    "size_mb": 10035
   },
-  "afrigloss-nllb-1.3b-int8": {
-    "arch": "nllb",
+  "Plume128k-int8": {
+    "arch": "causal-lm",
     "directions": [
       [
-        "en",
-        "ee"
+        "ca",
+        "de"
+      ],
+      [
+        "ca",
+        "en"
+      ],
+      [
+        "ca",
+        "es"
+      ],
+      [
+        "ca",
+        "eu"
+      ],
+      [
+        "ca",
+        "fr"
+      ],
+      [
+        "ca",
+        "gl"
+      ],
+      [
+        "ca",
+        "it"
+      ],
+      [
+        "ca",
+        "pt"
+      ],
+      [
+        "de",
+        "ca"
       ],
       [
         "en",
-        "ha"
+        "ca"
       ],
       [
-        "en",
-        "ig"
+        "es",
+        "ca"
       ],
       [
-        "en",
-        "sn"
-      ],
-      [
-        "en",
-        "sw"
-      ],
-      [
-        "en",
-        "tw"
-      ],
-      [
-        "en",
-        "yo"
+        "eu",
+        "ca"
       ],
       [
         "fr",
-        "ee"
+        "ca"
       ],
       [
-        "fr",
-        "ha"
+        "gl",
+        "ca"
       ],
       [
-        "fr",
-        "ig"
+        "it",
+        "ca"
       ],
       [
-        "fr",
-        "sn"
-      ],
-      [
-        "fr",
-        "sw"
-      ],
-      [
-        "fr",
-        "tw"
-      ],
-      [
-        "fr",
-        "yo"
+        "pt",
+        "ca"
       ]
     ],
     "extra": "fast-tokenizers",
     "extra_files": [
-      "int8/decoder_model.onnx_data",
-      "int8/decoder_with_past_model.onnx_data",
-      "int8/encoder_model.onnx_data"
+      "int8/model_quantized.onnx_data"
     ],
     "graphs": {
-      "encoder": "int8/encoder_model.onnx",
-      "decoder": "int8/decoder_model.onnx",
-      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+      "model": "int8/model_quantized.onnx"
     },
-    "hf_repo": "TigreGotico/afrigloss-nllb-1.3b-onnx",
+    "hf_repo": "TigreGotico/Plume128k-onnx",
     "languages": [
-      "ee",
+      "ca",
+      "de",
       "en",
+      "es",
+      "eu",
       "fr",
-      "ha",
-      "ig",
-      "sn",
-      "sw",
-      "tw",
-      "yo"
+      "gl",
+      "it",
+      "pt"
     ],
-    "license": "CC-BY-NC-4.0",
-    "license_tier": "non-commercial",
-    "model_id": "afrigloss-nllb-1.3b-int8",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "Plume128k-int8",
     "native_codes": {
-      "ee": "ewe_Latn",
+      "ca": "cat_Latn",
+      "de": "deu_Latn",
       "en": "eng_Latn",
+      "es": "spa_Latn",
+      "eu": "eus_Latn",
       "fr": "fra_Latn",
-      "ha": "hau_Latn",
-      "ig": "ibo_Latn",
-      "sn": "sna_Latn",
-      "sw": "swh_Latn",
-      "tw": "twi_Latn",
-      "yo": "yor_Latn"
+      "gl": "glg_Latn",
+      "it": "ita_Latn",
+      "pt": "por_Latn"
     },
-    "notes": "AfriSpeech glossary-constrained NLLB-200 fine-tune. Trained directions: English and French into Twi, Swahili, Yoruba, Hausa, Igbo, Ewe and Shona. Coverage is these 14 edges, not the 202 tokens the base tokenizer still carries. A target-language term in angle brackets in the source, <term>, is carried into the output with its brackets.",
+    "notes": "Projecte AINA Plume, 2B Gemma-architecture decoder-only translator with a 128k vocabulary, trained only on Catalan-centric parallel data. Registered directions: Catalan <-> German, English, Spanish, Basque, French, Galician, Italian and Portuguese, the 16 supervised ones.",
     "precision": "int8",
+    "prompt_template": "<s> [{src}] {text} \n[{tgt}]",
     "side_files": {
-      "spm": "sentencepiece.bpe.model",
+      "tokenizer_json": "int8/tokenizer.json",
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
-      "special_tokens_map": "special_tokens_map.json",
-      "tokenizer_json": "tokenizer.json"
+      "tokenizer_config": "int8/tokenizer_config.json"
     },
-    "size_mb": 3040
+    "size_mb": 4337
   },
-  "afrigloss-nllb-600m": {
-    "arch": "nllb",
+  "Plume32k": {
+    "arch": "causal-lm",
     "directions": [
       [
-        "en",
-        "ee"
+        "ca",
+        "de"
+      ],
+      [
+        "ca",
+        "en"
+      ],
+      [
+        "ca",
+        "es"
+      ],
+      [
+        "ca",
+        "eu"
+      ],
+      [
+        "ca",
+        "fr"
+      ],
+      [
+        "ca",
+        "gl"
+      ],
+      [
+        "ca",
+        "it"
+      ],
+      [
+        "ca",
+        "pt"
+      ],
+      [
+        "de",
+        "ca"
       ],
       [
         "en",
-        "ha"
+        "ca"
       ],
       [
-        "en",
-        "ig"
+        "es",
+        "ca"
       ],
       [
-        "en",
-        "sn"
-      ],
-      [
-        "en",
-        "sw"
-      ],
-      [
-        "en",
-        "tw"
-      ],
-      [
-        "en",
-        "yo"
+        "eu",
+        "ca"
       ],
       [
         "fr",
-        "ee"
+        "ca"
       ],
       [
-        "fr",
-        "ha"
+        "gl",
+        "ca"
       ],
       [
-        "fr",
-        "ig"
+        "it",
+        "ca"
       ],
       [
-        "fr",
-        "sn"
-      ],
-      [
-        "fr",
-        "sw"
-      ],
-      [
-        "fr",
-        "tw"
-      ],
-      [
-        "fr",
-        "yo"
+        "pt",
+        "ca"
       ]
     ],
     "extra": "fast-tokenizers",
     "extra_files": [
-      "decoder_model.onnx_data",
-      "decoder_with_past_model.onnx_data"
+      "model.onnx_data"
     ],
     "graphs": {
-      "encoder": "encoder_model.onnx",
-      "decoder": "decoder_model.onnx",
-      "decoder_with_past": "decoder_with_past_model.onnx"
+      "model": "model.onnx"
     },
-    "hf_repo": "TigreGotico/afrigloss-nllb-600m-onnx",
+    "hf_repo": "TigreGotico/Plume32k-onnx",
     "languages": [
-      "ee",
+      "ca",
+      "de",
       "en",
+      "es",
+      "eu",
       "fr",
-      "ha",
-      "ig",
-      "sn",
-      "sw",
-      "tw",
-      "yo"
+      "gl",
+      "it",
+      "pt"
     ],
-    "license": "CC-BY-NC-4.0",
-    "license_tier": "non-commercial",
-    "model_id": "afrigloss-nllb-600m",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "Plume32k",
     "native_codes": {
-      "ee": "ewe_Latn",
+      "ca": "cat_Latn",
+      "de": "deu_Latn",
       "en": "eng_Latn",
+      "es": "spa_Latn",
+      "eu": "eus_Latn",
       "fr": "fra_Latn",
-      "ha": "hau_Latn",
-      "ig": "ibo_Latn",
-      "sn": "sna_Latn",
-      "sw": "swh_Latn",
-      "tw": "twi_Latn",
-      "yo": "yor_Latn"
+      "gl": "glg_Latn",
+      "it": "ita_Latn",
+      "pt": "por_Latn"
     },
-    "notes": "AfriSpeech glossary-constrained NLLB-200 fine-tune. Trained directions: English and French into Twi, Swahili, Yoruba, Hausa, Igbo, Ewe and Shona. Coverage is these 14 edges, not the 202 tokens the base tokenizer still carries. A target-language term in angle brackets in the source, <term>, is carried into the output with its brackets.",
+    "notes": "Projecte AINA Plume, 2B Gemma-architecture decoder-only translator with a 32k vocabulary, trained only on Catalan-centric parallel data. Registered directions: Catalan <-> German, English, Spanish, Basque, French, Galician, Italian and Portuguese, the 16 supervised ones.",
     "precision": "fp32",
+    "prompt_template": "<s> [{src}] {text} \n[{tgt}]",
     "side_files": {
-      "spm": "sentencepiece.bpe.model",
+      "tokenizer_json": "tokenizer.json",
       "config": "config.json",
       "generation_config": "generation_config.json",
-      "special_tokens_map": "special_tokens_map.json",
-      "tokenizer_json": "tokenizer.json"
+      "tokenizer_config": "tokenizer_config.json"
     },
-    "size_mb": 7414
+    "size_mb": 8455
   },
-  "afrigloss-nllb-600m-int8": {
-    "arch": "nllb",
+  "Plume32k-int8": {
+    "arch": "causal-lm",
     "directions": [
       [
-        "en",
-        "ee"
+        "ca",
+        "de"
+      ],
+      [
+        "ca",
+        "en"
+      ],
+      [
+        "ca",
+        "es"
+      ],
+      [
+        "ca",
+        "eu"
+      ],
+      [
+        "ca",
+        "fr"
+      ],
+      [
+        "ca",
+        "gl"
+      ],
+      [
+        "ca",
+        "it"
+      ],
+      [
+        "ca",
+        "pt"
+      ],
+      [
+        "de",
+        "ca"
       ],
       [
         "en",
-        "ha"
+        "ca"
       ],
       [
-        "en",
-        "ig"
+        "es",
+        "ca"
       ],
       [
-        "en",
-        "sn"
-      ],
-      [
-        "en",
-        "sw"
-      ],
-      [
-        "en",
-        "tw"
-      ],
-      [
-        "en",
-        "yo"
+        "eu",
+        "ca"
       ],
       [
         "fr",
-        "ee"
+        "ca"
       ],
       [
-        "fr",
-        "ha"
+        "gl",
+        "ca"
       ],
       [
-        "fr",
-        "ig"
+        "it",
+        "ca"
       ],
       [
-        "fr",
-        "sn"
-      ],
-      [
-        "fr",
-        "sw"
-      ],
-      [
-        "fr",
-        "tw"
-      ],
-      [
-        "fr",
-        "yo"
+        "pt",
+        "ca"
       ]
     ],
     "extra": "fast-tokenizers",
     "extra_files": [
-      "int8/decoder_model.onnx_data",
-      "int8/decoder_with_past_model.onnx_data"
+      "int8/model_quantized.onnx_data"
     ],
     "graphs": {
-      "encoder": "int8/encoder_model.onnx",
-      "decoder": "int8/decoder_model.onnx",
-      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+      "model": "int8/model_quantized.onnx"
     },
-    "hf_repo": "TigreGotico/afrigloss-nllb-600m-onnx",
+    "hf_repo": "TigreGotico/Plume32k-onnx",
     "languages": [
-      "ee",
+      "ca",
+      "de",
       "en",
+      "es",
+      "eu",
       "fr",
-      "ha",
-      "ig",
-      "sn",
-      "sw",
-      "tw",
-      "yo"
+      "gl",
+      "it",
+      "pt"
     ],
-    "license": "CC-BY-NC-4.0",
-    "license_tier": "non-commercial",
-    "model_id": "afrigloss-nllb-600m-int8",
+    "license": "Apache-2.0",
+    "license_tier": "permissive",
+    "model_id": "Plume32k-int8",
     "native_codes": {
-      "ee": "ewe_Latn",
+      "ca": "cat_Latn",
+      "de": "deu_Latn",
       "en": "eng_Latn",
+      "es": "spa_Latn",
+      "eu": "eus_Latn",
       "fr": "fra_Latn",
-      "ha": "hau_Latn",
-      "ig": "ibo_Latn",
-      "sn": "sna_Latn",
-      "sw": "swh_Latn",
-      "tw": "twi_Latn",
-      "yo": "yor_Latn"
+      "gl": "glg_Latn",
+      "it": "ita_Latn",
+      "pt": "por_Latn"
     },
-    "notes": "AfriSpeech glossary-constrained NLLB-200 fine-tune. Trained directions: English and French into Twi, Swahili, Yoruba, Hausa, Igbo, Ewe and Shona. Coverage is these 14 edges, not the 202 tokens the base tokenizer still carries. A target-language term in angle brackets in the source, <term>, is carried into the output with its brackets.",
+    "notes": "Projecte AINA Plume, 2B Gemma-architecture decoder-only translator with a 32k vocabulary, trained only on Catalan-centric parallel data. Registered directions: Catalan <-> German, English, Spanish, Basque, French, Galician, Italian and Portuguese, the 16 supervised ones.",
     "precision": "int8",
+    "prompt_template": "<s> [{src}] {text} \n[{tgt}]",
     "side_files": {
-      "spm": "sentencepiece.bpe.model",
+      "tokenizer_json": "int8/tokenizer.json",
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
-      "special_tokens_map": "special_tokens_map.json",
-      "tokenizer_json": "tokenizer.json"
+      "tokenizer_config": "int8/tokenizer_config.json"
     },
-    "size_mb": 1899
+    "size_mb": 2757
   },
   "afrigloss-opus-mt-en-ee": {
     "arch": "marian",

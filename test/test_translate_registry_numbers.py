@@ -42,7 +42,7 @@ from linguonnx.translate import load_translator
 #   load_translator(max_model_mb=CAP, count_cached_as_free=False)
 LANGUAGES_UNCAPPED = 606
 LANGUAGES_UNDER_500 = 255
-FALLBACK_STEPS_UNDER_500 = 40
+FALLBACK_STEPS_UNDER_500 = 42
 
 # README.md's "What ships" table and docs/models.md's opening paragraph quote
 # these directly off `linguonnx/model_index/translate.json` and `lid.json`.
@@ -259,6 +259,7 @@ DOCUMENTED_TRANSLATE_FAMILIES = [
     r"^TigreGotico/afrigloss-opus-mt-.+-onnx$",
     r"^TigreGotico/IbRo-nllb-onnx$",
     r"^TigreGotico/afrigloss-nllb-(600m|1\.3b)-onnx$",
+    r"^TigreGotico/Plume(32|128)k-onnx$",
     r"^TigreGotico/madlad400-3b-mt-(oc_aranes|ast-an-oc_aranes|es_ES|es_419)-onnx$",
 ]
 

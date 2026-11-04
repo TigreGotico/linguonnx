@@ -76,7 +76,7 @@ def test_translate_entry_is_complete(model_id):
     assert entry["arch"] in (
         "marian", "m2m100", "nllb", "madlad", "t5-prefix", "indictrans2",
         "opennmt-bpe",
-        "pegasus-fast", "t5-fast", "mbart")
+        "pegasus-fast", "t5-fast", "mbart", "causal-lm")
     assert entry["precision"] in ("fp32", "int8")
     assert entry["size_mb"] > 0
 
@@ -115,7 +115,9 @@ def test_translate_entry_declares_a_licence(model_id):
 @pytest.mark.parametrize("model_id", ONNX_TRANSLATE)
 def test_translate_entry_references_plausible_files(model_id):
     entry = TRANSLATE[model_id]
-    assert set(entry["graphs"]) == {"encoder", "decoder", "decoder_with_past"}
+    expected = ({"model"} if entry["arch"] == "causal-lm"
+                else {"encoder", "decoder", "decoder_with_past"})
+    assert set(entry["graphs"]) == expected
     for name in entry["graphs"].values():
         assert name.endswith(".onnx"), f"{model_id}: {name} is not a graph"
     for name in entry["extra_files"]:
@@ -143,6 +145,7 @@ def test_translate_entry_carries_side_files_its_tokenizer_needs(model_id):
         "pegasus-fast": {"tokenizer_json", "config"},
         "t5-fast": {"tokenizer_json", "config", "tokenizer_config"},
         "mbart": {"spm", "config", "special_tokens_map"},
+        "causal-lm": {"tokenizer_json", "config", "tokenizer_config"},
     }[entry["arch"]]
     assert required <= set(side), \
         f"{model_id} ({entry['arch']}) is missing {required - set(side)}"
@@ -226,7 +229,8 @@ def test_basque_is_served_only_by_models_that_actually_have_it():
         endpoints = {normalize_tag(c) for c in entry.get("pair", ())}
         endpoints |= {normalize_tag(c) for c in entry.get("languages", ())}
         if "eu" in endpoints:
-            assert entry["arch"] in ("marian", "nllb", "madlad", "pegasus-fast"), \
+            assert entry["arch"] in ("marian", "nllb", "madlad", "pegasus-fast",
+                                     "causal-lm"), \
                 f"{model_id} claims Basque with arch {entry['arch']}"
 
 
@@ -627,7 +631,7 @@ def test_hi_to_ta_resolves_direct(translator):
 #: adding an entry for an architecture nobody wrote a pipeline for fails here.
 RUNNABLE_ARCHS = {"marian", "m2m100", "nllb", "madlad", "t5-prefix",
                   "indictrans2", "opennmt-bpe", "pegasus-fast", "t5-fast",
-                  "mbart"}
+                  "mbart", "causal-lm"}
 
 
 @pytest.mark.parametrize("model_id", sorted(TRANSLATE))

@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -41,7 +42,8 @@ import sentencepiece as spm
 
 __all__ = ["normalize_punctuation", "SpmSeq2SeqTokenizer", "MBartTokenizer",
            "MarianTokenizer",
-           "FastUnigramTokenizer", "T5SpmTokenizer", "T5TextPrefixTokenizer",
+           "FastUnigramTokenizer", "ByteLevelBpeTokenizer", "T5SpmTokenizer",
+           "T5TextPrefixTokenizer",
            "UnigramTextPrefixTokenizer", "IndicTransTokenizer",
            "OpenNmtBpeTokenizer", "load_tokenizer", "artifact_lang_codes",
            "tokenizer_json_added_tokens",
@@ -717,6 +719,169 @@ class FastUnigramTokenizer:
         return text
 
 
+def _byte_to_unicode() -> Dict[int, str]:
+    """GPT-2's map from each byte to a printable character. The printable
+    ASCII and Latin-1 bytes stand for themselves; the other 68 take the
+    characters from U+0100 on, in byte order."""
+    printable = [*range(ord("!"), ord("~") + 1), *range(ord("¡"), ord("¬") + 1),
+                 *range(ord("®"), ord("ÿ") + 1)]
+    mapping = {byte: chr(byte) for byte in printable}
+    for offset, byte in enumerate(b for b in range(256) if b not in mapping):
+        mapping[byte] = chr(256 + offset)
+    return mapping
+
+
+class ByteLevelBpeTokenizer:
+    """A decoder-only model's byte-level BPE ``tokenizer.json`` (the GPT-2
+    scheme), read in pure Python.
+
+    Encodes a whole prompt the way ``tokenizer(prompt)`` does in
+    `transformers`: the prompt carries its own ``<s>`` and language tags,
+    which are added tokens, and the post-processor adds nothing. Decodes the
+    way ``tokenizer.decode(ids, skip_special_tokens=True).strip()`` does,
+    including the space clean-up the export's ``tokenizer_config.json`` asks
+    for.
+
+    The ``tokenizers`` package does not read the Plume files from 1.0 on: it
+    refuses a byte-level vocabulary that has no token for some bytes. Before
+    1.0 it drops such a byte from the input, and this class does the same.
+
+    A ``tokenizer.json`` that asks for a step this class does not implement
+    is refused at load time. A step ignored here would tokenize a string the
+    model was never given.
+    """
+
+    _PRE_TOKENIZE = (r"'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+"
+                     r"| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+")
+    # The word cache stops growing at this size, as in `tokenizers`.
+    _CACHE_WORDS = 10_000
+
+    def __init__(self, tokenizer_json, clean_up_tokenization_spaces: bool = False):
+        try:
+            import regex
+        except ImportError as exc:
+            raise ImportError(
+                "this model's byte-level BPE tokenizer needs the 'regex' "
+                "package. Install it: pip install 'linguonnx[fast-tokenizers]'"
+            ) from exc
+        spec = _load_json(tokenizer_json)
+        self._check_supported(spec, tokenizer_json)
+        model = spec["model"]
+        self._vocab: Dict[str, int] = model["vocab"]
+        self._ranks = {tuple(pair.split(" ") if isinstance(pair, str) else pair): rank
+                       for rank, pair in enumerate(model["merges"])}
+        self._token = {token_id: token for token, token_id in self._vocab.items()}
+        added = spec.get("added_tokens", ())
+        self._added = {entry["content"]: int(entry["id"]) for entry in added}
+        self._specials = {int(entry["id"]) for entry in added if entry["special"]}
+        self._token.update({token_id: token for token, token_id in self._added.items()})
+        self._added_re = regex.compile("|".join(
+            regex.escape(token) for token in sorted(self._added, key=len, reverse=True)))
+        self._normalizers = self._compile_normalizers(spec["normalizer"], regex)
+        self._pre_tokenize = regex.compile(self._PRE_TOKENIZE)
+        self._to_char = _byte_to_unicode()
+        self._to_byte = {char: byte for byte, char in self._to_char.items()}
+        self._clean_up = clean_up_tokenization_spaces
+        self._cache: Dict[str, List[int]] = {}
+
+    @staticmethod
+    def _check_supported(spec: dict, path) -> None:
+        model = spec.get("model") or {}
+        byte_level = {"type": "ByteLevel", "add_prefix_space": False, "use_regex": True}
+        problems = []
+        if model.get("type") != "BPE":
+            problems.append(f"model type {model.get('type')!r}")
+        for key in ("dropout", "unk_token", "continuing_subword_prefix",
+                    "end_of_word_suffix"):
+            if model.get(key) is not None:
+                problems.append(f"model {key} {model[key]!r}")
+        for key in ("byte_fallback", "ignore_merges"):
+            if model.get(key):
+                problems.append(f"model {key}")
+        pre = spec.get("pre_tokenizer") or {}
+        if any(pre.get(key) != value for key, value in byte_level.items()):
+            problems.append(f"pre_tokenizer {pre!r}")
+        if (spec.get("post_processor") or {}).get("type", "ByteLevel") != "ByteLevel":
+            problems.append(f"post_processor {spec['post_processor']['type']!r}")
+        if (spec.get("decoder") or {}).get("type") != "ByteLevel":
+            problems.append(f"decoder {spec.get('decoder')!r}")
+        for entry in spec.get("added_tokens", ()):
+            if (entry["single_word"] or entry["lstrip"] or entry["rstrip"]
+                    or entry["normalized"]):
+                problems.append(f"added token {entry['content']!r} flags")
+        if problems:
+            raise ValueError(
+                f"{path} is not a byte-level BPE tokenizer this reader "
+                f"implements: {'; '.join(problems)}")
+
+    @staticmethod
+    def _compile_normalizers(spec: Optional[dict], regex) -> List:
+        if spec is None:
+            return []
+        steps = spec["normalizers"] if spec["type"] == "Sequence" else [spec]
+        compiled = []
+        for step in steps:
+            if step["type"] in ("NFC", "NFD", "NFKC", "NFKD"):
+                form = step["type"]
+                compiled.append(lambda text, form=form: unicodedata.normalize(form, text))
+            elif step["type"] == "Replace":
+                pattern = step["pattern"]
+                found = regex.compile(pattern["Regex"] if "Regex" in pattern
+                                      else regex.escape(pattern["String"]))
+                content = step["content"]
+                compiled.append(lambda text, found=found, content=content:
+                                found.sub(lambda _: content, text))
+            else:
+                raise ValueError(
+                    f"normalizer {step['type']!r} is not implemented by this reader")
+        return compiled
+
+    def _bpe(self, word: str) -> List[int]:
+        if word in self._cache:
+            return self._cache[word]
+        # A character with no token is dropped before merging, so its
+        # neighbours can merge across it, as in `tokenizers` before 1.0.
+        symbols = [char for char in word if char in self._vocab]
+        while len(symbols) > 1:
+            pairs = [(self._ranks.get(pair, len(self._ranks)), index)
+                     for index, pair in enumerate(zip(symbols, symbols[1:]))]
+            rank, index = min(pairs)
+            if rank == len(self._ranks):
+                break
+            symbols[index:index + 2] = [symbols[index] + symbols[index + 1]]
+        ids = [self._vocab[symbol] for symbol in symbols]
+        if len(self._cache) < self._CACHE_WORDS:
+            self._cache[word] = ids
+        return ids
+
+    def _encode_text(self, text: str) -> List[int]:
+        for normalize in self._normalizers:
+            text = normalize(text)
+        ids: List[int] = []
+        for word in self._pre_tokenize.findall(text):
+            ids.extend(self._bpe("".join(self._to_char[b] for b in word.encode("utf-8"))))
+        return ids
+
+    def encode(self, prompt: str) -> List[int]:
+        ids: List[int] = []
+        position = 0
+        for match in self._added_re.finditer(prompt):
+            ids.extend(self._encode_text(prompt[position:match.start()]))
+            ids.append(self._added[match.group()])
+            position = match.end()
+        ids.extend(self._encode_text(prompt[position:]))
+        return ids
+
+    def decode(self, ids: Sequence[int]) -> str:
+        tokens = [self._token[i] for i in ids
+                  if i in self._token and i not in self._specials]
+        text = bytes(self._to_byte[char] for char in "".join(tokens)
+                     ).decode("utf-8", errors="replace")
+        if self._clean_up:
+            text = clean_up_tokenization(text)
+        return text.strip()
+
+
 class T5SpmTokenizer:
     """MADLAD (T5). One SentencePiece model; ids are its own piece ids.
 
@@ -1312,6 +1477,13 @@ def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str],
         tokenizer_config = _load_json(files["tokenizer_config"])
         return FastUnigramTokenizer(
             files["tokenizer_json"], **specials,
+            clean_up_tokenization_spaces=bool(
+                tokenizer_config.get("clean_up_tokenization_spaces", False)))
+    if arch == "causal-lm":
+        tokenizer_config = (_load_json(files["tokenizer_config"])
+                            if files.get("tokenizer_config") else {})
+        return ByteLevelBpeTokenizer(
+            files["tokenizer_json"],
             clean_up_tokenization_spaces=bool(
                 tokenizer_config.get("clean_up_tokenization_spaces", False)))
     raise ValueError(f"unknown architecture {arch!r}")

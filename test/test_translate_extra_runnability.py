@@ -70,6 +70,7 @@ def test_extra_names_are_matched_after_normalisation(without):
 def test_the_registry_names_the_extra_each_architecture_needs():
     expected = {"opennmt-bpe": "opennmt", "indictrans2": "indic",
                 "pegasus-fast": "fast-tokenizers", "t5-fast": "fast-tokenizers",
+                "causal-lm": "fast-tokenizers",
                 "rules": "rules"}
     for model_id, entry in list_models(kind="translate").items():
         if model_id.startswith("afrigloss-nllb-"):

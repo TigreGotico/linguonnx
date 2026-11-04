@@ -47,6 +47,7 @@ weights and no precision, so the precision filter never removes it.
 | `afrigloss-opus-mt-*` (14) | Marian fine-tune | one pair each; en → {ee, ha, ig, sn, sw, tw, yo}, fr → {ee, ha, ig, sn, sw, tw, yo} | 216 MB – 904 MB | **CC-BY-NC-4.0**; fr-ee, fr-ha, fr-ig, fr-sn: Apache-2.0 |
 | `afrigloss-nllb-600m`, `-1.3b` | NLLB-200 fine-tune | {en, fr} → {ee, ha, ig, sn, sw, tw, yo}: 14 directions | 1.9 GB – 11.9 GB | **CC-BY-NC-4.0** |
 | `IbRo-nllb` | NLLB-1.3B fine-tune | es ↔ {an, ast, ca, gl, oc (Aranese)}, ca ↔ oc: 12 directions | 3.04 GB – 11.9 GB | Apache-2.0 |
+| `Plume32k`, `Plume128k` | Gemma decoder-only (`causal-lm`) | ca ↔ {de, en, es, eu, fr, gl, it, pt}: 16 directions | 2.76 GB – 10.0 GB | Apache-2.0 |
 | `madlad400-3b-mt-oc_aranes`, `-ast-an-oc_aranes` | MADLAD-400-3B fine-tune | {ca, en, es, fr} ↔ oc (Aranese): 8 directions; {ca, en, es, fr} ↔ {an, ast, oc}: 24 directions | 4.95 GB – 19.7 GB | Apache-2.0 |
 | `madlad400-3b-mt-es_ES`, `-es_419` | MADLAD-400-3B fine-tune | every MADLAD language → `es-ES`, or → `es-419` | 4.95 GB – 19.7 GB | Apache-2.0 |
 | `pt2barranquenho` | rules (Python package) | Portuguese → Barranquenho (`ext-PT-x-barrancos`), **one-way** | 0 MB, nothing to download | Apache-2.0 |
