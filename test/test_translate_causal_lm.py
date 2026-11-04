@@ -123,6 +123,12 @@ def test_beam_search_runs_on_the_same_graph(session):
     assert output and EOS not in output
 
 
+def test_a_decoder_start_token_is_refused(session):
+    decoder = CausalLMDecoder(session, eos_id=EOS, pad_id=PAD)
+    with pytest.raises(ValueError, match="from the prompt"):
+        decoder.generate([0, 5, 2], decoder_start_token_id=7)
+
+
 def test_a_graph_without_a_cache_is_refused(tmp_path):
     graph = helper.make_graph(
         [helper.make_node("Cast", ["input_ids"], ["logits"], to=TensorProto.FLOAT)],
@@ -191,7 +197,9 @@ def test_each_line_is_its_own_prompt(monkeypatch):
                         lambda model, ids, src, tgt: f"<{ids[0]}>")
 
     class _Decoder:
-        def generate(self, ids, forced_bos_token_id=None, config=None):
+        def generate(self, ids, forced_bos_token_id=None, config=None,
+                     decoder_start_token_id=None):
+            assert decoder_start_token_id is None
             return list(ids)
 
     model._decoder = _Decoder()
@@ -270,7 +278,8 @@ SUPERVISED = {(src, tgt) for other in ("de", "en", "es", "eu", "fr", "gl", "it",
 
 @pytest.mark.parametrize("model_id,graph,external", [
     ("Plume32k", "model.onnx", ["model.onnx_data"]),
-    ("Plume32k-int8", "int8/model_quantized.onnx", []),
+    ("Plume32k-int8", "int8/model_quantized.onnx",
+     ["int8/model_quantized.onnx_data"]),
     ("Plume128k", "model.onnx", ["model.onnx_data"]),
     ("Plume128k-int8", "int8/model_quantized.onnx",
      ["int8/model_quantized.onnx_data"]),

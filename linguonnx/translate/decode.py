@@ -552,6 +552,22 @@ class CausalLMDecoder(Seq2SeqDecoder):
                     f"{inputs[name].type}, which linguonnx does not feed")
             self._empty_cache[name] = ((1, shape[1], 0, shape[3]), dtype)
 
+    def generate(self, input_ids: Sequence[int],
+                 forced_bos_token_id: Optional[int] = None,
+                 config: Optional[GenerationConfig] = None,
+                 decoder_start_token_id: Optional[int] = None) -> List[int]:
+        """A decoder-only graph has no start token to replace: the prompt
+        carries the target tag, and its last token starts the search."""
+        if decoder_start_token_id is not None:
+            raise ValueError(
+                "a decoder-only model takes its target language from the "
+                "prompt, not from a decoder start token")
+        config = config or GenerationConfig()
+        ids = np.asarray([list(input_ids)], dtype=np.int64)
+        if config.num_beams <= 1:
+            return self._greedy(ids, forced_bos_token_id, config, None)
+        return self._beam(ids, forced_bos_token_id, config, None)
+
     def _encode(self, input_ids: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         check_length(input_ids.shape[-1], self.max_input_tokens, "tokens",
                      "LINGUONNX_MAX_ENCODER_TOKENS")
