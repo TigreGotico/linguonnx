@@ -529,10 +529,24 @@ class FastUnigramTokenizer:
     group-model ambiguity (confirmed by inspecting ``vocab.json``: neither
     ships any ``>>xxx<<`` token), so, like :class:`MarianTokenizer`, it never
     needs a target token.
+
+    ``arat5-arabic-dialects-translation`` (``t5-fast``) loads through here
+    too. Its ``tokenizer.json`` holds a BPE model rather than a Unigram one,
+    which the ``tokenizers`` package reads the same way, and the model is a
+    plain directed one with no prefix on the input either.
+
+    A ``tokenizer.json`` can carry a ``truncation`` setting, and the AraT5
+    one does: 64 tokens. The ``tokenizers`` package applies it on every
+    ``encode``, so a longer sentence is cut with nothing raised and the model
+    translates the first half of it fluently. `transformers` switches it off
+    unless a caller asks for truncation, so it is switched off here too, and
+    the encoder bounds in :mod:`linguonnx.limits` refuse an input that is too
+    long instead.
     """
 
     def __init__(self, tokenizer_json, eos_token: str = "</s>",
-                 pad_token: str = "<blank>", unk_token: str = "<unk>"):
+                 pad_token: str = "<blank>", unk_token: str = "<unk>",
+                 clean_up_tokenization_spaces: bool = False):
         try:
             from tokenizers import Tokenizer
         except ImportError as exc:
@@ -541,6 +555,9 @@ class FastUnigramTokenizer:
                 "tokenizer.json, which needs the 'tokenizers' package. "
                 "Install it: pip install 'linguonnx[fast-tokenizers]'") from exc
         self._tok = Tokenizer.from_file(str(tokenizer_json))
+        self._tok.no_truncation()
+        self._tok.no_padding()
+        self.clean_up_tokenization_spaces = clean_up_tokenization_spaces
         vocab = self._tok.get_vocab()
         self.eos_id = vocab[eos_token]
         self.pad_id = vocab[pad_token]
@@ -562,7 +579,10 @@ class FastUnigramTokenizer:
 
     def decode(self, ids: Sequence[int]) -> str:
         ids = [i for i in ids if i not in self._specials]
-        return self._tok.decode(ids, skip_special_tokens=False)
+        text = self._tok.decode(ids, skip_special_tokens=False)
+        if self.clean_up_tokenization_spaces:
+            text = clean_up_tokenization(text)
+        return text
 
 
 class T5SpmTokenizer:
@@ -1150,4 +1170,11 @@ def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str],
     if arch == "pegasus-fast":
         specials = _marian_special_tokens(files.get("special_tokens_map"))
         return FastUnigramTokenizer(files["tokenizer_json"], **specials)
+    if arch == "t5-fast":
+        specials = _marian_special_tokens(files.get("special_tokens_map"))
+        tokenizer_config = _load_json(files["tokenizer_config"])
+        return FastUnigramTokenizer(
+            files["tokenizer_json"], **specials,
+            clean_up_tokenization_spaces=bool(
+                tokenizer_config.get("clean_up_tokenization_spaces", False)))
     raise ValueError(f"unknown architecture {arch!r}")

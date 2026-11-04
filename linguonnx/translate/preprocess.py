@@ -135,7 +135,7 @@ class SpmLangTokenPipeline(Pipeline):
         return model.tokenizer.decode(ids)
 
 
-@register("marian", "pegasus-fast")
+@register("marian", "pegasus-fast", "t5-fast")
 class MarianPipeline(Pipeline):
     """opus-mt. The model is the pair; only group models take a target token.
 
@@ -146,6 +146,12 @@ class MarianPipeline(Pipeline):
     ``.model``) but the same ``encode(text, target_token=...)`` /
     ``decode(ids)`` shape, and like Marian's dedicated pairs it never needs a
     target token.
+
+    ``t5-fast`` is a T5 fine-tune trained on plain source text, with no
+    ``<2xx>`` piece and no instruction in front of it, tokenized from a
+    ``tokenizer.json``. The model is the direction, as for Marian, so it
+    shares this pipeline rather than the two T5 ones, which both put a
+    prefix on the input.
     """
 
     def encode(self, model, text, src, tgt, target_token=None):

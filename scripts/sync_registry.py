@@ -359,15 +359,8 @@ _KNOWN_UNRESOLVED_GROUP_MODELS: Tuple[str, ...] = ()
 #: `SkipRepo` for it deliberately (see the `model_type == "mbart"` branch) -
 #: it is not NLLB despite sharing NLLB's lone sentencepiece.bpe.model +
 #: special_tokens_map.json shape, and no mBART loader exists in this library.
-#:
-#: ``arat5-arabic-dialects-translation``: tags its graph `t5`, which `_arch()`
-#: only recognises as the MADLAD shape. This export ships a fast tokenizer
-#: (`tokenizer.json`) instead of MADLAD's raw `spiece.model`, so
-#: `_madlad_languages` raises `SkipRepo` for it too - a real AraT5 loader
-#: is not implemented.
 _KNOWN_ARCH_MISMATCH: Tuple[str, ...] = (
     "vinai-translate-vi2en-v2",
-    "arat5-arabic-dialects-translation",
 )
 
 #: Exports this library cannot tokenize the way the model was trained, keyed
@@ -434,7 +427,39 @@ MARIAN_MULTILINGUAL_OVERRIDES: Dict[str, Dict] = {
 #: requests away from the small Catalan models and fail them under a 500 MB
 #: budget.
 #: Source: https://huggingface.co/Transducens/IbRo-nllb
+#:
+#: ``arat5-arabic-dialects-translation``: PRAli22's AraT5 fine-tune that
+#: rewrites dialectal Arabic as Modern Standard Arabic, which is ``ar`` here
+#: (``arb`` normalises to it). It is ``t5-fast``: a T5 with a
+#: ``tokenizer.json`` and no prefix, so nothing in the export names a
+#: language. The card names no varieties and its dataset
+#: (``PRAli22/Arabic_dialects_to_MSA``, 145541 source/target rows) labels
+#: none, so the sources come from the data itself. 1979 MSA targets recur
+#: exactly 30 times, in 30 aligned blocks: MADAR's 25 city dialects plus a
+#: repeat of its five-city corpus (Beirut, Cairo, Doha, Rabat, Tunis). The
+#: rest of the rows are those five cities' larger MADAR corpus and a
+#: Syrian, Palestinian, Tunisian, Moroccan and Algerian corpus. A variety is
+#: listed when its city block is named by its own dialect features and has
+#: test sentences: FLORES-200 for acm, aeb, apc (with ajp_Arab, merged into
+#: apc), ars, ary and arz, the training rows of that block otherwise.
+#: Hijazi (acw), Omani (acx) and Saidi (aec) are in the data too, but which
+#: block holds them is not settled, so they are not listed. Every source was
+#: checked against the PyTorch checkpoint, greedy, token for token.
+#: Sources: https://huggingface.co/PRAli22/arat5-arabic-dialects-translation,
+#: https://huggingface.co/datasets/PRAli22/Arabic_dialects_to_MSA
 MULTILINGUAL_LANGUAGE_OVERRIDES: Dict[str, Dict] = {
+    "arat5-arabic-dialects-translation": {
+        "src_languages": ["acm", "aeb", "afb", "apc", "apd", "arq",
+                          "ars", "ary", "arz", "ayl", "ayn", "ayp"],
+        "tgt_languages": ["ar"],
+        "notes": "PRAli22 AraT5 fine-tune that rewrites dialectal Arabic as "
+                 "Modern Standard Arabic. Trained on MADAR's city dialects "
+                 "and a Levantine and Maghrebi corpus, short travel and "
+                 "conversation sentences. The input carries no dialect "
+                 "label. Gulf, Iraqi, Mosul, Levantine, Egyptian, Sudanese, "
+                 "Algerian, Libyan, Moroccan, Tunisian, Najdi and Sanaani "
+                 "sources are registered.",
+    },
     "IbRo-nllb": {
         "languages": ["an", "ast", "ca", "es", "gl", "oc"],
         "native_codes": {"an": "arg_Latn", "ast": "ast_Latn", "ca": "cat_Latn",
@@ -748,6 +773,16 @@ SIDE_FILES: Dict[str, Dict[str, str]] = {
         "generation_config": "generation_config.json",
         "special_tokens_map": "special_tokens_map.json",
     },
+    # A T5 trained on plain source text, tokenized from a `tokenizer.json`
+    # (see `_arch`). `tokenizer_config.json` says whether decoding removes
+    # the space before punctuation, as `transformers` does for this model.
+    "t5-fast": {
+        "tokenizer_json": "tokenizer.json",
+        "config": "config.json",
+        "generation_config": "generation_config.json",
+        "tokenizer_config": "tokenizer_config.json",
+        "special_tokens_map": "special_tokens_map.json",
+    },
 }
 
 #: Architectures whose inference pipeline this library does not implement yet,
@@ -806,6 +841,7 @@ ARCH_EXTRAS: Dict[str, str] = {
     "indictrans2": "indic",
     "opennmt-bpe": "opennmt",
     "pegasus-fast": "fast-tokenizers",
+    "t5-fast": "fast-tokenizers",
 }
 
 REQUIRED_SIDE_FILES: Dict[str, Tuple[str, ...]] = {
@@ -817,6 +853,7 @@ REQUIRED_SIDE_FILES: Dict[str, Tuple[str, ...]] = {
     "indictrans2": ("spm_src", "spm_tgt", "dict_src", "dict_tgt", "config"),
     "opennmt-bpe": ("vocab", "config", "bpe_code"),
     "pegasus-fast": ("tokenizer_json", "config"),
+    "t5-fast": ("tokenizer_json", "config", "tokenizer_config"),
 }
 
 GRAPHS: Dict[str, str] = {
@@ -1292,6 +1329,17 @@ def _arch(detail: dict, files: Dict[str, int],
                 "prose on the model card, not anything readable from the "
                 "artifacts, and guessing one silently translates in whatever "
                 "direction the model prefers")
+        if "spiece.model" not in files and "tokenizer.json" in files:
+            # Not MADLAD, whose `<2xx>` pieces live in `spiece.model`: a T5
+            # fine-tune with a `tokenizers`-library vocabulary and no prefix
+            # on the input. Nothing in the export names its languages, so
+            # it is registered only with a curated entry.
+            if model_id in MULTILINGUAL_LANGUAGE_OVERRIDES:
+                return "t5-fast"
+            raise SkipRepo(
+                "model_type=t5 with a tokenizer.json and no spiece.model: "
+                "not MADLAD, and the export names no languages; add a "
+                f"MULTILINGUAL_LANGUAGE_OVERRIDES entry for {model_id!r}")
         return "madlad"
     if model_type == "IndicTrans":
         return "indictrans2"
