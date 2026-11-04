@@ -243,3 +243,25 @@ per channel, full range, subgraphs included. Each graph keeps its weights in
 one external data file, `<graph>.onnx_data`. For an NLLB-200-600M export this
 gives about 1.9 GB of int8 graphs against 7.4 GB of fp32 graphs. The DSFSI
 NLLB fine-tunes (`nllb_200_distilled_600m-*`) are built with it.
+
+# Decoder-only int8 graphs
+
+`quantize_causal_lm_int8.py` writes the `int8/` graph of a decoder-only export,
+such as Projecte AINA's Plume, from its fp32 `model.onnx`. The Plume graphs use
+8-bit weight-only quantization:
+
+```bash
+python quantize_causal_lm_int8.py Plume128k-onnx/model.onnx Plume128k-onnx/int8 \
+    --weight-only --block-size 32 --accuracy-level 4
+```
+
+The script keeps the token embedding and the output projection in fp32. Dynamic
+int8 quantization with one scale per tensor is not usable for these models. On
+128 FLORES-200 sentences, the Plume128k graph made that way repeated text until
+the token limit in 17 rows, and its chrF against the fp32 output was 50. The
+weight-only graph gives the same tokens as fp32 in 105 of 128 rows, with chrF
+98.7 against the fp32 output.
+
+The graph needs ONNX Runtime 1.22.0 or later. Versions 1.18.1, 1.20.1 and
+1.21.1 refuse 8-bit `MatMulNBits` when they load the graph. Compare the
+output with the fp32 graph on real sentences before you publish a graph.

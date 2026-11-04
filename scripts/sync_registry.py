@@ -577,6 +577,46 @@ MADLAD_FINETUNES: Dict[str, Dict] = {
     },
 }
 
+#: Decoder-only translators, prompted with a source and a target language
+#: tag. The prompt is prose on the model card, so it is quoted here, keyed by
+#: model id, like `T5_PREFIX_MODELS`. `language_token` is the tag's spelling
+#: in the prompt; `translate_entries` checks that each one is a single added
+#: token of the export's own `tokenizer.json`, because a tag that splits into
+#: pieces does not fail - the model reads it as text.
+#:
+#: Projecte AINA's Plume models are Gemma-2B models trained only on
+#: Catalan-centric parallel data. The card states 16 supervised directions,
+#: Catalan <-> each of the other eight languages, and 56 zero-shot ones.
+#: Only the supervised directions are registered; the router reaches the
+#: others through Catalan.
+#: Source: https://huggingface.co/projecte-aina/Plume32k ,
+#:         https://huggingface.co/projecte-aina/Plume128k
+#:   prompt = '<s> [{}] {} \n[{}]'.format(src_lang_code, sentence, tgt_lang_code)
+_PLUME_CODES = {"ca": "cat_Latn", "de": "deu_Latn", "en": "eng_Latn",
+                "es": "spa_Latn", "eu": "eus_Latn", "fr": "fra_Latn",
+                "gl": "glg_Latn", "it": "ita_Latn", "pt": "por_Latn"}
+_PLUME = {
+    "prompt_template": "<s> [{src}] {text} \n[{tgt}]",
+    "language_token": "[{code}]",
+    "languages": sorted(_PLUME_CODES),
+    "native_codes": dict(_PLUME_CODES),
+    "directions": sorted(edge for other in _PLUME_CODES if other != "ca"
+                         for edge in (["ca", other], [other, "ca"])),
+}
+CAUSAL_LM_MODELS: Dict[str, Dict] = {
+    "Plume32k": dict(_PLUME, notes=(
+        "Projecte AINA Plume, 2B Gemma-architecture decoder-only translator "
+        "with a 32k vocabulary, trained only on Catalan-centric parallel data. "
+        "Registered directions: Catalan <-> German, English, Spanish, Basque, "
+        "French, Galician, Italian and Portuguese, the 16 supervised ones.")),
+    "Plume128k": dict(_PLUME, notes=(
+        "Projecte AINA Plume, 2B Gemma-architecture decoder-only translator "
+        "with a 128k vocabulary, trained only on Catalan-centric parallel "
+        "data. Registered directions: Catalan <-> German, English, Spanish, "
+        "Basque, French, Galician, Italian and Portuguese, the 16 supervised "
+        "ones.")),
+}
+
 #: Canonical spelling for the licence ids the Hub reports lowercased.
 LICENSE_DISPLAY: Dict[str, str] = {
     "apache-2.0": "Apache-2.0",
@@ -831,6 +871,16 @@ SIDE_FILES: Dict[str, Dict[str, str]] = {
         "special_tokens_map": "special_tokens_map.json",
         "tokenizer_json": "tokenizer.json",
     },
+    # A decoder-only export: one graph with its key/value cache, and a
+    # `tokenizers`-library `tokenizer.json`. `tokenizer_config.json` is
+    # required because it states `clean_up_tokenization_spaces`, which
+    # changes the decoded text.
+    "causal-lm": {
+        "tokenizer_json": "tokenizer.json",
+        "config": "config.json",
+        "generation_config": "generation_config.json",
+        "tokenizer_config": "tokenizer_config.json",
+    },
 }
 
 #: Architectures whose inference pipeline this library does not implement yet,
@@ -890,6 +940,7 @@ ARCH_EXTRAS: Dict[str, str] = {
     "opennmt-bpe": "opennmt",
     "pegasus-fast": "fast-tokenizers",
     "t5-fast": "fast-tokenizers",
+    "causal-lm": "fast-tokenizers",
 }
 
 REQUIRED_SIDE_FILES: Dict[str, Tuple[str, ...]] = {
@@ -903,12 +954,21 @@ REQUIRED_SIDE_FILES: Dict[str, Tuple[str, ...]] = {
     "pegasus-fast": ("tokenizer_json", "config"),
     "t5-fast": ("tokenizer_json", "config", "tokenizer_config"),
     "mbart": ("spm", "config", "special_tokens_map"),
+    "causal-lm": ("tokenizer_json", "config", "tokenizer_config"),
 }
 
 GRAPHS: Dict[str, str] = {
     "encoder": "encoder_model.onnx",
     "decoder": "decoder_model.onnx",
     "decoder_with_past": "decoder_with_past_model.onnx",
+}
+
+#: A decoder-only export's one graph, per precision directory. `optimum`
+#: names a quantized graph `model_quantized.onnx`. Neither name falls back
+#: to the root copy: an int8 entry must never point at the fp32 graph.
+CAUSAL_LM_GRAPHS: Dict[str, Tuple[str, ...]] = {
+    "": ("model.onnx",),
+    "int8/": ("model_quantized.onnx", "model.onnx"),
 }
 
 
@@ -958,6 +1018,9 @@ GENERATED_KEYS: FrozenSet[str] = frozenset({
     # the per-direction instruction strings of an instruction-prefixed T5,
     # emitted from `T5_PREFIX_MODELS` and read by `T5TextPrefixPipeline`
     "prefix_templates",
+    # the prompt of a decoder-only translator, emitted from `CAUSAL_LM_MODELS`
+    # and read by `PromptPipeline`
+    "prompt_template",
     # the exact directed edges of a model that is neither a pair, a clique nor
     # a source/target split, stated in a MULTILINGUAL_LANGUAGE_OVERRIDES entry
     "directions",
@@ -1155,11 +1218,25 @@ def _with_external_data(files: Dict[str, int], paths: Iterable[str]) -> List[str
 # Classification
 # ---------------------------------------------------------------------------
 
-def classify(files: Dict[str, int]) -> Optional[str]:
-    """``"lid"``, ``"translate"`` or None for a repo we do not index."""
+def _is_causal_lm(config: Optional[dict]) -> bool:
+    architectures = (config or {}).get("architectures") or ()
+    return any(str(name).endswith("ForCausalLM") for name in architectures)
+
+
+def classify(files: Dict[str, int],
+             config: Optional[dict] = None) -> Optional[str]:
+    """``"lid"``, ``"translate"`` or None for a repo we do not index.
+
+    ``config`` is the Hub's summary of the repo's ``config.json``. It tells a
+    decoder-only translator (``GemmaForCausalLM``) from a sequence
+    classifier: both ship one ``model.onnx``, a ``config.json`` and a
+    ``tokenizer.json``.
+    """
     if "labels.json" in files and any(f.endswith("_hash.py") for f in files):
         return "lid"
     if "encoder_model.onnx" in files:
+        return "translate"
+    if "model.onnx" in files and _is_causal_lm(config):
         return "translate"
     # A transformer sequence-classification export (an XLM-R or BERT
     # language classifier such as AfroLID) ships one ONNX graph, its
@@ -1354,6 +1431,13 @@ def _arch(detail: dict, files: Dict[str, int],
     regardless of its declared `model_type` - see the `_KNOWN_ARCH_MISMATCH`
     docstring for how this was confirmed on the actual Hub artifacts.
     """
+    if _is_causal_lm(detail.get("config")):
+        if model_id in CAUSAL_LM_MODELS:
+            return "causal-lm"
+        raise SkipRepo(
+            "decoder-only export but the repo is not in CAUSAL_LM_MODELS: the "
+            "prompt that selects a translation direction is prose on the "
+            "model card, not anything readable from the artifacts")
     dual_spm = "source.spm" in files and "target.spm" in files
     if dual_spm and "vocab.json" in files:
         return "marian"
@@ -2159,6 +2243,18 @@ def _marian_group_note(err: str, shared: Dict[str, object]) -> str:
             f">>xxx<< token, so there is nothing to disambiguate.")
 
 
+def _check_language_tokens(repo_id: str, tokenizer_json: str, spec: dict) -> None:
+    """Each prompt tag is one added token of this export's tokenizer."""
+    added = {token["content"] for token in
+             json.loads(raw_file(repo_id, tokenizer_json)).get("added_tokens", ())}
+    missing = sorted(code for code in spec["native_codes"].values()
+                     if spec["language_token"].format(code=code) not in added)
+    if missing:
+        raise SkipRepo(
+            f"{tokenizer_json} has no single token for the prompt tags of "
+            f"{', '.join(missing)}; the model would read them as text")
+
+
 def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict]:
     """Every precision variant of one translation repo."""
     name = repo_id.split("/")[1]
@@ -2291,6 +2387,11 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
         shared["src_languages"], shared["tgt_languages"] = \
             _norm_indic(directions[0]), _norm_indic(directions[1])
         shared["native_codes"] = dict(sorted(native.items()))
+    elif arch == "causal-lm":
+        spec = CAUSAL_LM_MODELS[model_id]
+        _assert_declared_covers(detail, model_id, spec["languages"])
+        shared.update({key: value for key, value in spec.items()
+                       if key != "language_token"})
     elif arch == "mbart":
         raise SkipRepo(
             "model_type=mbart with no verified pair in BILINGUAL_FINETUNES: "
@@ -2311,14 +2412,23 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
 
     entries: Dict[str, dict] = {}
     for suffix, prefix in (("", ""), ("-int8", "int8/")):
-        if prefix and (prefix + GRAPHS["encoder"]) not in files:
-            continue
-        graphs = {}
-        for key, filename in GRAPHS.items():
-            path = _resolve(files, prefix, filename)
-            if path is None:
-                raise SkipRepo(f"missing graph {filename}")
-            graphs[key] = path
+        if arch == "causal-lm":
+            found = [prefix + name for name in CAUSAL_LM_GRAPHS[prefix]
+                     if prefix + name in files]
+            if not found:
+                if prefix:
+                    continue
+                raise SkipRepo("missing graph model.onnx")
+            graphs = {"model": found[0]}
+        else:
+            if prefix and (prefix + GRAPHS["encoder"]) not in files:
+                continue
+            graphs = {}
+            for key, filename in GRAPHS.items():
+                path = _resolve(files, prefix, filename)
+                if path is None:
+                    raise SkipRepo(f"missing graph {filename}")
+                graphs[key] = path
 
         side: Dict[str, str] = {}
         for key, filename in SIDE_FILES[arch].items():
@@ -2359,6 +2469,9 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
         missing = [k for k in REQUIRED_SIDE_FILES[arch] if k not in side]
         if missing:
             raise SkipRepo(f"missing required side files: {', '.join(missing)}")
+        if arch == "causal-lm":
+            _check_language_tokens(repo_id, side["tokenizer_json"],
+                                   CAUSAL_LM_MODELS[model_id])
 
         extra = _with_external_data(files, graphs.values())
         size = sum(files.get(p, 0)
@@ -2673,7 +2786,7 @@ def build() -> Tuple[Dict[str, dict], Dict[str, dict], List[Tuple[str, str]],
             codes += [str(code) for code in bcp47 if str(code) not in codes]
         card_languages[repo_id] = codes or None
         files = _files_of(detail)
-        kind = classify(files)
+        kind = classify(files, detail.get("config"))
         if kind is None:
             continue
         try:

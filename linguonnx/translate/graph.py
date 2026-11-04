@@ -1281,7 +1281,7 @@ class TranslationGraph:
         oversized model can never outrank a small model that already works.
 
         The escalation is bounded twice over. It is bounded *by construction*
-        at one search per distinct oversized model size - 40 of them on the
+        at one search per distinct oversized model size - 42 of them on the
         default registry under a 500 MB cap, and fewer once the pair's own
         endpoint filter applies - never more than the model count. It is
         bounded again, and much more tightly, by probing the **widest** step

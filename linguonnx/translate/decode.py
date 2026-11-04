@@ -30,6 +30,16 @@ layer count, an attention-head layout, or that the two decoder graphs order
 their tensors the same way. If a graph ever turns up with a naming scheme this
 does not cover, :class:`Seq2SeqDecoder` raises at load time instead of
 producing silent garbage.
+
+Decoder-only graphs
+-------------------
+
+A prompted translator such as Projecte AINA's Plume has no encoder. Its one
+``model.onnx`` takes ``input_ids``, ``attention_mask`` and a self-attention
+``past_key_values.<i>.key``/``.value`` per layer, and returns ``logits`` and
+the matching ``present.*``. :class:`CausalLMDecoder` runs the whole prompt
+through it once with an empty cache, then one token per step. The greedy and
+beam searches are the ones above; only the graph calls differ.
 """
 
 from __future__ import annotations
@@ -42,7 +52,7 @@ import numpy as np
 from linguonnx.limits import (MAX_ENCODER_TOKENS, MAX_LENGTH_PENALTY,
                               MAX_NUM_BEAMS, DecodeError, check_length)
 
-__all__ = ["Seq2SeqDecoder", "GenerationConfig"]
+__all__ = ["Seq2SeqDecoder", "CausalLMDecoder", "GenerationConfig"]
 
 
 @dataclass
@@ -475,3 +485,113 @@ class Seq2SeqDecoder:
                 f"after {config.max_new_tokens} steps; no output can be "
                 f"produced for this input")
         return max(finished, key=lambda item: item[0])[1]
+
+
+_ORT_FLOAT_TYPES = {"tensor(float)": np.float32, "tensor(float16)": np.float16}
+
+
+class CausalLMDecoder(Seq2SeqDecoder):
+    """Greedy and beam search over one decoder-only ONNX Runtime session.
+
+    The "encoder output" the inherited searches carry is the prompt itself,
+    and step 0 runs the full prompt with an empty cache. The prompt's last
+    token takes the place of a decoder start token, so the search's start id
+    is never fed to the graph. The attention mask grows with the cache, one
+    column per generated token. Every cache entry is self-attention, so every
+    one is refreshed on every step.
+
+    The generated ids exclude the prompt and the stop token.
+    """
+
+    def __init__(self, session, eos_id: int, pad_id: int,
+                 max_input_tokens: int = MAX_ENCODER_TOKENS):
+        self.max_input_tokens = max_input_tokens
+        self.decoder = session
+        self.eos_id = eos_id
+        self.pad_id = pad_id
+        self.decoder_start_id = None
+
+        inputs = {i.name: i for i in session.get_inputs()}
+        self._outputs = [o.name for o in session.get_outputs()]
+        self._logits_name = self._pick(self._outputs, "logits")
+        self._ids_input = self._pick(list(inputs), "input_ids")
+        self._mask_input = self._pick(list(inputs), "attention_mask")
+        self._cache_names = [n for n in inputs if n.startswith("past_key_values.")]
+        if not self._cache_names:
+            raise ValueError(
+                "decoder-only graph has no past_key_values.* inputs; linguonnx "
+                "needs an export with its key/value cache "
+                "(text-generation-with-past)")
+        unknown = set(inputs) - {self._ids_input, self._mask_input} \
+            - set(self._cache_names)
+        if unknown:
+            raise ValueError(
+                f"decoder-only graph takes inputs linguonnx does not feed: "
+                f"{sorted(unknown)}")
+        self._present_for = {}
+        self._empty_cache: Dict[str, Tuple[Tuple[int, ...], type]] = {}
+        for name in self._cache_names:
+            present = name.replace("past_key_values.", "present.", 1)
+            if present not in self._outputs:
+                raise ValueError(
+                    f"decoder cache input {name!r} has no matching graph output "
+                    f"{present!r}; this decoder uses a key/value naming scheme "
+                    f"linguonnx does not know how to wire")
+            self._present_for[name] = present
+            shape = inputs[name].shape
+            if len(shape) != 4 or not isinstance(shape[1], int) \
+                    or not isinstance(shape[3], int):
+                raise ValueError(
+                    f"decoder cache input {name!r} has shape {shape}; linguonnx "
+                    f"needs [batch, heads, past_length, head_dim] with fixed "
+                    f"heads and head_dim to build the empty step-0 cache")
+            dtype = _ORT_FLOAT_TYPES.get(inputs[name].type)
+            if dtype is None:
+                raise ValueError(
+                    f"decoder cache input {name!r} has type "
+                    f"{inputs[name].type}, which linguonnx does not feed")
+            self._empty_cache[name] = ((1, shape[1], 0, shape[3]), dtype)
+
+    def generate(self, input_ids: Sequence[int],
+                 forced_bos_token_id: Optional[int] = None,
+                 config: Optional[GenerationConfig] = None,
+                 decoder_start_token_id: Optional[int] = None) -> List[int]:
+        """A decoder-only graph has no start token to replace: the prompt
+        carries the target tag, and its last token starts the search."""
+        if decoder_start_token_id is not None:
+            raise ValueError(
+                "a decoder-only model takes its target language from the "
+                "prompt, not from a decoder start token")
+        config = config or GenerationConfig()
+        ids = np.asarray([list(input_ids)], dtype=np.int64)
+        if config.num_beams <= 1:
+            return self._greedy(ids, forced_bos_token_id, config, None)
+        return self._beam(ids, forced_bos_token_id, config, None)
+
+    def _encode(self, input_ids: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        check_length(input_ids.shape[-1], self.max_input_tokens, "tokens",
+                     "LINGUONNX_MAX_ENCODER_TOKENS")
+        return input_ids, np.ones_like(input_ids, dtype=np.int64)
+
+    def _run(self, tokens: np.ndarray, cache: Dict[str, np.ndarray]
+             ) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
+        past_length = next(iter(cache.values())).shape[2]
+        feeds = dict(cache)
+        feeds[self._ids_input] = tokens
+        feeds[self._mask_input] = np.ones(
+            (tokens.shape[0], past_length + tokens.shape[1]), dtype=np.int64)
+        outputs = self.decoder.run(self._outputs, feeds)
+        named = dict(zip(self._outputs, outputs))
+        new_cache = {name: named[present]
+                     for name, present in self._present_for.items()}
+        return named[self._logits_name][:, -1, :], new_cache
+
+    def _first_step(self, hidden: np.ndarray, mask: np.ndarray,
+                    token: Optional[int]) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
+        empty = {name: np.zeros(shape, dtype=dtype)
+                 for name, (shape, dtype) in self._empty_cache.items()}
+        return self._run(hidden, empty)
+
+    def _step(self, tokens: np.ndarray, hidden: np.ndarray, mask: np.ndarray,
+              cache: Dict[str, np.ndarray]) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
+        return self._run(tokens, cache)
