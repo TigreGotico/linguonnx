@@ -671,6 +671,8 @@ class ByteLevelBpeTokenizer:
 
     _PRE_TOKENIZE = (r"'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+"
                      r"| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+")
+    # The word cache stops growing at this size, as in `tokenizers`.
+    _CACHE_WORDS = 10_000
 
     def __init__(self, tokenizer_json, clean_up_tokenization_spaces: bool = False):
         try:
@@ -766,7 +768,8 @@ class ByteLevelBpeTokenizer:
                 break
             symbols[index:index + 2] = [symbols[index] + symbols[index + 1]]
         ids = [self._vocab[symbol] for symbol in symbols]
-        self._cache[word] = ids
+        if len(self._cache) < self._CACHE_WORDS:
+            self._cache[word] = ids
         return ids
 
     def _encode_text(self, text: str) -> List[int]:
