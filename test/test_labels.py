@@ -204,3 +204,10 @@ class TestStandardizeTagBehaviour:
         with caplog.at_level(logging.WARNING, logger=labels_mod.__name__):
             assert to_bcp47("xyz_Latn") == "xyz"
         assert any("not a valid language tag" in r.message for r in caplog.records)
+
+
+def test_a_label_that_names_no_language_is_undetermined():
+    """AfroLID's ``nan_lang`` is not Min Nan (``nan``): it names no language."""
+    assert to_bcp47("nan_lang") == "und"
+    assert to_bcp47("__label__nan_lang") == "und"
+    assert to_bcp47("nan_Latn") == "nan-Latn"

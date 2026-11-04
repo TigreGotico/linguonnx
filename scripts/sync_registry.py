@@ -365,34 +365,9 @@ _KNOWN_UNRESOLVED_GROUP_MODELS: Tuple[str, ...] = ()
 #: (`tokenizer.json`) instead of MADLAD's raw `spiece.model`, so
 #: `_madlad_languages` raises `SkipRepo` for it too - a real AraT5 loader
 #: is not implemented.
-#:
-#: ``arabic-MARBERT-dialect-identification-city``: a MARBERT (BERT-family)
-#: sequence classifier over Arabic *cities*, not BCP-47 language tags - even
-#: a working tokenizer-based classifier engine would still not belong in
-#: `lid.json`, whose contract is a BCP-47 tag out. `lid_entries` raises
-#: `SkipRepo` for it via the transformer-classifier branch above; hand-tested
-#: directly with `transformers`+`onnxruntime` outside this library, it does
-#: correctly top-1 Cairo for Egyptian Arabic input at both precisions - the
-#: model itself is not the problem, this library has no classifier engine or
-#: dialect/city registry section for it to live in.
-#:
-#: ``afrolid_1.5``: XLM-R sequence classifier over ~500 African language
-#: codes - its output shape *would* fit `lid.json`'s BCP-47 contract, but
-#: `lid_entries` still raises `SkipRepo` for it, for the same reason: no
-#: tokenizer-based transformer classifier loader exists in
-#: `linguonnx.detect`. Separately investigated for a suspected label-mapping
-#: defect (a genuine Yoruba sentence classified Fula/Wolof, `yor` absent from
-#: the top 5): the exported `config.json`'s `id2label` is byte-identical to
-#: `UBC-NLP/afrolid_1.5`'s own `config.json` at every checked index, and
-#: running the unmodified upstream PyTorch model directly through
-#: `transformers` on the same sentence reproduces the identical
-#: Fula/Wolof-over-Yoruba misclassification - confirmed genuine upstream
-#: model behaviour, not an export or preprocessing defect.
 _KNOWN_ARCH_MISMATCH: Tuple[str, ...] = (
     "vinai-translate-vi2en-v2",
     "arat5-arabic-dialects-translation",
-    "arabic-MARBERT-dialect-identification-city",
-    "afrolid_1.5",
 )
 
 #: Exports this library cannot tokenize the way the model was trained, keyed
@@ -550,6 +525,40 @@ LICENSE_DISPLAY: Dict[str, str] = {
     "cc-by-nc-4.0": "CC-BY-NC-4.0",
     "gpl-3.0": "GPL-3.0",
     "afl-3.0": "AFL-3.0",
+}
+
+#: Licences stated by the upstream source of an export whose own card says
+#: ``other`` because the upstream Hub card declares nothing. Keyed by model id;
+#: each entry quotes where the source states its terms. The value is a
+#: :data:`LICENSE_DISPLAY` key.
+#:
+#: ``afrolid_1.5``: `UBC-NLP/afrolid_1.5` has no licence on its Hub card, but
+#: the AfroLID repository that documents v1.5 and links that checkpoint
+#: ships an Apache-2.0 ``LICENSE`` and states in its README, section
+#: "License": "afrolid(-py) is Apache-2.0 licensed. The license applies to
+#: the pre-trained models as well." Its base model's repository
+#: (`UBC-NLP/serengeti` on GitHub) is Apache-2.0 as well.
+#: Source: https://github.com/UBC-NLP/afrolid
+UPSTREAM_LICENSES: Dict[str, str] = {
+    "afrolid_1.5": "apache-2.0",
+}
+
+#: Exports whose upstream terms do not allow redistribution, keyed by model
+#: id. ``_license_of`` refuses them with the reason, whatever their card says.
+#:
+#: ``arabic-MARBERT-dialect-identification-city``: the fine-tune
+#: (`Ammar-alhaj-ali/arabic-MARBERT-dialect-identification-city`) declares no
+#: licence on its card and ships no LICENSE file, so no redistribution is
+#: granted. Its base model is restricted too: the MARBERT repository says the
+#: checkpoints "are available on Huggingface website for direct download and
+#: use exclusively for research. For commercial use, please contact the
+#: authors". Source: https://github.com/UBC-NLP/marbert, section 6.
+UNREDISTRIBUTABLE: Dict[str, str] = {
+    "arabic-MARBERT-dialect-identification-city": (
+        "MARBERT city classifier: the upstream fine-tune declares no licence "
+        "and ships no LICENSE file, and its MARBERT base is released "
+        "'exclusively for research' (github.com/UBC-NLP/marbert, section 6). "
+        "No term grants redistribution, so linguonnx does not register it"),
 }
 
 #: Licence -> routing tier. The graph will not put a more restrictive tier into
@@ -1002,8 +1011,18 @@ _BASE_MODEL_RE = re.compile(r"Helsinki-NLP/([A-Za-z0-9._\-]+)")
 _TARGET_TOKEN_RE = re.compile(r">>(\w+)<<")
 
 
-def _license_of(detail: dict, readme: str) -> str:
-    """Licence id, from card metadata first and the README body second."""
+def _license_of(detail: dict, readme: str,
+                model_id: Optional[str] = None) -> str:
+    """Licence id, from card metadata first and the README body second.
+
+    :data:`UNREDISTRIBUTABLE` and :data:`UPSTREAM_LICENSES` come before both:
+    they record terms read from the upstream source, which the export's own
+    card does not carry.
+    """
+    if model_id in UNREDISTRIBUTABLE:
+        raise SkipRepo(UNREDISTRIBUTABLE[model_id])
+    if model_id in UPSTREAM_LICENSES:
+        return LICENSE_DISPLAY[UPSTREAM_LICENSES[model_id]]
     raw = (detail.get("cardData") or {}).get("license")
     if not raw:
         match = _LICENSE_BODY_RE.search(readme)
@@ -1056,19 +1075,13 @@ def classify(files: Dict[str, int]) -> Optional[str]:
         return "lid"
     if "encoder_model.onnx" in files:
         return "translate"
-    # A transformer sequence-classification export (an XLM-R/BERT dialect or
-    # language classifier, e.g. AfroLID or a MARBERT dialect-city model)
-    # looks like a LID candidate from a distance - one ONNX graph, one label
-    # over the output - but ships none of GlotLID's fastText side files
-    # (`vocab.txt` sized for feature *hashing*, `labels.json`, a
-    # `*_hash.py` featurizer). `linguonnx.detect` only implements the
-    # fastText-hash engine (`GlotLIDFeaturizer` + softmax/hs ONNX graph);
-    # nothing in this library tokenizes with a Hub `tokenizer.json` and runs
-    # a transformer classification head. Classify it as "lid" anyway so
-    # `lid_entries` can raise a `SkipRepo` that names the real reason,
-    # instead of the repo vanishing from both the registry and
-    # `skipped.json` without a trace (`classify` returning `None` here is
-    # invisible - `build()` just `continue`s).
+    # A transformer sequence-classification export (an XLM-R or BERT
+    # language classifier such as AfroLID) ships one ONNX graph, its
+    # `config.json` with `id2label`, and a tokenizer, but none of the fastText
+    # side files. `lid_entries` registers it for the `transformer-onnx`
+    # engine or raises a `SkipRepo` that names why not, so a repo of this
+    # shape always lands in the registry or in `skipped.json` (`classify`
+    # returning `None` would drop it from both without a trace).
     if "model.onnx" in files and "config.json" in files and \
             "labels.json" not in files and \
             ("tokenizer.json" in files or "vocab.txt" in files):
@@ -2041,7 +2054,7 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
         raise SkipRepo(_UNSUPPORTED_TOKENIZATION[model_id])
     files = _files_of(detail)
     arch = _arch(detail, files, model_id)
-    license_id = _license_of(detail, readme)
+    license_id = _license_of(detail, readme, model_id)
 
     shared: Dict[str, object] = {"arch": arch}
     if arch in ARCH_EXTRAS:
@@ -2262,30 +2275,13 @@ def lid_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict]:
     model_id = MODEL_ID_OVERRIDES.get(
         name, name[:-len("-onnx")] if name.endswith("-onnx") else name)
     files = _files_of(detail)
-    license_id = _license_of(detail, readme)
+    license_id = _license_of(detail, readme, model_id)
 
     if "labels.json" not in files:
-        # Reached only through `classify()`'s transformer-classifier branch:
-        # a `model.onnx` + `config.json` + tokenizer export with no GlotLID
-        # side files at all. `linguonnx.detect.LanguageDetector` hard-codes
-        # the fastText-hash pipeline (`GlotLIDFeaturizer` reads `vocab.txt`
-        # as a feature-hashing word list sized by `config.json`'s `nwords`/
-        # `minn`/`maxn`/`bucket`, and its ONNX graph is a bag-of-hashes
-        # matmul) - it cannot tokenize with a Hub `tokenizer.json` or run a
-        # transformer classification head, whatever id2label the export's
-        # own `config.json` carries. Registering this shape under `"lid"`
-        # would either crash on the missing fastText fields or silently
-        # skip straight to `GlotLIDFeaturizer`'s failure mode. No such loader
-        # exists in this codebase.
-        config = json.loads(raw_file(repo_id, "config.json"))
-        arches = config.get("architectures") or [config.get("model_type", "?")]
-        raise SkipRepo(
-            f"transformer sequence-classification export "
-            f"(architectures={arches}, id2label size="
-            f"{len(config.get('id2label') or {})}): linguonnx.detect only "
-            f"implements the fastText-hash LID engine (GlotLIDFeaturizer + "
-            f"vocab.txt/labels.json/*_hash.py); no tokenizer-based "
-            f"transformer classifier loader exists for it")
+        # Reached only through `classify()`'s transformer branch: a
+        # `model.onnx` + `config.json` + tokenizer export with no fastText
+        # side files.
+        return _transformer_lid_entries(repo_id, model_id, files, license_id)
 
     config = json.loads(raw_file(repo_id, "config.json"))
     labels = json.loads(raw_file(repo_id, "labels.json"))
@@ -2337,6 +2333,94 @@ def lid_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict]:
                  + sum(files.get(f, 0) for f in side.values())) / 1e6)),
             "precision": "int8" if suffix else "fp32",
         }
+    return entries
+
+
+#: Caveats for LID entries, found by running the model on real text. Keyed
+#: by model id; emitted as the default ``notes`` of every precision variant.
+LID_NOTES: Dict[str, str] = {
+    "afrolid_1.5": (
+        "AfroLID v1.5 (UBC-NLP), an XLM-R classifier over 517 African "
+        "languages; its ISO 639-3 labels are reported as BCP-47 tags. "
+        "Upstream behaviour, reproduced with the unmodified PyTorch "
+        "checkpoint: short Yoruba sentences can come out as Wolof or Fula "
+        "with a top-1 probability under 0.4 (1 of 8 FLORES-200 devtest "
+        "Yoruba sentences, 'O ko ago ilekun WiFi, O wi.'). Longer Yoruba is "
+        "classified yor with or without tone marks. Text in a language "
+        "outside the 517 still gets an African label, at times with a "
+        "probability over 0.9 (English, French, Portuguese and Chinese "
+        "FLORES-200 sentences); the model's nan_lang label did not fire "
+        "for any of them."),
+}
+
+
+def _transformer_lid_entries(repo_id: str, model_id: str,
+                             files: Dict[str, int],
+                             license_id: str) -> Dict[str, dict]:
+    """Entries for a transformer sequence-classification LID export.
+
+    `linguonnx.detect` runs it with the ``transformer-onnx`` engine: the
+    export's own ``tokenizer.json`` and ``config.json`` ``id2label`` are all
+    it reads. Every label must be a language code, because the detector
+    reports labels as BCP-47 tags; a dialect, emotion or topic classifier
+    shares this file shape and is refused here.
+    """
+    from linguonnx.detect.labels import is_registered_subtag, to_bcp47
+
+    config = json.loads(raw_file(repo_id, "config.json"))
+    arches = config.get("architectures") or [config.get("model_type", "?")]
+    if not any(a.endswith("ForSequenceClassification") for a in arches):
+        raise SkipRepo(
+            f"not a sequence classifier (architectures={arches}): "
+            f"linguonnx.detect runs fastText-hash LID models and "
+            f"transformer *ForSequenceClassification heads only")
+    problem_type = config.get("problem_type") or "single_label_classification"
+    if problem_type != "single_label_classification":
+        raise SkipRepo(f"problem_type {problem_type!r} is not a softmax head")
+    if "tokenizer.json" not in files:
+        raise SkipRepo("transformer classifier without a tokenizer.json")
+    labels = list((config.get("id2label") or {}).values())
+    if not labels:
+        raise SkipRepo("config.json has no id2label")
+    def _is_language(label: str) -> bool:
+        try:
+            return is_registered_subtag(to_bcp47(label))
+        except ValueError:
+            return False
+
+    not_languages = [l for l in labels if not _is_language(l)]
+    if not_languages:
+        raise SkipRepo(
+            f"{len(not_languages)} of {len(labels)} labels are not language "
+            f"codes (e.g. {not_languages[:3]}); the detector reports BCP-47 "
+            f"tags")
+
+    side = {"tokenizer_json": "tokenizer.json", "config": "config.json"}
+    entries = {}
+    for suffix, candidates in (
+            ("", [f for f in files if f.endswith(".onnx")
+                  and ".int8." not in f]),
+            ("-int8", [f for f in files if f.endswith(".onnx")
+                       and ".int8." in f])):
+        if not candidates:
+            continue
+        onnx_file = sorted(candidates)[0]
+        entry = {
+            "model_id": model_id + suffix,
+            "hf_repo": repo_id,
+            "onnx_file": onnx_file,
+            "side_files": dict(side),
+            "license": license_id,
+            "engine": "transformer-onnx",
+            "num_labels": len(labels),
+            "size_mb": max(1, round(
+                (files.get(onnx_file, 0)
+                 + sum(files.get(f, 0) for f in side.values())) / 1e6)),
+            "precision": "int8" if suffix else "fp32",
+        }
+        if model_id in LID_NOTES:
+            entry["notes"] = LID_NOTES[model_id]
+        entries[model_id + suffix] = entry
     return entries
 
 
@@ -2643,7 +2727,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return name[:-len("-onnx")] if name.endswith("-onnx") else name
 
     _allowlisted = (set(_KNOWN_UNRESOLVED_GROUP_MODELS) | set(_KNOWN_ARCH_MISMATCH)
-                    | set(_UNSUPPORTED_TOKENIZATION))
+                    | set(_UNSUPPORTED_TOKENIZATION) | set(UNREDISTRIBUTABLE))
     unexpected_skips = [
         (repo_id, reason) for repo_id, reason in skipped
         if _stem(repo_id) not in _allowlisted
