@@ -25,7 +25,7 @@ import pytest
 from onnx import TensorProto, helper, numpy_helper
 
 from linguonnx.limits import (MAX_ENCODER_TOKENS, DecodeError,
-                              InputTooLongError)
+                              InputTooLongError, OutputTruncatedError)
 from linguonnx.translate.decode import (GenerationConfig, Seq2SeqDecoder,
                                         _banned_ngram_tokens)
 
@@ -187,7 +187,8 @@ def _reference_beam(forced_bos, beams, max_new_tokens, length_penalty=1.0,
     the slow and readable way: expand every live beam over the whole
     vocabulary, keep the top ``2 * beams`` candidates (so ``beams`` survivors
     remain even if every other candidate ends the sentence), then split them
-    into finished and live.
+    into finished and live. Beams still live when the budget ends compete with
+    the finished ones. A score divides by the length plus the start token.
     """
     live = [(0.0, [])]
     finished = []
@@ -206,16 +207,17 @@ def _reference_beam(forced_bos, beams, max_new_tokens, length_penalty=1.0,
         for score, history in candidates:
             if history[-1] == EOS:
                 if len(history) > 1:
-                    finished.append((score / (len(history) - 1) ** length_penalty,
+                    finished.append((score / len(history) ** length_penalty,
                                      history[:-1]))
                 continue
             if len(live) < beams:
                 live.append((score, history))
         if not live or len(finished) >= beams:
             break
-    if finished:
-        return max(finished, key=lambda item: item[0])[1]
-    return max(live)[1]
+    else:
+        finished += [(score / (len(history) + 1) ** length_penalty, history)
+                     for score, history in live]
+    return max(finished, key=lambda item: item[0])[1]
 
 
 # --------------------------------------------------------------------------
@@ -225,17 +227,34 @@ def _reference_beam(forced_bos, beams, max_new_tokens, length_penalty=1.0,
 INPUT = [5, 6, 7, EOS]
 
 
+def _tokens(decoder, *args, **kwargs):
+    """The ids generated, whether or not the model finished within budget."""
+    try:
+        return decoder.generate(*args, **kwargs)
+    except OutputTruncatedError as error:
+        return error.tokens
+
+
 def test_greedy_matches_the_reference_model(toy):
     out = toy.generate(INPUT, config=GenerationConfig(num_beams=1, max_new_tokens=20))
     assert out == _reference_greedy(None, 20)
     assert out, "the toy model should produce something before EOS"
 
 
-def test_greedy_respects_max_new_tokens(toy):
-    for budget in (1, 3, 5):
-        out = toy.generate(INPUT, config=GenerationConfig(num_beams=1,
-                                                          max_new_tokens=budget))
-        assert len(out) <= budget
+def test_greedy_raises_when_the_budget_ends_before_eos(toy):
+    full = _reference_greedy(None, 20)
+    for budget in range(1, len(full) + 1):
+        config = GenerationConfig(num_beams=1, max_new_tokens=budget)
+        with pytest.raises(OutputTruncatedError,
+                           match=f"max_new_tokens={budget} ") as caught:
+            toy.generate(INPUT, config=config)
+        assert caught.value.tokens == full[:budget]
+
+
+def test_greedy_counts_eos_against_the_budget(toy):
+    full = _reference_greedy(None, 20)
+    config = GenerationConfig(num_beams=1, max_new_tokens=len(full) + 1)
+    assert toy.generate(INPUT, config=config) == full
 
 
 def test_greedy_stops_at_eos_and_never_emits_it(toy):
@@ -245,8 +264,8 @@ def test_greedy_stops_at_eos_and_never_emits_it(toy):
 
 
 def test_forced_bos_is_the_first_generated_token_greedy(toy):
-    out = toy.generate(INPUT, forced_bos_token_id=9,
-                       config=GenerationConfig(num_beams=1, max_new_tokens=10))
+    out = _tokens(toy, INPUT, forced_bos_token_id=9,
+                  config=GenerationConfig(num_beams=1, max_new_tokens=10))
     assert out[0] == 9
     assert out == _reference_greedy(9, 10)
 
@@ -261,8 +280,8 @@ def test_a_per_call_decoder_start_replaces_the_configured_one(toy, beams):
         .astype(np.float64)
     reference = (_reference_greedy(None, 12, logits_for=logits) if beams == 1
                  else _reference_beam(None, beams, 12, logits_for=logits))
-    assert toy.generate(INPUT, config=config,
-                        decoder_start_token_id=start) == reference
+    assert _tokens(toy, INPUT, config=config,
+                   decoder_start_token_id=start) == reference
     assert reference != (_reference_greedy(None, 12) if beams == 1
                          else _reference_beam(None, beams, 12))
 
@@ -291,12 +310,20 @@ def test_beam_with_forced_bos_matches_the_reference(toy):
         assert out == _reference_beam(8, beams, 12)
 
 
-def test_beam_respects_max_new_tokens(toy):
+def test_beam_raises_when_the_winner_has_no_eos(toy):
     for budget in (1, 2, 5):
-        out = toy.generate(INPUT, forced_bos_token_id=8,
-                           config=GenerationConfig(num_beams=4,
-                                                    max_new_tokens=budget))
-        assert len(out) <= budget
+        config = GenerationConfig(num_beams=4, max_new_tokens=budget)
+        with pytest.raises(OutputTruncatedError,
+                           match=f"max_new_tokens={budget} ") as caught:
+            toy.generate(INPUT, forced_bos_token_id=8, config=config)
+        assert caught.value.tokens == _reference_beam(8, 4, budget)
+
+
+def test_beam_returns_a_finished_winner_at_the_budget(toy):
+    """All four beams are live at the budget, and the winner reached EOS."""
+    config = GenerationConfig(num_beams=4, max_new_tokens=4, length_penalty=0.0)
+    assert toy.generate(INPUT, config=config) == \
+        _reference_beam(None, 4, 4, length_penalty=0.0)
 
 
 def test_beam_never_emits_eos(toy):
@@ -388,13 +415,14 @@ class TestWithPastGraphDeclaringEncoderHiddenStates:
         assert _reference_greedy(None, 20, self._logits_for) != _reference_greedy(None, 20)
 
     def test_greedy_feeds_the_encoder_output(self, decoder):
-        out = decoder.generate(INPUT, config=GenerationConfig(num_beams=1, max_new_tokens=20))
+        out = _tokens(decoder, INPUT,
+                      config=GenerationConfig(num_beams=1, max_new_tokens=20))
         assert out == _reference_greedy(None, 20, self._logits_for)
 
     @pytest.mark.parametrize("beams", [2, 3, 4])
     def test_beam_feeds_the_encoder_output_to_every_beam(self, decoder, beams):
         config = GenerationConfig(num_beams=beams, max_new_tokens=16)
-        assert decoder.generate(INPUT, config=config) == \
+        assert _tokens(decoder, INPUT, config=config) == \
             _reference_beam(None, beams, 16, logits_for=self._logits_for)
 
 
@@ -422,8 +450,10 @@ def test_unwireable_cache_raises_at_load_time(tmp_path):
 def test_no_repeat_ngram_guard_breaks_a_loop(toy):
     """Forced to start at token 1, the toy model falls into an endless "7 7 7";
     the guard must break out of it."""
-    plain = toy.generate(INPUT, forced_bos_token_id=1,
-                         config=GenerationConfig(num_beams=1, max_new_tokens=24))
+    with pytest.raises(OutputTruncatedError) as caught:
+        toy.generate(INPUT, forced_bos_token_id=1,
+                     config=GenerationConfig(num_beams=1, max_new_tokens=24))
+    plain = caught.value.tokens
     assert plain[-6:] == [7] * 6, "expected the unguarded run to loop"
 
     guarded = toy.generate(INPUT, forced_bos_token_id=1,
@@ -452,10 +482,12 @@ class TestBannedTokenIds:
     def test_unguarded_greedy_reproduces_the_bug(self, toy):
         # Regression pin: without a ban PAD is chosen as real content right
         # after the forced token, and the toy model then loops forever since
-        # PAD != EOS. This is what a caller used to get back as "".
-        out = toy.generate(INPUT, forced_bos_token_id=8,
-                           config=GenerationConfig(num_beams=1, max_new_tokens=12))
-        assert out[1] == PAD, "expected the unguarded run to hit the bug"
+        # PAD != EOS.
+        with pytest.raises(OutputTruncatedError) as caught:
+            toy.generate(INPUT, forced_bos_token_id=8,
+                         config=GenerationConfig(num_beams=1, max_new_tokens=12))
+        assert caught.value.tokens[1] == PAD, \
+            "expected the unguarded run to hit the bug"
 
     def test_banned_token_ids_keeps_pad_out_of_greedy_output(self, toy):
         out = toy.generate(INPUT, forced_bos_token_id=8,

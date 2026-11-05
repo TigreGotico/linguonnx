@@ -50,7 +50,8 @@ from typing import Dict, FrozenSet, List, Optional, Sequence, Tuple
 import numpy as np
 
 from linguonnx.limits import (MAX_ENCODER_TOKENS, MAX_LENGTH_PENALTY,
-                              MAX_NUM_BEAMS, DecodeError, check_length)
+                              MAX_NUM_BEAMS, DecodeError, OutputTruncatedError,
+                              check_length)
 
 __all__ = ["Seq2SeqDecoder", "CausalLMDecoder", "GenerationConfig"]
 
@@ -137,6 +138,14 @@ class GenerationConfig:
         # here so every later lookup is a fast set membership test instead of
         # a per-step scan.
         self.banned_token_ids = frozenset(int(t) for t in self.banned_token_ids)
+
+
+def _truncated(max_new_tokens: int,
+               tokens: List[int]) -> OutputTruncatedError:
+    return OutputTruncatedError(
+        f"generation reached max_new_tokens={max_new_tokens} before the model "
+        f"finished, so the output would stop mid-text; split the input or "
+        f"raise max_new_tokens", tokens)
 
 
 def _log_softmax(x: np.ndarray) -> np.ndarray:
@@ -326,7 +335,7 @@ class Seq2SeqDecoder:
                 break
             generated.append(token)
             if step == config.max_new_tokens - 1:
-                break
+                raise _truncated(config.max_new_tokens, generated)
             logits, cache = self._step(
                 np.array([[token]], dtype=np.int64), hidden, mask, cache)
         if not generated:
@@ -386,12 +395,13 @@ class Seq2SeqDecoder:
         scores[0] = 0.0
         sequences: List[List[int]] = [[] for _ in range(beams)]
         # Best `beams` finished hypotheses, worst first is not maintained; the
-        # list is trimmed instead, which is cheap at these sizes.
-        finished: List[Tuple[float, List[int]]] = []
+        # list is trimmed instead, which is cheap at these sizes. The flag says
+        # whether the hypothesis reached EOS.
+        finished: List[Tuple[float, List[int], bool]] = []
 
-        def remember(sequence: List[int], total: float) -> None:
+        def remember(sequence: List[int], total: float, ended: bool) -> None:
             finished.append((self._hypothesis_score(sequence, total, length_penalty),
-                             list(sequence)))
+                             list(sequence), ended))
             if len(finished) > beams:
                 finished.sort(key=lambda item: item[0], reverse=True)
                 del finished[beams:]
@@ -428,7 +438,7 @@ class Seq2SeqDecoder:
                 if token == self.eos_id:
                     # Ranked below the beam width: `transformers` drops it.
                     if rank < beams and sequence:
-                        remember(sequence, score)
+                        remember(sequence, score, True)
                 else:
                     next_scores.append(score)
                     next_tokens.append(token)
@@ -474,7 +484,7 @@ class Seq2SeqDecoder:
         if len(finished) < beams:
             for i in range(beams):
                 if sequences[i] and np.isfinite(scores[i]):
-                    remember(sequences[i], float(scores[i]))
+                    remember(sequences[i], float(scores[i]), False)
         if not finished:
             # Every beam was padded to -inf and none reached EOS. Returning []
             # here would decode to "", which is exactly what the caller layer
@@ -484,7 +494,10 @@ class Seq2SeqDecoder:
                 f"beam search finished no hypothesis and every beam collapsed "
                 f"after {config.max_new_tokens} steps; no output can be "
                 f"produced for this input")
-        return max(finished, key=lambda item: item[0])[1]
+        _, best, ended = max(finished, key=lambda item: item[0])
+        if not ended:
+            raise _truncated(config.max_new_tokens, best)
+        return best
 
 
 _ORT_FLOAT_TYPES = {"tensor(float)": np.float32, "tensor(float16)": np.float16}
