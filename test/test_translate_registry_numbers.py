@@ -51,11 +51,11 @@ FALLBACK_STEPS_UNDER_500 = 42
 #   {v["hf_repo"] for v in translate.json.values() if "hf_repo" in v}  -> models
 #   Counter(v.get("precision") for v in translate.json.values())
 #                                               -> int8/fp32/rule-based split
-TRANSLATE_ENTRIES = 453
-TRANSLATE_INT8_ENTRIES = 225
-TRANSLATE_FP32_ENTRIES = 226
+TRANSLATE_ENTRIES = 451
+TRANSLATE_INT8_ENTRIES = 224
+TRANSLATE_FP32_ENTRIES = 225
 TRANSLATE_RULE_ENTRIES = 2
-TRANSLATE_MODELS = 226
+TRANSLATE_MODELS = 225
 LID_ENTRIES = 12
 LID_MODELS = 6
 

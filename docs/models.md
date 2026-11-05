@@ -2,7 +2,7 @@
 
 Two JSON files under `linguonnx/model_index/` say what exists: `lid.json` for
 language identification and `translate.json` for translation. They hold 12 and
-453 entries. Every ONNX entry names a HuggingFace repo, the exact files to
+451 entries. Every ONNX entry names a HuggingFace repo, the exact files to
 fetch, the languages covered, the licence and the size. A rule-based entry
 names a Python function instead of files. See
 [Rule-based models](#rule-based-models).
@@ -13,7 +13,7 @@ it sounds.
 
 ## What is in the translation registry
 
-453 entries is 225 int8 and 226 fp32 entries across 226 models, plus 2
+451 entries is 224 int8 and 225 fp32 entries across 225 models, plus 2
 rule-based entries. `load_translator()` defaults to `precision="int8"`; pass
 `precision="fp32"` or `precision=None` for both. A rule-based entry has no
 weights and no precision, so the precision filter never removes it.
@@ -43,7 +43,7 @@ weights and no precision, so the precision filter never removes it.
 | `translate-eus-cat`, `translate-oci-cat` | Pegasus (fast) | `eu-ca`, `oc-ca` | 590 MB each | MIT |
 | `arat5-arabic-dialects-translation` | T5 (fast), AraT5 fine-tune | 12 Arabic varieties → Modern Standard Arabic (`ar`), **one-way**: acm, aeb, afb, apc, apd, arq, ars, ary, arz, ayl, ayn, ayp | 2.0 GB | Apache-2.0 |
 | `vinai-translate-vi2en-v2` | mBART fine-tune | Vietnamese → English, **one-way**; fp32 only, no int8 | 3.5 GB (fp32) | **AGPL-3.0** |
-| `opus-mt-*` (124) | Marian | one pair each | 78 MB – 716 MB | Apache-2.0 or CC-BY-4.0 |
+| `opus-mt-*` (125) | Marian | one pair each | 78 MB – 2.34 GB | Apache-2.0 or CC-BY-4.0 |
 | `afrigloss-opus-mt-*` (14) | Marian fine-tune | one pair each; en → {ee, ha, ig, sn, sw, tw, yo}, fr → {ee, ha, ig, sn, sw, tw, yo} | 216 MB – 904 MB | **CC-BY-NC-4.0**; fr-ee, fr-ha, fr-ig, fr-sn: Apache-2.0 |
 | `afrigloss-nllb-600m`, `-1.3b` | NLLB-200 fine-tune | {en, fr} → {ee, ha, ig, sn, sw, tw, yo}: 14 directions | 1.9 GB – 11.9 GB | **CC-BY-NC-4.0** |
 | `IbRo-nllb` | NLLB-1.3B fine-tune | es ↔ {an, ast, ca, gl, oc (Aranese)}, ca ↔ oc: 12 directions | 3.04 GB – 11.9 GB | Apache-2.0 |
@@ -61,17 +61,17 @@ ca-it  ceb-en  cs-en  cy-en  da-en  de-en  en-af  en-ar
 en-az  en-bg  en-ca  en-cs  en-cy  en-da  en-de  en-el
 en-es  en-et  en-eu  en-fi  en-fr  en-ga  en-gl  en-gmq
 en-he  en-hi  en-hu  en-hy  en-id  en-is  en-it  en-jap
-en-ml  en-mr  en-nl  en-pl  en-pt  en-ro  en-ru  en-sk
-en-sq  en-sv  en-ti  en-tr  en-uk  en-ur  en-vi  en-xh
-en-zh  es-ca  es-en  es-eu  es-gl  et-en  eu-en  eu-es
-fi-en  fr-ca  fr-en  ga-en  gl-en  gl-es  gl-pt  gmq-en
-hi-en  hu-en  hy-en  id-en  is-en  it-en  itc-itc  ja-en
-ka-en  ko-en  lv-en  mg-en  mk-en  ml-en  mr-en  mt-en
-nl-en  pa-en  pl-en  pt-ca  pt-en  pt-gl  ru-en  sk-en
-sm-en  sn-en  sq-en  st-en  sv-en  tc-base-en-sh  tc-big-cat_oci_spa-en  tc-big-el-en
-tc-big-en-cat_oci_spa  tc-big-en-el  tc-big-en-ro  tc-big-en-zle  tc-big-gmw-gmw  tc-big-he-en  tc-big-itc-itc  tc-big-sh-en
-tc-big-zle-en  th-en  tl-en  tn-en  tr-az  tr-en  ts-en  uk-en
-ur-en  vi-en  xh-en  zh-en
+en-ko  en-ml  en-mr  en-nl  en-pl  en-pt  en-ro  en-ru
+en-sk  en-sq  en-sv  en-ti  en-tr  en-uk  en-ur  en-vi
+en-xh  en-zh  es-ca  es-en  es-eu  es-gl  et-en  eu-en
+eu-es  fi-en  fr-ca  fr-en  ga-en  gl-en  gl-es  gl-pt
+gmq-en  hi-en  hu-en  hy-en  id-en  is-en  it-en  itc-itc
+ja-en  ka-en  ko-en  lv-en  mg-en  mk-en  ml-en  mr-en
+mt-en  nl-en  pa-en  pl-en  pt-ca  pt-en  pt-gl  ru-en
+sk-en  sm-en  sn-en  sq-en  st-en  sv-en  tc-base-en-sh  tc-big-cat_oci_spa-en
+tc-big-el-en  tc-big-en-cat_oci_spa  tc-big-en-el  tc-big-en-ro  tc-big-en-zle  tc-big-gmw-gmw  tc-big-he-en  tc-big-itc-itc
+tc-big-sh-en  tc-big-zle-en  th-en  tl-en  tn-en  tr-az  tr-en  ts-en
+uk-en  ur-en  vi-en  xh-en  zh-en
 ```
 
 Together they reach 606 languages over the default graph. MADLAD supplies most
@@ -92,14 +92,10 @@ Sizes are the sum of the blobs an entry actually references, not the repo
 total: these repos also carry a `decoder_model_merged.onnx` that `linguonnx`
 never downloads.
 
-`opus-mt-en-ko` is **not** in the registry. Its upstream export
-(`Helsinki-NLP/opus-mt-tc-big-en-ko`) ships a `vocab.json` that spells only
-21% of the pieces its own `source.spm` produces, so most English words reach
-the encoder as `<unk>` and the model answers fluent Korean nonsense.
-`transformers` builds the same broken input ids from the same files, so this
-is an upstream defect, not an ONNX one. English → Korean routes through
-M2M100 instead, which scores chrF 30.4 on that pair (FLORES-200 devtest,
-n=100, beam4).
+`opus-mt-en-ko` and `liv4ever-mt` were trained with separate source and
+target vocabularies. Their repos carry the source ids in `vocab.json` and the
+target ids in `target_vocab.json`, and the entry names both. Decoding with
+`vocab.json` alone gives text unrelated to the input.
 
 Three opus-mt group models translate **from English only**, into the
 languages their vocabulary carries a `>>xxx<<` token for:
@@ -183,7 +179,7 @@ print(entry["arch"], entry["pair"], entry["license"], entry["size_mb"])
 # marian ['pt', 'en'] Apache-2.0 172
 
 print(len(list_models(kind="translate")), len(list_models(kind="lid")))
-# 453 12
+# 451 12
 ```
 
 ## The download cache
