@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.0a2](https://github.com/TigreGotico/linguonnx/tree/0.25.0a2) (2026-11-05)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.0a1...0.25.0a2)
+
+**Merged pull requests:**
+
+- chore: drop the AfroLID licence override [\#139](https://github.com/TigreGotico/linguonnx/pull/139) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.25.0a1](https://github.com/TigreGotico/linguonnx/tree/0.25.0a1) (2026-11-05)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.24.1a1...0.25.0a1)
