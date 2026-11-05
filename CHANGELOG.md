@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.2a1](https://github.com/TigreGotico/linguonnx/tree/0.25.2a1) (2026-11-05)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.1a1...0.25.2a1)
+
+**Merged pull requests:**
+
+- fix: build the edge normaliser with SentencePieceNormalizer [\#145](https://github.com/TigreGotico/linguonnx/pull/145) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.25.1a1](https://github.com/TigreGotico/linguonnx/tree/0.25.1a1) (2026-11-05)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.0a2...0.25.1a1)
@@ -381,10 +389,6 @@
 ## [0.6.3a1](https://github.com/TigreGotico/linguonnx/tree/0.6.3a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.6.2a1...0.6.3a1)
-
-**Merged pull requests:**
-
-- fix: refuse language-family codes, bound coverage by the card, make routing budget-aware [\#38](https://github.com/TigreGotico/linguonnx/pull/38) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.6.2a1](https://github.com/TigreGotico/linguonnx/tree/0.6.2a1) (2026-08-03)
 

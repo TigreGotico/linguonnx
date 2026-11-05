@@ -215,10 +215,9 @@ class Translator:
         self._slots = (threading.Semaphore(max_concurrent_translations)
                        if max_concurrent_translations is not None else None)
         self._loaded: "OrderedDict[str, TranslationModel]" = OrderedDict()
-        # `_cache_lock` guards the cache bookkeeping only and is never held
-        # across a load. The per-model locks in `_load_locks` are what a cold
-        # load holds, so building model A does not block a caller who needs
-        # model B.
+        # `_cache_lock` guards the cache bookkeeping only. The per-model locks
+        # in `_load_locks` give every thread the same `TranslationModel`, and
+        # that object's own lock covers the download and the session builds.
         self._cache_lock = threading.Lock()
         self._load_locks: Dict[str, threading.Lock] = {}
 
@@ -494,9 +493,9 @@ class Translator:
         if entry is None:
             self._reject_unselected(model_id)
 
-        # One lock per model id, so a cold 2 GB load blocks only the callers
-        # who want that same model. Without it, two threads on the same cold
-        # model each build three InferenceSessions and one set is orphaned.
+        # One lock per model id, so all threads get one object. The object
+        # builds lazily under its own lock; two objects would mean two sets of
+        # sessions.
         with self._cache_lock:
             lock = self._load_locks.setdefault(model_id, threading.Lock())
         with lock:
