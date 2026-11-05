@@ -630,22 +630,6 @@ LICENSE_DISPLAY: Dict[str, str] = {
     "afl-3.0": "AFL-3.0",
 }
 
-#: Licences stated by the upstream source of an export whose own card says
-#: ``other`` because the upstream Hub card declares nothing. Keyed by model id;
-#: each entry quotes where the source states its terms. The value is a
-#: :data:`LICENSE_DISPLAY` key.
-#:
-#: ``afrolid_1.5``: `UBC-NLP/afrolid_1.5` has no licence on its Hub card, but
-#: the AfroLID repository that documents v1.5 and links that checkpoint
-#: ships an Apache-2.0 ``LICENSE`` and states in its README, section
-#: "License": "afrolid(-py) is Apache-2.0 licensed. The license applies to
-#: the pre-trained models as well." Its base model's repository
-#: (`UBC-NLP/serengeti` on GitHub) is Apache-2.0 as well.
-#: Source: https://github.com/UBC-NLP/afrolid
-UPSTREAM_LICENSES: Dict[str, str] = {
-    "afrolid_1.5": "apache-2.0",
-}
-
 #: Exports whose upstream terms do not allow redistribution, keyed by model
 #: id. ``_license_of`` refuses them with the reason, whatever their card says.
 #:
@@ -1167,14 +1151,11 @@ def _license_of(detail: dict, readme: str,
                 model_id: Optional[str] = None) -> str:
     """Licence id, from card metadata first and the README body second.
 
-    :data:`UNREDISTRIBUTABLE` and :data:`UPSTREAM_LICENSES` come before both:
-    they record terms read from the upstream source, which the export's own
-    card does not carry.
+    :data:`UNREDISTRIBUTABLE` comes before both: it records terms read from
+    the upstream source, which the export's own card does not carry.
     """
     if model_id in UNREDISTRIBUTABLE:
         raise SkipRepo(UNREDISTRIBUTABLE[model_id])
-    if model_id in UPSTREAM_LICENSES:
-        return LICENSE_DISPLAY[UPSTREAM_LICENSES[model_id]]
     raw = (detail.get("cardData") or {}).get("license")
     if not raw:
         match = _LICENSE_BODY_RE.search(readme)
