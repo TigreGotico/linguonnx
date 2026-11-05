@@ -110,6 +110,7 @@ class TestTranslateSessionDefaultsToCpu:
         entry = {
             "model_id": "toy", "arch": "marian", "license": "MIT",
             "license_tier": "permissive", "size_mb": 1, "pair": ["en", "pt"],
+            "native_codes": {"en": "en", "pt": "pt"},
         }
         model = translate_models.TranslationModel(
             "toy", entry, providers=["CUDAExecutionProvider"])

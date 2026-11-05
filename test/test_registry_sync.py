@@ -257,7 +257,7 @@ def test_multi_target_group_models_record_their_target_token():
         if len(parts) != 2:
             continue
         _, base_tgt = parts
-        if base_tgt != entry["pair"][1]:
+        if base_tgt != entry["native_codes"][entry["pair"][1]]:
             token = entry.get("target_token", "")
             assert token.startswith(">>") and token.endswith("<<"), (
                 f"{model_id} exports {base} but targets {entry['pair'][1]}; "
@@ -296,7 +296,7 @@ def test_group_models_carry_a_target_token_template():
         # targets in `tgt_languages`; an any-to-any one states them in
         # `languages`. Either way, every target has to build a token.
         for tag in targets:
-            native = (entry.get("native_codes") or {}).get(tag, tag)
+            native = entry["native_codes"][tag]
             assert template.format(code=native)
 
 
@@ -968,7 +968,8 @@ class TestASyncCannotDestroyCuratedRegistryData:
         "extra_files": [],
         "src_languages": ["en"],
         "tgt_languages": ["da", "sv", "nb", "nn", "fo", "is"],
-        "native_codes": {"nso": "ns"},
+        "native_codes": {"da": "da", "en": "en", "fo": "fo", "is": "is", "nb": "nb",
+                         "nn": "nn", "sv": "sv"},
         "notes": ("Demo group model. FLORES-200 re-measurement (n=100, chrF) "
                   "found it looping on 6 of 100 in-domain sentences."),
         "quality": {"chrf": 41.2, "corpus": "flores200", "metric": "chrf",
@@ -996,7 +997,8 @@ class TestASyncCannotDestroyCuratedRegistryData:
         "extra_files": [],
         "src_languages": ["en"],
         "tgt_languages": ["da", "sv", "nb", "nn", "fo", "is"],
-        "native_codes": {"nso": "ns"},
+        "native_codes": {"da": "da", "en": "en", "fo": "fo", "is": "is", "nb": "nb",
+                         "nn": "nn", "sv": "sv"},
         "notes": "Demo group model.",
     }
 
@@ -1545,3 +1547,52 @@ class TestTransformerLidEntries:
             self._entries(sync, monkeypatch,
                           "arabic-MARBERT-dialect-identification-city",
                           self.CONFIG, license="other")
+
+
+class TestCompleteNativeCodes:
+    """`complete_native_codes` writes BCP-47 codes and the full table."""
+
+    def test_a_model_spelling_moves_into_the_table(self):
+        entry = {"pair": ["spa_Latn", "arg_Latn"]}
+        out = sync_registry.complete_native_codes("x", entry)
+        assert out["pair"] == ["es", "an"]
+        assert out["native_codes"] == {"an": "arg_Latn", "es": "spa_Latn"}
+
+    def test_a_bcp47_code_maps_to_itself(self):
+        out = sync_registry.complete_native_codes(
+            "x", {"languages": ["en", "ns"]})
+        assert out["languages"] == ["en", "nso"]
+        assert out["native_codes"] == {"en": "en", "nso": "ns"}
+
+    def test_a_curated_override_wins_over_the_extracted_spelling(self):
+        entry = {"pair": ["bam", "fr"], "native_codes": {"bm": "sw"}}
+        out = sync_registry.complete_native_codes("x", entry)
+        assert out["pair"] == ["bm", "fr"]
+        assert out["native_codes"] == {"bm": "sw", "fr": "fr"}
+
+    def test_transcribed_directions_get_rows(self):
+        entry = {"languages": ["en"], "directions": [["en", "tw"]],
+                 "native_codes": {"tw": "twi_Latn"}}
+        out = sync_registry.complete_native_codes("x", entry)
+        assert out["native_codes"] == {"en": "en", "tw": "twi_Latn"}
+
+    def test_two_spellings_of_one_tag_are_refused(self):
+        with pytest.raises(ValueError, match="spelled both"):
+            sync_registry.complete_native_codes(
+                "x", {"languages": ["tl", "fil"]})
+
+    def test_a_row_for_an_unrouted_tag_is_refused(self):
+        with pytest.raises(ValueError, match="does not route"):
+            sync_registry.complete_native_codes(
+                "x", {"pair": ["en", "fr"], "native_codes": {"de": "deu"}})
+
+    def test_a_transcribed_model_spelling_is_refused(self):
+        with pytest.raises(ValueError, match="not BCP-47"):
+            sync_registry.complete_native_codes(
+                "x", {"languages": ["en"], "directions": [["en", "twi_Latn"]]})
+
+    def test_the_committed_registry_is_already_complete(self):
+        for model_id, entry in model_manager.list_models(
+                kind="translate").items():
+            assert sync_registry.complete_native_codes(model_id, entry) \
+                == entry, model_id

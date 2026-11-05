@@ -2752,6 +2752,60 @@ def human_owned_losses(existing: Dict[str, dict],
 
 
 
+#: The entry keys that list language codes. ``directions`` and the keys of
+#: ``prefix_templates`` are transcribed in BCP-47 and are only checked.
+_CODE_LIST_KEYS = ("pair", "languages", "src_languages", "tgt_languages")
+
+
+def complete_native_codes(model_id: str, entry: dict) -> dict:
+    """Write every code as BCP-47 and give ``native_codes`` one row per code.
+
+    The extractors read codes in the model's own spelling (``spa_Latn``,
+    ``ns``, ``sh``) and record only the overrides. This step moves each code
+    to ``normalize_tag`` form and puts the model's spelling in
+    ``native_codes``, so the runtime reads one table and never guesses. A
+    curated override wins over the extracted spelling.
+
+    Raises ``ValueError`` when two codes of one entry normalise to the same
+    tag with different spellings, when ``native_codes`` names a tag the entry
+    does not route, and when ``directions`` or a prefix key is not BCP-47.
+    """
+    from linguonnx.translate.graph import normalize_tag
+
+    overrides = dict(entry.get("native_codes") or {})
+    table: Dict[str, str] = {}
+    out = dict(entry)
+    for key in _CODE_LIST_KEYS:
+        if key not in entry:
+            continue
+        tags: List[str] = []
+        for code in entry[key]:
+            tag = normalize_tag(code)
+            native = overrides.get(tag, code)
+            if table.setdefault(tag, native) != native:
+                raise ValueError(
+                    f"{model_id}: {tag!r} is spelled both {table[tag]!r} and "
+                    f"{native!r}; native_codes must name the one token")
+            if tag not in tags:
+                tags.append(tag)
+        out[key] = tags
+    transcribed = [code for pair in entry.get("directions") or ()
+                   for code in pair]
+    transcribed += [code for key in entry.get("prefix_templates") or {}
+                    for code in key.split(">", 1)]
+    for code in transcribed:
+        if normalize_tag(code) != code:
+            raise ValueError(f"{model_id}: transcribed code {code!r} is not "
+                             f"BCP-47; write {normalize_tag(code)!r}")
+        table.setdefault(code, overrides.get(code, code))
+    stale = sorted(set(overrides) - set(table))
+    if stale:
+        raise ValueError(f"{model_id}: native_codes names {stale}, which the "
+                         f"entry does not route")
+    out["native_codes"] = dict(sorted(table.items()))
+    return out
+
+
 def _sorted_json(registry: Dict[str, dict]) -> str:
     """Stable text: entries sorted by id, keys sorted inside each entry.
 
@@ -2837,6 +2891,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     # that reached nothing.
     translate.update({model_id: dict(entry)
                       for model_id, entry in RULE_BASED_MODELS.items()})
+    translate = {model_id: complete_native_codes(model_id, entry)
+                 for model_id, entry in translate.items()}
 
     drift = False
     # A skipped repo used to exist only as a line on stderr, so a model that

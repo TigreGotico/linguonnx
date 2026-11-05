@@ -251,18 +251,6 @@ def test_languages_stay_inside_the_card_s_claim():
 # 4. One code system
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(
-    reason="the languages-list generation path (MADLAD/NLLB/IndicTrans2 "
-           "'languages'/'src_languages'/'tgt_languages') is now normalised "
-           "at generation time, but two other code paths are not: (1) the "
-           "single-pair NLLB fine-tunes (aina-*) still store 'pair' in raw "
-           "FLORES codes ('spa_Latn', 'arn_Latn', 'arg_Latn', 'ast_Latn'); "
-           "(2) m2m100/opus-mt 'pair'/'languages' still carry the model's "
-           "own vocabulary spelling ('ns', 'bam', 'ewe', 'sh', 'tl') which "
-           "MODEL_CODE_ALIASES/langcodes resolve away from at lookup time "
-           "but which are never rewritten in the committed JSON. Turns "
-           "green when sync_registry.py normalises those two paths too.",
-    strict=False)
 def test_every_code_is_already_normalised():
     """Registry codes are byte-identical to ``normalize_tag`` of themselves.
 
@@ -283,6 +271,35 @@ def test_every_code_is_already_normalised():
     ]
     assert not offenders, (
         "the registry has to speak one code system:\n  " + "\n  ".join(offenders))
+
+
+def test_native_codes_name_every_routed_code_and_nothing_else():
+    """``native_codes`` has one row for each code the entry routes.
+
+    The runtime reads this table and nothing else: a routed tag with no row
+    raises in ``native_code``, and a row for a tag the entry does not route
+    is a curation that went stale. The values are what the model reads, so
+    an empty one is as wrong as a missing one.
+    """
+    offenders = []
+    for model_id, entry in _entries():
+        routed = {code for _, code in _codes(entry)}
+        routed |= {code for pair in entry.get("directions") or ()
+                   for code in pair}
+        routed |= {code for key in entry.get("prefix_templates") or {}
+                   for code in key.split(">", 1)}
+        table = entry.get("native_codes")
+        if not isinstance(table, dict):
+            offenders.append(f"{model_id}: no native_codes table")
+            continue
+        if set(table) != routed:
+            offenders.append(
+                f"{model_id}: missing {sorted(routed - set(table))}, "
+                f"extra {sorted(set(table) - routed)}")
+        offenders += [f"{model_id}: {tag!r} has no native code"
+                      for tag, native in table.items()
+                      if not isinstance(native, str) or not native]
+    assert not offenders, "\n  ".join(["native_codes out of step:"] + offenders)
 
 
 # ---------------------------------------------------------------------------
