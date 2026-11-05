@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.5a1](https://github.com/TigreGotico/linguonnx/tree/0.25.5a1) (2026-11-05)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.4a1...0.25.5a1)
+
+**Merged pull requests:**
+
+- fix: raise when generation hits max\_new\_tokens [\#149](https://github.com/TigreGotico/linguonnx/pull/149) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.25.4a1](https://github.com/TigreGotico/linguonnx/tree/0.25.4a1) (2026-11-05)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.3a1...0.25.4a1)
@@ -372,10 +380,6 @@
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.7.1a1...0.8.0a1)
 
-**Merged pull requests:**
-
-- test: regression-guard IndicTrans2 state isolation across architectures [\#44](https://github.com/TigreGotico/linguonnx/pull/44) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [0.7.1a1](https://github.com/TigreGotico/linguonnx/tree/0.7.1a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.7.0a1...0.7.1a1)
@@ -391,10 +395,6 @@
 ## [0.6.4a1](https://github.com/TigreGotico/linguonnx/tree/0.6.4a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.6.3a1...0.6.4a1)
-
-**Merged pull requests:**
-
-- fix: mt-hitz-gl-eu returned empty translations \(bad\_words\_ids not enforced\) [\#45](https://github.com/TigreGotico/linguonnx/pull/45) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.6.3a1](https://github.com/TigreGotico/linguonnx/tree/0.6.3a1) (2026-08-03)
 
