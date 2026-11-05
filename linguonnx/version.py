@@ -7,8 +7,8 @@
 # names - a trailing duplicate silently wins and pins the published version.
 # START_VERSION_BLOCK
 VERSION_MAJOR = 0
-VERSION_MINOR = 24
-VERSION_BUILD = 1
+VERSION_MINOR = 25
+VERSION_BUILD = 0
 VERSION_ALPHA = 1
 # END_VERSION_BLOCK
 

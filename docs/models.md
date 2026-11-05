@@ -2,7 +2,7 @@
 
 Two JSON files under `linguonnx/model_index/` say what exists: `lid.json` for
 language identification and `translate.json` for translation. They hold 12 and
-451 entries. Every ONNX entry names a HuggingFace repo, the exact files to
+455 entries. Every ONNX entry names a HuggingFace repo, the exact files to
 fetch, the languages covered, the licence and the size. A rule-based entry
 names a Python function instead of files. See
 [Rule-based models](#rule-based-models).
@@ -13,7 +13,7 @@ it sounds.
 
 ## What is in the translation registry
 
-451 entries is 224 int8 and 225 fp32 entries across 225 models, plus 2
+455 entries is 226 int8 and 227 fp32 entries across 227 models, plus 2
 rule-based entries. `load_translator()` defaults to `precision="int8"`; pass
 `precision="fp32"` or `precision=None` for both. A rule-based entry has no
 weights and no precision, so the precision filter never removes it.
@@ -45,6 +45,7 @@ weights and no precision, so the precision filter never removes it.
 | `vinai-translate-vi2en-v2` | mBART fine-tune | Vietnamese → English, **one-way**; fp32 only, no int8 | 3.5 GB (fp32) | **AGPL-3.0** |
 | `opus-mt-*` (125) | Marian | one pair each | 78 MB – 2.34 GB | Apache-2.0 or CC-BY-4.0 |
 | `afrigloss-opus-mt-*` (14) | Marian fine-tune | one pair each; en → {ee, ha, ig, sn, sw, tw, yo}, fr → {ee, ha, ig, sn, sw, tw, yo} | 216 MB – 904 MB | **CC-BY-NC-4.0**; fr-ee, fr-ha, fr-ig, fr-sn: Apache-2.0 |
+| `afrigloss-nllb-600m`, `-1.3b` | NLLB-200 fine-tune | {en, fr} → {ee, ha, ig, sn, sw, tw, yo}: 14 directions | 1.9 GB – 11.9 GB | **CC-BY-NC-4.0** |
 | `IbRo-nllb` | NLLB-1.3B fine-tune | es ↔ {an, ast, ca, gl, oc (Aranese)}, ca ↔ oc: 12 directions | 3.04 GB – 11.9 GB | Apache-2.0 |
 | `Plume32k`, `Plume128k` | Gemma decoder-only (`causal-lm`) | ca ↔ {de, en, es, eu, fr, gl, it, pt}: 16 directions | 2.76 GB – 10.0 GB | Apache-2.0 |
 | `madlad400-3b-mt-oc_aranes`, `-ast-an-oc_aranes` | MADLAD-400-3B fine-tune | {ca, en, es, fr} ↔ oc (Aranese): 8 directions; {ca, en, es, fr} ↔ {an, ast, oc}: 24 directions | 4.95 GB – 19.7 GB | Apache-2.0 |
@@ -76,9 +77,10 @@ uk-en  ur-en  vi-en  xh-en  zh-en
 Together they reach 606 languages over the default graph. MADLAD supplies most
 of the tail: nearly three hundred languages that no other model here has.
 
-Twenty-eight entries are non-commercial and out of the default graph:
-`nllb-600M`, `aina-es-oc`, `aina-translator-es-an`, `aina-translator-es-ast`
-and ten of the `afrigloss-opus-mt-*` pairs, in both precisions. See [licences.md](licences.md).
+Thirty-two entries are non-commercial and out of the default graph:
+`nllb-600M`, `aina-es-oc`, `aina-translator-es-an`, `aina-translator-es-ast`,
+`afrigloss-nllb-600m`, `afrigloss-nllb-1.3b` and ten of the
+`afrigloss-opus-mt-*` pairs, in both precisions. See [licences.md](licences.md).
 
 The `m2m100_418M_*` African fine-tunes carry Apache-2.0 for the `en-nso` and
 `nso-en` pair, and AFL-3.0 for the other sixteen. AFL-3.0 grants use, modification
@@ -177,7 +179,7 @@ print(entry["arch"], entry["pair"], entry["license"], entry["size_mb"])
 # marian ['pt', 'en'] Apache-2.0 172
 
 print(len(list_models(kind="translate")), len(list_models(kind="lid")))
-# 451 12
+# 455 12
 ```
 
 ## The download cache
@@ -495,6 +497,17 @@ change the term itself. Plain input gives plain output. `en-yo` keeps the
 `>>yor<<` token of its base vocabulary but was trained without it, so its entry
 sends no target token. Only an `opus-mt-*` entry takes a target token from its
 vocabulary.
+
+**Text tokens.** The `afrigloss-nllb-*` exports ship a `tokenizer.json` that
+adds `"\n"` as a text token, id 256204. Its content normalises to a space, so
+the token matches every space of the input, and the models were trained on
+that encoding. The encoder puts the token before each word but the first,
+and once for leading or for trailing whitespace, as the `tokenizers` library
+0.x does. linguonnx does this from SentencePiece, so these entries need no
+extra. The decoder reads the token as a word break, so the output has one
+space between words.
+The `afrigloss-nllb-*` models also keep a `<term>` in angle brackets, as the
+`afrigloss-opus-mt-*` models do.
 
 **Tokenizer clean-up.** An NLLB export whose `tokenizer_config.json` sets
 `clean_up_tokenization_spaces` gets the `transformers` clean-up after decoding:
