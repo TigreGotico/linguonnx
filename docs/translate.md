@@ -399,3 +399,12 @@ an empty sequence to mean failure: if beam search finishes no hypothesis and
 every beam collapses, or greedy decoding ends before emitting a token, the
 decoder raises `linguonnx.limits.DecodeError`. A caller can tell "nothing to
 translate" from "this model could not produce anything for that input".
+
+Output that stops at the budget is a failure too. When generation reaches
+`max_new_tokens` before the model ends the sequence, the decoder raises
+`linguonnx.limits.OutputTruncatedError`, a subclass of `DecodeError`. Its
+`tokens` attribute holds the ids generated up to the cap. Split the input or
+raise `max_new_tokens`. The end-of-sequence token counts against the budget,
+as it does in `transformers`. Beam search raises when the best-scoring
+hypothesis has not ended, even if a lower-scoring one has: on long input a
+finished hypothesis is often a short one that stopped early.
