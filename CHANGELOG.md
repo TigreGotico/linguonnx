@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.6a1](https://github.com/TigreGotico/linguonnx/tree/0.25.6a1) (2026-11-05)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.5a1...0.25.6a1)
+
+**Merged pull requests:**
+
+- fix: translate long input one sentence at a time [\#151](https://github.com/TigreGotico/linguonnx/pull/151) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.25.5a1](https://github.com/TigreGotico/linguonnx/tree/0.25.5a1) (2026-11-05)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.4a1...0.25.5a1)
@@ -383,10 +391,6 @@
 ## [0.7.1a1](https://github.com/TigreGotico/linguonnx/tree/0.7.1a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.7.0a1...0.7.1a1)
-
-**Merged pull requests:**
-
-- fix: resolve architecture/tokenizer mismatch for 19 unregistered models [\#47](https://github.com/TigreGotico/linguonnx/pull/47) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.7.0a1](https://github.com/TigreGotico/linguonnx/tree/0.7.0a1) (2026-08-03)
 
