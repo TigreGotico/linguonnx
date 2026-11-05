@@ -126,12 +126,12 @@ never happen silently.
 ## Cost ordering
 
 Every candidate route is scored by a tuple, lowest first. The policy reorders
-the tuple's first two elements; it does not run a different search.
+the hop terms; it does not run a different search.
 
 | `prefer=` | key |
 |---|---|
-| `"fewest_hops"` (default) | `(hops, multilingual_hops, non_specialist_hops, recency, licence_tier, pivot_rank, size, model_ids)` |
-| `"dedicated"` | `(multilingual_hops, hops, non_specialist_hops, recency, licence_tier, pivot_rank, size, model_ids)` |
+| `"fewest_hops"` (default) | `(flagged_hops, hops, multilingual_hops, non_specialist_hops, recency, licence_tier, pivot_rank, size, model_ids)` |
+| `"dedicated"` | `(flagged_hops, multilingual_hops, hops, non_specialist_hops, recency, licence_tier, pivot_rank, size, model_ids)` |
 
 Read in order, that means:
 
@@ -364,13 +364,13 @@ one is the one to plan against. A 500 MB budget drops 65 of 196 models, but
 those 65 include `madlad400-3b-mt-int8` (4945 MB), `m2m100-1.2B-int8` (2344 MB)
 and `m2m100-418M-int8` (1207 MB), and the big multilingual models are where the
 long tail of languages lives. MADLAD is the only model in the registry with
-Chuvash at all; no chain of small models replaces it, because there is no small
+Tuvan at all; no chain of small models replaces it, because there is no small
 model on either side of it.
 
 What survives is what has bilingual models: the 255 languages opus-mt,
 mt-hitz, NLLB-200-distilled and the Iberian pairs cover between them.
 `pt -> ru`, `nl -> fi`, `pt -> eu` all still route under 500 MB, as chains.
-`en -> cv` does not, because MADLAD is the only model with Chuvash.
+`en -> tyv` does not, because MADLAD is the only model with Tuvan.
 
 So a budget is not a way to shrink the registry evenly. It keeps the
 well-served pairs and drops the tail, and `available_languages` says which is
@@ -380,7 +380,7 @@ which:
 tx = load_translator(max_model_mb=500, count_cached_as_free=False)
 print(len(tx.available_languages))       # 255
 print(tx.can_translate("pt", "ru"))      # True — via a chain
-print(tx.can_translate("en", "cv"))      # False — only MADLAD has Chuvash
+print(tx.can_translate("en", "tyv"))     # False — only MADLAD has Tuvan
 ```
 
 `available_languages` is filtered by the budget for the same reason it is
@@ -404,12 +404,12 @@ filter:
 tx = load_translator(max_model_mb=500, oversize_fallback=True)
 
 print(tx.route("en", "ca").model_ids)      # ('opus-mt-en-ca-int8',)   157 MB
-print(tx.route("en", "cv").model_ids)      # ('madlad400-3b-mt-int8',) 4945 MB
-print(tx.route("en", "cv").waived_size_cap)  # 500
+print(tx.route("en", "tyv").model_ids)     # ('madlad400-3b-mt-int8',) 4945 MB
+print(tx.route("en", "tyv").waived_size_cap)  # 500
 print(len(tx.available_languages))         # 606, not 255
 ```
 
-`en -> ca` stays on the small model, because one exists. Chuvash routes at
+`en -> ca` stays on the small model, because one exists. Tuvan routes at
 all, because nothing under the cap has it and the alternative is not a
 different route but no route. Four rules make that safe:
 
@@ -449,7 +449,7 @@ load-latency semantics per request:
 
 <!-- doc-check: norun the answer depends on what this host has cached -->
 ```python
-tx.route("en", "cv", oversize_fallback=True, count_cached_as_free=False)
+tx.route("en", "tyv", oversize_fallback=True, count_cached_as_free=False)
 ```
 
 ### The budget and the hop cap interact
@@ -514,12 +514,12 @@ a model already on disk costs no download and the budget never sees it. Routing
 follows that rule, because the alternative is to promise a route the downloader
 then refuses.
 
-Measured, with a 600 MB budget:
+With a 600 MB budget:
 
-| box | `tx.route("en", "cv")` | time |
-|-----|------------------------|------|
-| cold | `NoRouteError` | 55 ms |
-| warm (MADLAD on disk) | `('madlad400-3b-mt-int8',)` | 12227 ms |
+| box | `tx.route("en", "tyv")` |
+|-----|-------------------------|
+| cold | `NoRouteError` |
+| warm (MADLAD on disk) | `('madlad400-3b-mt-int8',)` |
 
 Both answers are correct for the box they came from. The cold box is telling
 the truth: it cannot fetch 4945 MB under a 600 MB budget. The warm box is also
@@ -708,10 +708,10 @@ Two independent checks, either one enough on its own — see
   headroom before flagging while still catching a real regression if one
   ever turns up.
 
-Flagging never removes a model from the registry — every model is published
-regardless of its score, exactly like a non-commercial licence or an
-oversized download. It only gives a caller filtering at runtime something to
-filter on:
+A flag ranks a model last under every routing policy. A flagged model serves
+a pair only when nothing else does, so two clean hops beat one flagged hop.
+`Route.n_flagged_hops` and `str(hop)` show when a flagged model ran.
+`exclude_flagged=True` removes flagged models from the graph:
 
 ```python
 from linguonnx.translate.quality import is_quality_flagged
@@ -808,11 +808,14 @@ tx.flagged_languages
 that can write it is flagged for it, so a flag on one of two providers costs
 nothing.
 
-A flag never removes the model, and it does not rewrite the coverage claim
-either: `cv` stays in MADLAD's `languages`, so the library can still say
-*why* it refuses the language instead of reporting it as unsupported. Every
-flag names an observation somebody made; there is no heuristic that mints
-them.
+The router removes the edge a flag names, so `en -> cv` raises `NoRouteError`
+and quotes the flag. MADLAD keeps its other languages, and `cv -> en` still
+routes. Another model that covers the language still serves it.
+
+A flag does not rewrite the coverage claim: `cv` stays in MADLAD's
+`languages`, so the library can still say *why* it refuses the language
+instead of reporting it as unsupported. Every flag names an observation
+somebody made; there is no heuristic that mints them.
 
 `language_flags` is hand-curated. `scripts/sync_registry.py` lists it in
 `HUMAN_OWNED_KEYS`, next to `notes` and `quality`, so a re-crawl of the Hub

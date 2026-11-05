@@ -676,6 +676,13 @@ class Capability:
     #: registry entries directly, not capabilities, so this exists for
     #: introspection (``Capability.quality``) rather than routing logic.
     quality: Optional[Dict] = None
+    #: True when the registry's quality data flags this model. A flagged model
+    #: serves a pair only when nothing else does.
+    flagged: bool = False
+    #: ``lang -> reason`` for the languages this model must not write or
+    #: read. Its answers there are in another language, so the edge is gone.
+    barred_targets: Dict[str, str] = field(default_factory=dict)
+    barred_sources: Dict[str, str] = field(default_factory=dict)
 
     @property
     def is_specialist(self) -> bool:
@@ -752,7 +759,8 @@ class Capability:
         # "itc"]` for the Italic family model), and without this guard it
         # became a real one-hop edge that answered in whichever family member
         # the decoder preferred.
-        if src == tgt:
+        if src == tgt or tgt in self.barred_targets \
+                or src in self.barred_sources:
             return False
         if self.directions is not None:
             return (src, tgt) in self.directions
@@ -763,20 +771,22 @@ class Capability:
         return src in self.languages and tgt in self.languages
 
     def endpoints(self) -> FrozenSet[str]:
+        barred = self.barred_targets.keys() & self.barred_sources.keys()
         if self.directions is not None:
             # Both sides of every declared edge, so `available_languages`
             # cannot disagree with `route` - the same reason the directional
             # branch below unions its two sets.
-            return frozenset(lang for edge in self.directions for lang in edge)
+            return frozenset(lang for edge in self.directions
+                             for lang in edge) - barred
         if self.pair is not None:
-            return frozenset(self.pair)
+            return frozenset(self.pair) - barred
         if self.directional:
             # The same fallback :meth:`covers` uses: a capability that declares
             # one side only takes the other from ``languages``. Without the
             # fallback here the graph would serve a hop into a language it does
             # not list, and `available_languages` would disagree with `route`.
-            return self._sources | self._targets
-        return self.languages
+            return (self._sources | self._targets) - barred
+        return self.languages - barred
 
     @property
     def _sources(self) -> FrozenSet[str]:
@@ -811,12 +821,16 @@ class Hop:
     provenance_org: Optional[str] = None
     #: The upstream release date behind the recency tie-break, or ``None``.
     release_date: Optional[str] = None
+    #: True when the registry's quality data flags this hop's model.
+    flagged: bool = False
 
     def __str__(self) -> str:
         kind = "dedicated" if self.dedicated else "multilingual"
         tags = [kind, self.license]
         if self.specialist:
             tags.append(f"specialist:{self.provenance_org}")
+        if self.flagged:
+            tags.append("flagged")
         return f"{self.src}->{self.tgt} via {self.model_id} ({', '.join(tags)})"
 
 
@@ -933,6 +947,11 @@ class Route:
         return sum(0 if hop.dedicated else 1 for hop in self.hops)
 
     @property
+    def n_flagged_hops(self) -> int:
+        """How many hops run a quality-flagged model."""
+        return sum(1 for hop in self.hops if hop.flagged)
+
+    @property
     def n_non_specialist_hops(self) -> int:
         """How many hops were *not* served by the pair's named specialist.
 
@@ -961,7 +980,8 @@ class Route:
 def _route_key(route: Route, prefer: str) -> tuple:
     """Score a route. Lower sorts first. The policy reorders the tuple only.
 
-    ``non_specialist`` and ``recency`` sit between the hop-count/dedicated
+    Flagged hops come first under every policy, so a flagged model serves a
+    pair only when nothing else does. ``non_specialist`` and ``recency`` sit between the hop-count/dedicated
     tiers and the pre-existing licence/size tie-breaks - see the module
     docstring's "Specialist provenance and recency" section for why they are
     there and not earlier or later. ``recency`` takes the *worst* (oldest, or
@@ -978,9 +998,9 @@ def _route_key(route: Route, prefer: str) -> tuple:
     tail = (non_specialist, recency, tier, route.pivot_rank, size,
             route.model_ids)
     if prefer == "dedicated":
-        return (multi, hops) + tail
+        return (route.n_flagged_hops, multi, hops) + tail
     if prefer == "fewest_hops":
-        return (hops, multi) + tail
+        return (route.n_flagged_hops, hops, multi) + tail
     raise ValueError(
         f"unknown routing policy {prefer!r}; use 'fewest_hops' or 'dedicated'")
 
@@ -1523,12 +1543,12 @@ class TranslationGraph:
 
     @staticmethod
     def _cap_key(cap: Capability, src: str, tgt: str) -> tuple:
-        # Within one leg: dedicated first, then the named specialist for this
-        # pair, then the more recently published upstream model, then
-        # permissive, then small. `src`/`tgt` matter here (unlike the other
-        # fields) because "specialist" is a claim about a specific pair, not
-        # a property of the model in isolation.
-        return (0 if cap.dedicated else 1,
+        # Within one leg: unflagged first, then dedicated, then the named
+        # specialist for this pair, then the more recently published upstream
+        # model, then permissive, then small. `src`/`tgt` matter here (unlike
+        # the other fields) because "specialist" is a claim about a specific
+        # pair, not a property of the model in isolation.
+        return (cap.flagged, 0 if cap.dedicated else 1,
                 0 if is_specialist_for(cap.provenance_org, src, tgt) else 1,
                 _recency_sort_value(cap.release_date),
                 cap.tier_rank, cap.size_mb, cap.model_id)
@@ -1617,7 +1637,7 @@ class TranslationGraph:
                    size_mb=cap.size_mb, dedicated=cap.dedicated,
                    specialist=is_specialist_for(cap.provenance_org, src, tgt),
                    provenance_org=cap.provenance_org,
-                   release_date=cap.release_date)
+                   release_date=cap.release_date, flagged=cap.flagged)
 
     def _enumerate(self, src: str, tgt: str, max_hops: int, prefer: str,
                    short_circuit: bool, index: _Index) -> List[Route]:
@@ -1628,9 +1648,10 @@ class TranslationGraph:
                                 prefer=prefer, max_hops=max_hops,
                                 pivot_basis=self.pivot_ranking))
 
-        # Under fewest_hops a direct route can never be beaten by a longer one,
-        # so enumerating pivots would be pure waste on the hot path.
-        if routes and short_circuit and prefer == "fewest_hops":
+        # Under fewest_hops an unflagged direct route can never be beaten by a
+        # longer one, so enumerating pivots would be pure waste on the hot path.
+        if short_circuit and prefer == "fewest_hops" \
+                and any(not route.n_flagged_hops for route in routes):
             return routes
         if max_hops < 2:
             return routes
@@ -1742,7 +1763,8 @@ class TranslationGraph:
             raise NoRouteError(
                 f"no route from {raw_src!r} to {raw_tgt!r} within "
                 f"{max_hops} hop(s)"
-                f"{self._why_not(src, tgt, max_hops, prefer, index, fallback=self._fallback_on(oversize_fallback))}")
+                f"{self._why_not(src, tgt, max_hops, prefer, index, fallback=self._fallback_on(oversize_fallback))}"
+                f"{self._barred_hint(src, tgt)}")
         best = min(found, key=lambda r: _route_key(r, prefer))
         if waived is not None:
             best = replace(best, waived_size_cap=waived)
@@ -1878,6 +1900,16 @@ class TranslationGraph:
         found = self._enumerate(src, tgt, max_hops, self.prefer,
                                 short_circuit=False, index=uncapped)
         return any(cap.model_id in route.model_ids for route in found)
+
+    def _barred_hint(self, src: str, tgt: str) -> str:
+        """Quote the language flags that removed this pair's edges."""
+        flags = sorted(
+            {f"{cap.model_id} covers {lang} but is flagged: {barred[lang]}"
+             for cap in self.capabilities
+             for lang, barred in ((src, cap.barred_sources),
+                                  (tgt, cap.barred_targets))
+             if lang in barred})
+        return f" -- {'; '.join(flags)}" if flags else ""
 
     def _excluded_licence_hint(self, src: str, tgt: str) -> str:
         """Say so when the only thing blocking a route is the licence filter.

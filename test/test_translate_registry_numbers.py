@@ -18,7 +18,7 @@ what this host happens to have on disk.
 
 That dependence is real, not an artifact of the test. Whenever the download
 budget is below the largest runnable model, routing genuinely differs between a
-warm box and a cold one - the same registry and the same config give `en->cv` a
+warm box and a cold one - the same registry and the same config give `en->tyv` a
 `NoRouteError` cold and `madlad400-3b-mt-int8` warm, because a cached model
 costs no download and the budget never sees it. `docs/routing.md` documents
 that behaviour under "Routing is cache-dependent".
@@ -133,14 +133,14 @@ class TestTheWorkedExamplesInTheDocs:
         tx = capped(500, oversize_fallback=True)
         assert tx.route("en", "ca").model_ids == ("opus-mt-en-ca-int8",)
 
-    def test_chuvash_falls_back_to_madlad(self):
+    def test_tuvan_falls_back_to_madlad(self):
         tx = capped(500, oversize_fallback=True)
-        route = tx.route("en", "cv")
+        route = tx.route("en", "tyv")
         assert route.model_ids == ("madlad400-3b-mt-int8",)
         assert route.waived_size_cap == 500
 
-    def test_chuvash_is_unroutable_without_the_fallback(self):
-        assert not capped(500).can_translate("en", "cv")
+    def test_tuvan_is_unroutable_without_the_fallback(self):
+        assert not capped(500).can_translate("en", "tyv")
 
     @pytest.mark.parametrize("src,tgt", [("pt", "ru"), ("nl", "fi"),
                                          ("pt", "eu")])
