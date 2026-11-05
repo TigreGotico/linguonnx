@@ -79,8 +79,8 @@ def capability_from_entry(entry: Dict) -> Capability:
     """Turn one ``translate.json`` entry into a graph :class:`Capability`.
 
     Bilingual entries carry ``pair``; multilingual entries carry ``languages``.
-    Both are stored in the model's *own* codes and normalised to BCP-47 here,
-    so the graph never sees ``por_Latn`` and the model never sees ``pt``.
+    Both are stored in BCP-47 and normalised again here, so a hand-built
+    entry gets the same nodes. The model's own codes are in ``native_codes``.
     """
     langs = frozenset(normalize_tag(code) for code in entry.get("languages", ()))
     # An instruction-prefixed model can only do what it has an instruction
@@ -152,23 +152,14 @@ class TranslationModel:
         self._config: Optional[Dict] = None
         self._banned_token_ids: Optional[FrozenSet[int]] = None
         self._rules: Optional[Callable[[str], str]] = None
-        # model code <-> BCP-47, both ways, built from the registry's own list.
-        self._to_native: Dict[str, str] = {}
-        for code in self.entry.get("languages", ()):
-            self._to_native.setdefault(normalize_tag(code), code)
-        for code in (self.entry.get("src_languages") or ()):
-            self._to_native.setdefault(normalize_tag(code), code)
-        for code in (self.entry.get("tgt_languages") or ()):
-            self._to_native.setdefault(normalize_tag(code), code)
-        if self.capability.pair:
-            for native, tag in zip(self.entry["pair"], self.capability.pair):
-                self._to_native.setdefault(tag, native)
-        # A hand-verified fix-up for a model whose own code collides with a
-        # different language's ISO tag (liv4ever-mt's `<2li>` means Livonian,
-        # not Limburgish - see MARIAN_MULTILINGUAL_OVERRIDES in
-        # scripts/sync_registry.py). Applied last, so it always wins.
-        for tag, native in (self.entry.get("native_codes") or {}).items():
-            self._to_native[tag] = native
+        # BCP-47 -> the model's own code, one row per language the entry
+        # routes. `scripts/sync_registry.py` writes the full table; nothing
+        # here derives a code from a tag.
+        if "native_codes" not in self.entry:
+            raise ValueError(
+                f"{model_id}: the registry entry has no `native_codes`; run "
+                f"scripts/sync_registry.py to write the table")
+        self._to_native: Dict[str, str] = dict(self.entry["native_codes"])
 
     # -- lazy loading -----------------------------------------------------
 
@@ -356,9 +347,9 @@ class TranslationModel:
         M2M100-418M's 100 languages; see
         :class:`~linguonnx.translate.tokenizers.SpmSeq2SeqTokenizer`.
 
-        ``_to_native`` already holds that translation, ``native_codes``
-        overrides included. The declared order is preserved because NLLB's
-        language block is still positional.
+        The entry's ``native_codes`` table holds that translation. The
+        declared order is preserved because NLLB's language block is still
+        positional.
         """
         declared: List[str] = list(self.entry.get("languages") or ())
         if not declared:
@@ -369,7 +360,7 @@ class TranslationModel:
             declared = list(self.capability.pair or ())
         out: List[str] = []
         for tag in declared:
-            native = self._to_native.get(normalize_tag(tag), tag)
+            native = self.native_code(tag)
             if native not in out:
                 out.append(native)
         return tuple(out)

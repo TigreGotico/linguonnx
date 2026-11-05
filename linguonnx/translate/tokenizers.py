@@ -425,29 +425,10 @@ class SpmSeq2SeqTokenizer:
         # SentencePiece table too, so letting one reach `id_to_piece()` is
         # the same `IndexError: OUT_OF_RANGE` the wrong language id caused.
         self._specials |= getattr(self, "_other_special_ids", set())
-        self._add_bcp47_aliases()
         if declared_codes:
             self._check_declared(declared_codes)
 
     # -- names on top of the export's own order ---------------------------
-
-    def _add_bcp47_aliases(self) -> None:
-        """Let a caller ask in BCP-47 for a token spelled in FLORES.
-
-        The ids come from the export and never move. This only adds a second
-        NAME for an id that already exists: `kab` for `kab_Latn`, `en` for
-        `eng_Latn`. A name is never invented for a token the export lacks, and
-        an alias never overwrites a code the export itself carries.
-        """
-        from linguonnx.detect.labels import to_bcp47
-        for code in list(self.lang_code_to_id):
-            try:
-                alias = to_bcp47(code)
-            except Exception:
-                continue
-            if alias and alias != code:
-                self.lang_code_to_id.setdefault(alias,
-                                                self.lang_code_to_id[code])
 
     def _check_declared(self, declared_codes: Sequence[str]) -> None:
         """Every language the registry advertises must address a real token.

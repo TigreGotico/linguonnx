@@ -425,3 +425,18 @@ def test_the_generator_excludes_the_same_tokens():
     spec.loader.exec_module(module)
     assert module._MARIAN_GROUP_EXCLUSIONS["opus-mt-tc-big-en-zle"] == \
         ("orv", "orv_Cyrl")
+
+
+def test_a_model_reads_its_codes_from_the_native_codes_table_only():
+    """No table, no model: the runtime derives no code from a tag."""
+    entry = {"model_id": "toy", "arch": "nllb", "license": "MIT",
+             "license_tier": "permissive", "size_mb": 1,
+             "pair": ["es", "an"]}
+    with pytest.raises(ValueError, match="native_codes"):
+        TranslationModel("toy", entry=dict(entry))
+    model = TranslationModel("toy", entry=dict(
+        entry, native_codes={"es": "spa_Latn", "an": "arg_Latn"}))
+    assert model.native_code("es") == "spa_Latn"
+    assert model.native_codes == ("spa_Latn", "arg_Latn")
+    with pytest.raises(KeyError):
+        model.native_code("ca")

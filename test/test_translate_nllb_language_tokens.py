@@ -11,8 +11,10 @@ request for ``kab`` forced id 256085, which that export spells ``kas_Deva``,
 Kashmiri in the Devanagari script. 148 of its 202 languages were affected.
 ``en`` forced ``epo_Latn`` and ``fr`` forced ``gla_Latn``.
 
-So the export's order is authoritative and the registry only maps names onto
-it. A name that matches no token raises at load: nothing is repaired quietly.
+So the export's order is authoritative. The registry entry's
+``native_codes`` table maps each BCP-47 tag to the export's own code, and the
+tokenizer knows only those codes. A name that matches no token raises at
+load: nothing is repaired quietly.
 """
 import json
 
@@ -37,6 +39,17 @@ EXPORT_HEAD = ["ace_Arab", "ace_Latn", "acm_Arab", "acq_Arab", "aeb_Arab",
 REGISTRY_TAGS = sorted(["ace-Arab", "ace", "acm", "acq", "aeb", "af", "eo",
                         "en", "fr", "gd", "kab", "kac", "ks-Deva", "ks",
                         "pt", "quy", "de", "ca"])
+
+#: The entry's ``native_codes`` for those tags, written out by hand.
+NATIVE = {"ace-Arab": "ace_Arab", "ace": "ace_Latn", "acm": "acm_Arab",
+          "acq": "acq_Arab", "aeb": "aeb_Arab", "af": "afr_Latn",
+          "eo": "epo_Latn", "en": "eng_Latn", "fr": "fra_Latn",
+          "gd": "gla_Latn", "kab": "kab_Latn", "kac": "kac_Latn",
+          "ks-Deva": "kas_Deva", "ks": "kas_Arab", "pt": "por_Latn",
+          "quy": "quy_Latn", "de": "deu_Latn", "ca": "cat_Latn"}
+
+#: What the model passes to the tokenizer: the native codes, in registry order.
+DECLARED = [NATIVE[tag] for tag in REGISTRY_TAGS]
 
 
 @pytest.fixture(scope="module")
@@ -67,34 +80,25 @@ def _files(tiny_spm, tmp_path, codes=EXPORT_HEAD):
             _fake_nllb_export(tmp_path, codes)}
 
 
-def _spelling_of(tokenizer, tag):
-    """The export's own spelling of the token *tag* addresses."""
-    token_id = tokenizer.lang_id(tag)
-    for code in EXPORT_HEAD:
-        if tokenizer.lang_code_to_id.get(code) == token_id:
-            return code
-    return None
+def _position(tokenizer, code):
+    """The id the export gives *code*: its index in the export's block."""
+    return tokenizer.lang_id(EXPORT_HEAD[0]) + EXPORT_HEAD.index(code)
 
 
 def test_a_request_addresses_the_token_that_carries_its_own_code(tiny_spm,
                                                                  tmp_path):
     """The defect, in miniature: `kab` must not reach `kas_Deva`."""
-    tokenizer = load_tokenizer("nllb", _files(tiny_spm, tmp_path),
-                               REGISTRY_TAGS)
-    assert _spelling_of(tokenizer, "kab") == "kab_Latn"
-    assert _spelling_of(tokenizer, "en") == "eng_Latn"
-    assert _spelling_of(tokenizer, "fr") == "fra_Latn"
-    assert _spelling_of(tokenizer, "pt") == "por_Latn"
-    # controls: two languages the sorted list happened to place correctly, so
-    # a fix that moved everything would show up here
-    assert _spelling_of(tokenizer, "de") == "deu_Latn"
-    assert _spelling_of(tokenizer, "ca") == "cat_Latn"
+    tokenizer = load_tokenizer("nllb", _files(tiny_spm, tmp_path), DECLARED)
+    for tag in ("kab", "en", "fr", "pt", "de", "ca"):
+        assert tokenizer.lang_id(NATIVE[tag]) == \
+            _position(tokenizer, NATIVE[tag]), tag
+    assert tokenizer.lang_id(NATIVE["kab"]) != _position(tokenizer, "kas_Deva")
 
 
 def test_the_ids_are_the_export_s_own_block(tiny_spm, tmp_path):
     """Order comes from the artifact, never from the registry."""
     files = _files(tiny_spm, tmp_path)
-    tokenizer = load_tokenizer("nllb", files, REGISTRY_TAGS)
+    tokenizer = load_tokenizer("nllb", files, DECLARED)
     artifact = artifact_lang_codes(files)
     base = tokenizer.lang_id(artifact[0])
     for offset, code in enumerate(artifact):
@@ -105,54 +109,50 @@ def test_the_registry_order_alone_no_longer_decides_anything(tiny_spm,
                                                              tmp_path):
     """Shuffling the registry list must not move a single id."""
     files = _files(tiny_spm, tmp_path)
-    straight = load_tokenizer("nllb", files, REGISTRY_TAGS)
-    shuffled = load_tokenizer("nllb", files, list(reversed(REGISTRY_TAGS)))
-    for tag in REGISTRY_TAGS:
-        assert straight.lang_id(tag) == shuffled.lang_id(tag)
+    straight = load_tokenizer("nllb", files, DECLARED)
+    shuffled = load_tokenizer("nllb", files, list(reversed(DECLARED)))
+    for code in DECLARED:
+        assert straight.lang_id(code) == shuffled.lang_id(code)
 
 
-def test_every_advertised_language_resolves_to_a_real_token(tiny_spm,
-                                                            tmp_path):
-    """The sweep: every registry tag addresses a token of this export.
-
-    Each one must land on a token whose own code normalises to that tag, or
-    on a name the export itself carries.
-    """
+def test_every_registry_row_names_the_token_of_its_own_language(tiny_spm,
+                                                               tmp_path):
+    """Each row of the table names a token of this export, and that token's
+    own code normalises back to the row's tag."""
     from linguonnx.detect.labels import to_bcp47
 
-    files = _files(tiny_spm, tmp_path)
-    tokenizer = load_tokenizer("nllb", files, REGISTRY_TAGS)
-    for tag in REGISTRY_TAGS:
-        spelling = _spelling_of(tokenizer, tag)
-        assert spelling is not None, f"{tag} addresses no token of this export"
-        assert spelling == tag or to_bcp47(spelling) == tag, (
-            f"{tag} addresses {spelling}, which is a different language")
+    tokenizer = load_tokenizer("nllb", _files(tiny_spm, tmp_path), DECLARED)
+    for tag, code in NATIVE.items():
+        assert code in tokenizer.lang_code_to_id, tag
+        assert to_bcp47(code) == tag, f"{tag} names {code}"
 
 
 def test_a_claim_the_export_cannot_carry_raises(tiny_spm, tmp_path):
     """A name that matches no token is refused, never repaired."""
     files = _files(tiny_spm, tmp_path)
     with pytest.raises(ValueError) as excinfo:
-        load_tokenizer("nllb", files, REGISTRY_TAGS + ["xx-Zzzz"])
+        load_tokenizer("nllb", files, DECLARED + ["xx-Zzzz"])
     assert "xx-Zzzz" in str(excinfo.value)
 
 
-def test_an_alias_never_overwrites_a_code_the_export_carries(tiny_spm,
-                                                             tmp_path):
-    """Two names for one id are fine; one name for two ids is not."""
+def test_a_bcp47_tag_is_not_a_token_name(tiny_spm, tmp_path):
+    """The tokenizer knows the export's codes only. A tag reaches a token
+    through the registry's ``native_codes`` table, not through the
+    tokenizer."""
     files = _files(tiny_spm, tmp_path)
-    tokenizer = load_tokenizer("nllb", files, REGISTRY_TAGS)
-    for code in EXPORT_HEAD:
-        assert tokenizer.lang_code_to_id[code] == \
-               EXPORT_HEAD.index(code) + tokenizer.lang_id(EXPORT_HEAD[0])
+    tokenizer = load_tokenizer("nllb", files, DECLARED)
+    assert set(tokenizer.lang_code_to_id) == set(EXPORT_HEAD)
+    with pytest.raises(KeyError):
+        tokenizer.lang_id("kab")
+    with pytest.raises(ValueError):
+        load_tokenizer("nllb", files, REGISTRY_TAGS)
 
 
 def test_the_declared_check_is_off_when_nothing_is_declared(tiny_spm,
                                                             tmp_path):
     """A bilingual entry declares no languages and must still load."""
-    files = _files(tiny_spm, tmp_path)
-    tokenizer = load_tokenizer("nllb", files, ())
-    assert _spelling_of(tokenizer, "kab") == "kab_Latn"
+    tokenizer = load_tokenizer("nllb", _files(tiny_spm, tmp_path), ())
+    assert tokenizer.lang_id("kab_Latn") == _position(tokenizer, "kab_Latn")
 
 
 def test_the_m2m100_path_is_untouched(tiny_spm, tmp_path):

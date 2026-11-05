@@ -221,7 +221,7 @@ _FINETUNE_TOKENS = {
     "m2m100_418M_hau_en_rel_news_ft": {"ha": "ha", "en": "en"},
     "m2m100_418M_en_lug_rel_news_ft": {"en": "en", "lg": "sw"},
     "m2m100_418M_lug_en_rel_news_ft": {"lg": "lg", "en": "en"},
-    "m2m100_418M_ewe_fr_rel_news_ft": {"ewe": "sw", "fr": "fr"},
+    "m2m100_418M_ewe_fr_rel_news_ft": {"ee": "sw", "fr": "fr"},
     "nllb_200_distilled_600m-eng-amh": {"en": "eng_Latn", "am": "amh_Ethi"},
     "nllb_200_distilled_600m-amh-eng": {"am": "amh_Ethi", "en": "eng_Latn"},
     "nllb_200_distilled_600m-eng-yor": {"en": "eng_Latn", "yo": "yor_Latn"},
