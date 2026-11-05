@@ -54,13 +54,18 @@ from pathlib import Path
 from typing import Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 from linguonnx.limits import MAX_ENCODER_TOKENS, DecodeError, has_visible_content
-from linguonnx.model_manager import ensure_model_files, registry_entry
+from linguonnx.model_manager import (ensure_model_files, list_models,
+                                      registry_entry)
 from linguonnx.providers import ProviderSpec, make_session
 from linguonnx.translate.decode import (CausalLMDecoder, GenerationConfig,
                                         Seq2SeqDecoder)
 from linguonnx.translate.graph import (Capability, NoRouteError,
                                        entry_runnability, normalize_tag)
 from linguonnx.translate.preprocess import Pipeline, pipeline_for
+from linguonnx.translate.quality import (counterpart_model_id,
+                                         flagged_languages,
+                                         language_flag_reason,
+                                         quality_flag_reasons)
 from linguonnx.translate.tokenizers import load_tokenizer
 
 LOG = logging.getLogger(__name__)
@@ -76,13 +81,19 @@ def _session(path: Path, providers: Optional[Sequence[ProviderSpec]] = None):
     return make_session(path, providers=providers, sess_options=options)
 
 
-def capability_from_entry(entry: Dict) -> Capability:
+def capability_from_entry(entry: Dict,
+                          registry: Optional[Dict[str, Dict]] = None) -> Capability:
     """Turn one ``translate.json`` entry into a graph :class:`Capability`.
 
     Bilingual entries carry ``pair``; multilingual entries carry ``languages``.
     Both are stored in BCP-47 and normalised again here, so a hand-built
     entry gets the same nodes. The model's own codes are in ``native_codes``.
+
+    A quality flag and a language flag hold for both precisions of an export,
+    so ``registry`` supplies the other precision's entry.
     """
+    counterpart = (registry or {}).get(counterpart_model_id(entry["model_id"]))
+    flag_sources = [e for e in (entry, counterpart) if e]
     langs = frozenset(normalize_tag(code) for code in entry.get("languages", ()))
     # An instruction-prefixed model can only do what it has an instruction
     # for, so its registered prefixes *are* its coverage. Deriving the edges
@@ -121,6 +132,13 @@ def capability_from_entry(entry: Dict) -> Capability:
         release_date=entry.get("release_date"),
         precision=entry.get("precision"),
         quality=entry.get("quality"),
+        flagged=bool(quality_flag_reasons(entry, counterpart)),
+        barred_targets={normalize_tag(lang): language_flag_reason(e, lang, "target")
+                        for e in flag_sources
+                        for lang in flagged_languages(e, "target")},
+        barred_sources={normalize_tag(lang): language_flag_reason(e, lang, "source")
+                        for e in flag_sources
+                        for lang in flagged_languages(e, "source")},
     )
 
 
@@ -146,7 +164,8 @@ class TranslationModel:
         self._providers = providers
         self.entry = entry or registry_entry(model_id, kind="translate")
         self.arch = self.entry["arch"]
-        self.capability = capability_from_entry(self.entry)
+        self.capability = capability_from_entry(
+            self.entry, list_models(kind="translate"))
         self._files: Optional[Dict[str, Path]] = None
         self._decoder: Optional[Seq2SeqDecoder] = None
         self._tokenizer = None

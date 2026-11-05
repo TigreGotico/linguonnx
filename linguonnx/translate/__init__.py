@@ -160,8 +160,9 @@ class Translator:
         # `DownloadTooLargeError` - `can_translate` lying, which this library
         # already fixed once for unrunnable architectures.
         self._enforce_download_budget = enforce_download_budget
+        registry = list_models(kind="translate")
         self.graph = TranslationGraph(
-            [capability_from_entry(e) for e in entries.values()],
+            [capability_from_entry(e, registry) for e in entries.values()],
             pivot_preference=pivot_preference, prefer=prefer,
             max_hops=max_hops, max_routes=max_routes,
             pivot_ranking=pivot_ranking, max_model_mb=max_model_mb,
@@ -183,15 +184,15 @@ class Translator:
         # one who left non-commercial models out.
         chosen = set(entries)
         self.graph.excluded_capabilities = [
-            capability_from_entry(e)
-            for model_id, e in list_models(kind="translate").items()
+            capability_from_entry(e, registry)
+            for model_id, e in registry.items()
             if model_id not in chosen and model_id not in absent
         ] if entries else []
         # Left out by `fetch_on_demand=False` specifically, and kept apart
         # from the filter exclusions above: "a model covers this pair, it is
         # just not on this disk yet" is a different sentence, with a different
         # fix, from "a model covers this pair and you filtered it out".
-        self.graph.uncached_capabilities = [capability_from_entry(e)
+        self.graph.uncached_capabilities = [capability_from_entry(e, registry)
                                             for e in absent.values()]
         self.generation = GenerationConfig(
             max_new_tokens=max_new_tokens, num_beams=num_beams,
@@ -635,12 +636,16 @@ class Translator:
                     f"{model_id} is multilingual; src= and tgt= are required")
             hop_src, hop_tgt = normalize_tag(src), normalize_tag(tgt)
             if not capability.covers(hop_src, hop_tgt):
+                flag = (capability.barred_targets.get(hop_tgt)
+                        or capability.barred_sources.get(hop_src))
                 raise NoRouteError(
-                    f"{model_id} does not cover {hop_src!r} -> {hop_tgt!r}")
+                    f"{model_id} does not cover {hop_src!r} -> {hop_tgt!r}"
+                    + (f": it is flagged: {flag}" if flag else ""))
         hop = Hop(model_id=model_id, src=hop_src, tgt=hop_tgt,
                   arch=capability.arch, license=capability.license,
                   license_tier=capability.license_tier,
-                  size_mb=capability.size_mb, dedicated=capability.dedicated)
+                  size_mb=capability.size_mb, dedicated=capability.dedicated,
+                  flagged=capability.flagged)
         return Route(hop_src, hop_tgt, (hop,), prefer="pinned", max_hops=1)
 
 

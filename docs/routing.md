@@ -708,10 +708,10 @@ Two independent checks, either one enough on its own — see
   headroom before flagging while still catching a real regression if one
   ever turns up.
 
-Flagging never removes a model from the registry — every model is published
-regardless of its score, exactly like a non-commercial licence or an
-oversized download. It only gives a caller filtering at runtime something to
-filter on:
+A flag ranks a model last under every routing policy. A flagged model serves
+a pair only when nothing else does, so two clean hops beat one flagged hop.
+`Route.n_flagged_hops` and `str(hop)` show when a flagged model ran.
+`exclude_flagged=True` removes flagged models from the graph:
 
 ```python
 from linguonnx.translate.quality import is_quality_flagged
@@ -719,6 +719,12 @@ from linguonnx.translate.quality import is_quality_flagged
 print(is_quality_flagged("opus-mt-az-en"))    # True  - below the absolute floor
 print(is_quality_flagged("opus-mt-en-es"))    # False - a calibration-set model
 ```
+
+A language flag is stronger. The registry's `language_flags` name a language a
+model answers wrongly, and the router removes that edge from the model. MADLAD
+answers Chuvash in Russian, so `en -> cv` raises `NoRouteError` and quotes the
+flag. MADLAD keeps its other languages and still reads Chuvash. A flag on one
+precision holds for the other, because the fault is in the weights.
 
 ### Filtering on it
 
