@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.1a1](https://github.com/TigreGotico/linguonnx/tree/0.25.1a1) (2026-11-05)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.0a2...0.25.1a1)
+
+**Merged pull requests:**
+
+- fix: make native\_codes a full table and drop the runtime fallbacks [\#141](https://github.com/TigreGotico/linguonnx/pull/141) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.25.0a2](https://github.com/TigreGotico/linguonnx/tree/0.25.0a2) (2026-11-05)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.0a1...0.25.0a2)
@@ -381,10 +389,6 @@
 ## [0.6.2a1](https://github.com/TigreGotico/linguonnx/tree/0.6.2a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.6.1a2...0.6.2a1)
-
-**Merged pull requests:**
-
-- fix: MADLAD ignored the requested target language and returned English [\#36](https://github.com/TigreGotico/linguonnx/pull/36) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.6.1a2](https://github.com/TigreGotico/linguonnx/tree/0.6.1a2) (2026-08-03)
 
