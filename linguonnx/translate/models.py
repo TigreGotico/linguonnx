@@ -60,12 +60,14 @@ from linguonnx.providers import ProviderSpec, make_session
 from linguonnx.translate.decode import (CausalLMDecoder, GenerationConfig,
                                         Seq2SeqDecoder)
 from linguonnx.translate.graph import (Capability, NoRouteError,
-                                       entry_runnability, normalize_tag)
+                                       _default_script, entry_runnability,
+                                       normalize_tag)
 from linguonnx.translate.preprocess import Pipeline, pipeline_for
 from linguonnx.translate.quality import (counterpart_model_id,
                                          flagged_languages,
                                          language_flag_reason,
                                          quality_flag_reasons)
+from linguonnx.translate.segment import UNSPACED_SCRIPTS, split_sentences
 from linguonnx.translate.tokenizers import load_tokenizer
 
 LOG = logging.getLogger(__name__)
@@ -415,7 +417,7 @@ class TranslationModel:
     def translate(self, text: str, src: str, tgt: str,
                   config: Optional[GenerationConfig] = None,
                   target_token: Optional[str] = None) -> str:
-        if not text.strip():
+        if not has_visible_content(text):
             return ""
         if self.entry.get("extra") and self.arch != "rules":
             # A pinned `model=` skips the router. Refuse before the files
@@ -430,12 +432,31 @@ class TranslationModel:
             # is translated alone and the line breaks are kept.
             return "\n".join(self.rules(line) if line.strip() else line
                              for line in text.split("\n"))
-        if self.arch == "causal-lm" and "\n" in text:
-            # The prompt marks the target with a newline, so each line is
-            # its own prompt.
-            return "\n".join(
-                self.translate(line, src, tgt, config, target_token)
-                if line.strip() else line for line in text.split("\n"))
+        # These models translate one sentence at a time. Given more, they end
+        # the sequence early and the rest of the text is lost.
+        return "\n".join(
+            self._translate_line(line, src, tgt, config, target_token)
+            if has_visible_content(line) else line
+            for line in text.split("\n"))
+
+    def _translate_line(self, line: str, src: str, tgt: str,
+                        config: Optional[GenerationConfig],
+                        target_token: Optional[str]) -> str:
+        parts = split_sentences(line)
+        if len(parts) == 1:
+            return self._translate_sentence(line, src, tgt, config, target_token)
+        unspaced = _default_script(tgt) in UNSPACED_SCRIPTS
+        pieces: List[str] = []
+        for sentence, gap in parts:
+            if has_visible_content(sentence):
+                pieces.append(self._translate_sentence(sentence, src, tgt,
+                                                       config, target_token))
+            pieces.append("" if unspaced else gap or " ")
+        return "".join(pieces).rstrip()
+
+    def _translate_sentence(self, text: str, src: str, tgt: str,
+                            config: Optional[GenerationConfig],
+                            target_token: Optional[str]) -> str:
         config = config or GenerationConfig()
         # A multi-target Marian group model (opus-mt-en-sla and friends) picks
         # its target language from a prefix token, and picks it *wrong* when
