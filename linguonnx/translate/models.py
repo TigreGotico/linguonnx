@@ -48,6 +48,7 @@ from __future__ import annotations
 import importlib
 import json
 import logging
+import threading
 from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple
@@ -152,6 +153,10 @@ class TranslationModel:
         self._config: Optional[Dict] = None
         self._banned_token_ids: Optional[FrozenSet[int]] = None
         self._rules: Optional[Callable[[str], str]] = None
+        # Threads share this object, so the lazy builds below take this lock:
+        # a cold model is downloaded and its sessions built once. Reentrant
+        # because the decoder build reads `files`.
+        self._build_lock = threading.RLock()
         # BCP-47 -> the model's own code, one row per language the entry
         # routes. `scripts/sync_registry.py` writes the full table; nothing
         # here derives a code from a tag.
@@ -166,9 +171,11 @@ class TranslationModel:
     @property
     def files(self) -> Dict[str, Path]:
         if self._files is None:
-            self._files = ensure_model_files(
-                self.model_id, kind="translate",
-                enforce_budget=self._enforce_download_budget)
+            with self._build_lock:
+                if self._files is None:
+                    self._files = ensure_model_files(
+                        self.model_id, kind="translate",
+                        enforce_budget=self._enforce_download_budget)
         return self._files
 
     @property
@@ -238,29 +245,34 @@ class TranslationModel:
     @property
     def tokenizer(self):
         if self._tokenizer is None:
-            # An entry that declares languages states them in the *routing*
-            # spelling, so they are translated back into the model's own
-            # before the tokenizer sees them. An entry that declares none
-            # (a bilingual `pair`) passes an empty sequence on purpose:
-            # `load_tokenizer` then reads the codes out of the export itself,
-            # which is the only source NLLB's positional block has.
-            #
-            # A *directional* entry states its languages in
-            # `src_languages`/`tgt_languages` and carries no flat `languages`
-            # list. Reading only `languages` would hand such an entry the
-            # empty sequence and fall back to the export's own order - which
-            # for M2M100/NLLB is the positional block that misrouted 64 of
-            # M2M100's 100 languages. Harmless for the Marian group models
-            # this shape currently describes (their tokenizer ignores the
-            # argument), and that is exactly why it must not be left to be
-            # discovered by the first non-Marian entry reshaped this way.
-            declared = (self.entry.get("languages")
-                        or self.entry.get("src_languages")
-                        or self.entry.get("tgt_languages"))
-            codes = self.native_codes if declared else ()
-            self._tokenizer = load_tokenizer(
-                self.arch, self.files, codes, pair=self.entry.get("pair"))
+            with self._build_lock:
+                if self._tokenizer is None:
+                    self._tokenizer = self._build_tokenizer()
         return self._tokenizer
+
+    def _build_tokenizer(self):
+        # An entry that declares languages states them in the *routing*
+        # spelling, so they are translated back into the model's own
+        # before the tokenizer sees them. An entry that declares none
+        # (a bilingual `pair`) passes an empty sequence on purpose:
+        # `load_tokenizer` then reads the codes out of the export itself,
+        # which is the only source NLLB's positional block has.
+        #
+        # A *directional* entry states its languages in
+        # `src_languages`/`tgt_languages` and carries no flat `languages`
+        # list. Reading only `languages` would hand such an entry the
+        # empty sequence and fall back to the export's own order - which
+        # for M2M100/NLLB is the positional block that misrouted 64 of
+        # M2M100's 100 languages. Harmless for the Marian group models
+        # this shape currently describes (their tokenizer ignores the
+        # argument), and that is exactly why it must not be left to be
+        # discovered by the first non-Marian entry reshaped this way.
+        declared = (self.entry.get("languages")
+                    or self.entry.get("src_languages")
+                    or self.entry.get("tgt_languages"))
+        codes = self.native_codes if declared else ()
+        return load_tokenizer(
+            self.arch, self.files, codes, pair=self.entry.get("pair"))
 
     @property
     def rules(self) -> Callable[[str], str]:
@@ -287,28 +299,33 @@ class TranslationModel:
 
     @property
     def decoder(self) -> Seq2SeqDecoder:
-        if self._decoder is None and self.arch == "causal-lm":
-            self._decoder = CausalLMDecoder(
+        if self._decoder is None:
+            with self._build_lock:
+                if self._decoder is None:
+                    self._decoder = self._build_decoder()
+        return self._decoder
+
+    def _build_decoder(self) -> Seq2SeqDecoder:
+        if self.arch == "causal-lm":
+            return CausalLMDecoder(
                 _session(self.files["model"], self._providers),
                 eos_id=int(self.config["eos_token_id"]),
                 pad_id=int(self.config["pad_token_id"]),
                 max_input_tokens=self._max_input_tokens(),
             )
-        if self._decoder is None:
-            config = self.config
-            # mBART's config names no start token: the pipeline supplies the
-            # target language's tag per call instead.
-            start = config.get("decoder_start_token_id")
-            self._decoder = Seq2SeqDecoder(
-                _session(self.files["encoder"], self._providers),
-                _session(self.files["decoder"], self._providers),
-                _session(self.files["decoder_with_past"], self._providers),
-                eos_id=int(config["eos_token_id"]),
-                pad_id=int(config["pad_token_id"]),
-                decoder_start_id=None if start is None else int(start),
-                max_input_tokens=self._max_input_tokens(),
-            )
-        return self._decoder
+        config = self.config
+        # mBART's config names no start token: the pipeline supplies the
+        # target language's tag per call instead.
+        start = config.get("decoder_start_token_id")
+        return Seq2SeqDecoder(
+            _session(self.files["encoder"], self._providers),
+            _session(self.files["decoder"], self._providers),
+            _session(self.files["decoder_with_past"], self._providers),
+            eos_id=int(config["eos_token_id"]),
+            pad_id=int(config["pad_token_id"]),
+            decoder_start_id=None if start is None else int(start),
+            max_input_tokens=self._max_input_tokens(),
+        )
 
     def _max_input_tokens(self) -> int:
         """The tightest encoder bound that applies to this model.
