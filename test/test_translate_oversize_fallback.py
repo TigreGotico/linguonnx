@@ -417,17 +417,17 @@ class TestThePublicEntryPointsPassTheKnobThrough:
         # what the constructor's own `oversize_fallback` default already does,
         # and without it on the `capped` side this test asks a question about
         # the local cache. On a host that has MADLAD on disk the cap exempts
-        # it, `capped.can_translate("en", "cv")` is True, and the test fails
+        # it, `capped.can_translate("en", "tyv")` is True, and the test fails
         # for a reason that has nothing to do with the fallback. CI's cache is
         # cold, so it passed there and only ever broke on a warm developer box.
         capped = load_translator(max_model_mb=500, count_cached_as_free=False)
         kept = load_translator(max_model_mb=500, oversize_fallback=True)
-        # `cv` (Chuvash) lives only in models far over 500 MB.
-        assert not capped.can_translate("en", "cv")
-        assert kept.can_translate("en", "cv")
-        assert kept.route("en", "cv").waived_size_cap == 500
-        assert "cv" in kept.graph.languages
-        assert "cv" not in capped.graph.languages
+        # `tyv` (Tuvan) lives only in models far over 500 MB.
+        assert not capped.can_translate("en", "tyv")
+        assert kept.can_translate("en", "tyv")
+        assert kept.route("en", "tyv").waived_size_cap == 500
+        assert "tyv" in kept.graph.languages
+        assert "tyv" not in capped.graph.languages
         # ...and a pair a small model serves is untouched by any of it.
         assert kept.route("en", "ca").model_ids == capped.route("en", "ca").model_ids
 
@@ -447,11 +447,11 @@ class TestThePublicEntryPointsPassTheKnobThrough:
         from linguonnx.translate import load_translator
 
         tx = load_translator(max_model_mb=500)
-        assert tx.can_translate("en", "cv", oversize_fallback=True)
-        route = tx.route("en", "cv", oversize_fallback=True,
+        assert tx.can_translate("en", "tyv", oversize_fallback=True)
+        route = tx.route("en", "tyv", oversize_fallback=True,
                          count_cached_as_free=False)
         assert route.waived_size_cap == 500
-        assert tx.routes("en", "cv", oversize_fallback=True)
+        assert tx.routes("en", "tyv", oversize_fallback=True)
 
     def test_the_cached_exemption_default_reaches_the_graph(self):
         """The tri-state default is public signature; it has to survive the trip."""

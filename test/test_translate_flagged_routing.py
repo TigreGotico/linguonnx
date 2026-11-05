@@ -55,6 +55,14 @@ def test_a_flagged_leg_loses_inside_a_pivot():
     assert route.model_ids == ("wide", "fr-ja")
 
 
+def test_a_flagged_model_loses_a_leg_to_a_larger_dedicated_one():
+    route = graph(entry("bad", pair=["en", "fr"], quality=BAD),
+                  entry("good", size_mb=900, pair=["en", "fr"]),
+                  entry("fr-ja", pair=["fr", "ja"]),
+                  pivot_preference=["fr"]).route("en", "ja")
+    assert route.model_ids == ("good", "fr-ja")
+
+
 def test_the_int8_gap_reads_the_other_precision_from_the_registry():
     registry = {"m": entry("m", precision="fp32",
                            quality={**BAD, "chrf_vs_ref": 60.0}),
