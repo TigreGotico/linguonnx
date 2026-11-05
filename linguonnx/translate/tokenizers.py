@@ -499,7 +499,7 @@ class MarianTokenizer:
 
     def __init__(self, source_spm, target_spm, vocab_path,
                  eos_token: str = "</s>", pad_token: str = "<pad>",
-                 unk_token: str = "<unk>"):
+                 unk_token: str = "<unk>", target_vocab_path=None):
         """``eos_token``/``pad_token``/``unk_token`` default to the standard
         opus-mt spellings, but not every Marian export uses them: Softcatalà/
         BSC's fairseq-derived exports (e.g. ``aina-translator-ca-*``) spell
@@ -509,15 +509,23 @@ class MarianTokenizer:
         - see :func:`load_tokenizer`, which reads the real strings out of the
         repo's own ``special_tokens_map.json`` before falling back to these
         defaults.
+
+        A model trained with separate vocabularies (``sepvoc``) numbers its
+        source and target pieces independently: ``vocab.json`` holds the
+        source ids and ``target_vocab.json`` the target ids. Without
+        ``target_vocab_path`` one vocabulary serves both sides.
         """
         self.spm_source = _load_spm(source_spm)
         self.spm_target = _load_spm(target_spm)
         self.vocab: Dict[str, int] = _load_json(vocab_path)
-        self.inv_vocab = {i: t for t, i in self.vocab.items()}
+        target_vocab: Dict[str, int] = (_load_json(target_vocab_path)
+                                        if target_vocab_path else self.vocab)
+        self.inv_vocab = {i: t for t, i in target_vocab.items()}
         self.eos_id = self.vocab[eos_token]
         self.pad_id = self.vocab[pad_token]
         self.unk_id = self.vocab[unk_token]
-        self._specials = {self.eos_id, self.pad_id, self.unk_id}
+        self._specials = {target_vocab[token]
+                          for token in (eos_token, pad_token, unk_token)}
         self.language_tokens = sorted(
             t for t in self.vocab if t.startswith(">>") and t.endswith("<<"))
 
@@ -1339,7 +1347,7 @@ def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str],
     if arch == "marian":
         specials = _marian_special_tokens(files.get("special_tokens_map"))
         return MarianTokenizer(files["source_spm"], files["target_spm"], files["vocab"],
-                               **specials)
+                               target_vocab_path=files.get("target_vocab"), **specials)
     if arch == "m2m100":
         codes = lang_codes or artifact_lang_codes(files)
         return SpmSeq2SeqTokenizer(files["spm"], codes, vocab_path=files["vocab"],
