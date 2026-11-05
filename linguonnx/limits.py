@@ -22,11 +22,13 @@ from __future__ import annotations
 
 import os
 import re
+from typing import Sequence
 
 __all__ = [
     "InputTooLongError",
     "EmptyInputError",
     "DecodeError",
+    "OutputTruncatedError",
     "CorruptModelFileError",
     "MAX_DETECT_CHARS",
     "MAX_LINE_TOKENS",
@@ -49,6 +51,17 @@ class EmptyInputError(ValueError):
 
 class DecodeError(RuntimeError):
     """Generation produced no usable sequence."""
+
+
+class OutputTruncatedError(DecodeError):
+    """Generation hit ``max_new_tokens`` before the model finished.
+
+    ``tokens`` holds the ids generated up to the cap.
+    """
+
+    def __init__(self, message: str, tokens: Sequence[int] = ()) -> None:
+        super().__init__(message)
+        self.tokens = list(tokens)
 
 
 class CorruptModelFileError(ValueError):
