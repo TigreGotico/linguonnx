@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.0a1](https://github.com/TigreGotico/linguonnx/tree/0.25.0a1) (2026-11-05)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.24.1a1...0.25.0a1)
+
+**Merged pull requests:**
+
+- feat: register the AfriGloss NLLB fine-tunes [\#126](https://github.com/TigreGotico/linguonnx/pull/126) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.24.1a1](https://github.com/TigreGotico/linguonnx/tree/0.24.1a1) (2026-11-05)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.24.0a1...0.24.1a1)
@@ -374,17 +382,9 @@
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.6.1a1...0.6.1a2)
 
-**Merged pull requests:**
-
-- docs: point at the OVOS plugin that wraps this library [\#30](https://github.com/TigreGotico/linguonnx/pull/30) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [0.6.1a1](https://github.com/TigreGotico/linguonnx/tree/0.6.1a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.6.0a1...0.6.1a1)
-
-**Merged pull requests:**
-
-- fix: CI blockers for PyPI release \(network tests, registry sync, license false-positive, doc bugs\) [\#31](https://github.com/TigreGotico/linguonnx/pull/31) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.6.0a1](https://github.com/TigreGotico/linguonnx/tree/0.6.0a1) (2026-08-02)
 
