@@ -31,6 +31,7 @@ words.
 
 from __future__ import annotations
 
+import threading
 from typing import Callable, Dict, List, Optional, Sequence, Type
 
 from linguonnx.limits import InputTooLongError
@@ -306,26 +307,28 @@ class IndicTrans2Pipeline(Pipeline):
     a ``tam_Taml`` request returns fluent Tamil spelled in Devanagari, and
     nothing anywhere raises.
 
-    The placeholder map is threaded from :meth:`encode` to :meth:`decode`
-    through the model object rather than a module-level queue, so a failed
-    translation cannot leave a stale map behind for the next call.
+    The placeholder map passes from :meth:`encode` to :meth:`decode` through
+    per-thread storage, keyed by model. A model is shared by every thread of a
+    ``Translator``, so a map kept on the model reaches the wrong request.
     """
 
     #: ``tokenizer_config.json`` says ``model_max_length: 256`` and the export
     #: bakes a 256-row sinusoidal position table into the graph.
     max_source_tokens = 256
 
+    _entity_maps = threading.local()
+
     def encode(self, model, text, src, tgt, target_token=None):
         processor = _indic_processor()
         src_tag, tgt_tag = model.native_code(src), model.native_code(tgt)
         tagged, entity_map = processor.preprocess(text, src_tag, tgt_tag)
-        model._indic_entity_map = entity_map
+        vars(self._entity_maps)[model.model_id] = entity_map
         return self.check_length(model.tokenizer.encode(tagged), model)
 
     def decode(self, model, ids, src, tgt):
         processor = _indic_processor()
         raw = model.tokenizer.decode(ids)
-        entity_map = getattr(model, "_indic_entity_map", None) or {}
+        entity_map = vars(self._entity_maps).pop(model.model_id, {})
         return processor.postprocess(raw, model.native_code(tgt), entity_map)
 
 
