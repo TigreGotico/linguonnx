@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.7a1](https://github.com/TigreGotico/linguonnx/tree/0.25.7a1) (2026-11-05)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.6a1...0.25.7a1)
+
+**Merged pull requests:**
+
+- fix: rank flagged models last and remove flagged language edges [\#153](https://github.com/TigreGotico/linguonnx/pull/153) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.25.6a1](https://github.com/TigreGotico/linguonnx/tree/0.25.6a1) (2026-11-05)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.5a1...0.25.6a1)
