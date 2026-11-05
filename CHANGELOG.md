@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.25.4a1](https://github.com/TigreGotico/linguonnx/tree/0.25.4a1) (2026-11-05)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.3a1...0.25.4a1)
+
+**Merged pull requests:**
+
+- fix: build a cold model once when threads race [\#144](https://github.com/TigreGotico/linguonnx/pull/144) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.25.3a1](https://github.com/TigreGotico/linguonnx/tree/0.25.3a1) (2026-11-05)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.2a1...0.25.3a1)
+
+**Merged pull requests:**
+
+- fix: keep IndicTrans2 entity maps per thread [\#143](https://github.com/TigreGotico/linguonnx/pull/143) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.25.2a1](https://github.com/TigreGotico/linguonnx/tree/0.25.2a1) (2026-11-05)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.1a1...0.25.2a1)
