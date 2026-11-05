@@ -27,7 +27,7 @@ dependencies = [
     # The default region of a bare tag (`es` -> `es-ES`), which the router
     # tries when the bare language has no route.
     "linguatag>=0.0.2a2",
-    "sentencepiece>=0.2.0",  # normalize() and OverrideNormalizerSpec()
+    "sentencepiece>=0.2.0",  # normalize() and SentencePieceNormalizer
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",

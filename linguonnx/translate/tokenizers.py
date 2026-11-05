@@ -347,7 +347,7 @@ class SpmSeq2SeqTokenizer:
                  clean_up_tokenization_spaces: bool = False):
         self.sp = _load_spm(spm_path)
         self._word_break_id: Optional[int] = None
-        self._edges: Optional["spm.SentencePieceProcessor"] = None
+        self._edges: Optional["spm.SentencePieceNormalizer"] = None
         self.clean_up_tokenization_spaces = clean_up_tokenization_spaces
         self.fairseq_offset = fairseq_offset
         self.eos_id, self.pad_id, self.unk_id, self.bos_id = eos_id, pad_id, unk_id, bos_id
@@ -396,9 +396,10 @@ class SpmSeq2SeqTokenizer:
                 self._word_break_id = _word_break_token(text_tokens,
                                                         tokenizer_json_path)
                 # The same normaliser with the input's own edges kept.
-                self._edges = _load_spm(spm_path)
-                self._edges.OverrideNormalizerSpec(
-                    remove_extra_whitespaces=False, add_dummy_prefix=False)
+                # sentencepiece before 0.2.3 does not escape by default.
+                self._edges = spm.SentencePieceNormalizer(
+                    model_file=str(spm_path), add_dummy_prefix=False,
+                    remove_extra_whitespaces=False, escape_whitespaces=True)
             self.lang_code_to_id = {code: stated[code] for code in lang_codes
                                     if code in stated}
             missing = [code for code in lang_codes if code not in stated]
