@@ -343,7 +343,6 @@
 **Merged pull requests:**
 
 - fix: repair mangled version.py so the published version is the real one [\#53](https://github.com/TigreGotico/linguonnx/pull/53) ([JarbasAl](https://github.com/JarbasAl))
-- fix: unify language-tag spelling systems in translation routing [\#40](https://github.com/TigreGotico/linguonnx/pull/40) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.8.0a2](https://github.com/TigreGotico/linguonnx/tree/0.8.0a2) (2026-08-03)
 
@@ -360,7 +359,6 @@
 **Merged pull requests:**
 
 - test: regression-guard IndicTrans2 state isolation across architectures [\#44](https://github.com/TigreGotico/linguonnx/pull/44) ([JarbasAl](https://github.com/JarbasAl))
-- feat: specialist-institution provenance ranking tie-break [\#41](https://github.com/TigreGotico/linguonnx/pull/41) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.7.1a1](https://github.com/TigreGotico/linguonnx/tree/0.7.1a1) (2026-08-03)
 
@@ -373,10 +371,6 @@
 ## [0.7.0a1](https://github.com/TigreGotico/linguonnx/tree/0.7.0a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.6.4a1...0.7.0a1)
-
-**Merged pull requests:**
-
-- feat: relocate the model cache with LINGUONNX\_CACHE [\#43](https://github.com/TigreGotico/linguonnx/pull/43) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.6.4a1](https://github.com/TigreGotico/linguonnx/tree/0.6.4a1) (2026-08-03)
 
