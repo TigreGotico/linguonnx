@@ -392,6 +392,24 @@ paragraphs and translate them one at a time.
   same setting silently does nothing because its lookup key is the whole
   sequence. Neither reading is useful, so it raises.
 
+### Long input
+
+`translate()` gives a model one sentence at a time, because these models end
+the sequence early when they receive more. It cuts the text into lines, cuts
+each line into sentences, and joins the results.
+
+Line breaks and blank lines stay where they are. Sentences keep the whitespace
+that separated them in the source. A target written in Japanese, Chinese or
+Thai takes no space between sentences. A source with no space between
+sentences, such as Chinese, takes one space in any other target.
+
+A sentence ends at `.`, `!`, `?`, `…`, `؟`, `۔`, `।` or `॥` before whitespace,
+and at `。`, `！`, `？` or `｡` with or without it. `e.g.`, `Dr.` and a list number
+such as `1.` do not end a sentence. Text with no stop is one sentence, and one
+sentence that reaches `max_new_tokens` raises an error.
+
+Text with nothing visible, such as only zero-width characters, gives `""`.
+
 ### Decode failure is not empty output
 
 `translate()` returns `""` for empty input. Generation therefore never returns
