@@ -3745,11 +3745,12 @@
       "source_spm": "source.spm",
       "target_spm": "target.spm",
       "vocab": "vocab.json",
+      "target_vocab": "target_vocab.json",
       "config": "config.json",
       "generation_config": "generation_config.json",
       "special_tokens_map": "special_tokens_map.json"
     },
-    "size_mb": 766,
+    "size_mb": 768,
     "target_token_template": "<2{code}>"
   },
   "liv4ever-mt-int8": {
@@ -3780,11 +3781,12 @@
       "source_spm": "int8/source.spm",
       "target_spm": "int8/target.spm",
       "vocab": "int8/vocab.json",
+      "target_vocab": "int8/target_vocab.json",
       "config": "int8/config.json",
       "generation_config": "int8/generation_config.json",
       "special_tokens_map": "int8/special_tokens_map.json"
     },
-    "size_mb": 569,
+    "size_mb": 571,
     "target_token_template": "<2{code}>"
   },
   "m2m100-1.2B": {
@@ -13664,6 +13666,64 @@
       "special_tokens_map": "int8/special_tokens_map.json"
     },
     "size_mb": 190
+  },
+  "opus-mt-en-ko": {
+    "arch": "marian",
+    "base_model": "Helsinki-NLP/opus-mt-tc-big-en-ko",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "encoder_model.onnx",
+      "decoder": "decoder_model.onnx",
+      "decoder_with_past": "decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/opus-mt-en-ko-onnx",
+    "license": "CC-BY-4.0",
+    "license_tier": "permissive",
+    "model_id": "opus-mt-en-ko",
+    "pair": [
+      "en",
+      "ko"
+    ],
+    "precision": "fp32",
+    "side_files": {
+      "source_spm": "source.spm",
+      "target_spm": "target.spm",
+      "vocab": "vocab.json",
+      "target_vocab": "target_vocab.json",
+      "config": "config.json",
+      "generation_config": "generation_config.json",
+      "special_tokens_map": "special_tokens_map.json"
+    },
+    "size_mb": 1468
+  },
+  "opus-mt-en-ko-int8": {
+    "arch": "marian",
+    "base_model": "Helsinki-NLP/opus-mt-tc-big-en-ko",
+    "extra_files": [],
+    "graphs": {
+      "encoder": "int8/encoder_model.onnx",
+      "decoder": "int8/decoder_model.onnx",
+      "decoder_with_past": "int8/decoder_with_past_model.onnx"
+    },
+    "hf_repo": "TigreGotico/opus-mt-en-ko-onnx",
+    "license": "CC-BY-4.0",
+    "license_tier": "permissive",
+    "model_id": "opus-mt-en-ko-int8",
+    "pair": [
+      "en",
+      "ko"
+    ],
+    "precision": "int8",
+    "side_files": {
+      "source_spm": "int8/source.spm",
+      "target_spm": "int8/target.spm",
+      "vocab": "int8/vocab.json",
+      "target_vocab": "int8/target_vocab.json",
+      "config": "int8/config.json",
+      "generation_config": "int8/generation_config.json",
+      "special_tokens_map": "int8/special_tokens_map.json"
+    },
+    "size_mb": 371
   },
   "opus-mt-en-ml": {
     "arch": "marian",

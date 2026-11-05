@@ -798,41 +798,30 @@ def test_registry_json_is_stable_and_sorted():
 # A Marian export whose vocab.json cannot spell its own source language
 # --------------------------------------------------------------------------
 
-class TestTheEnKoClaimIsWithdrawn:
-    """`Helsinki-NLP/opus-mt-tc-big-en-ko` cannot read English.
+class TestSeparateVocabularies:
+    """`Helsinki-NLP/opus-mt-tc-big-en-ko` and `liv4ever-mt` were trained with
+    separate source and target vocabularies.
 
-    Its `vocab.json` is the *target* (Korean) vocabulary: only 21% of the
-    pieces `source.spm` produces have an id, so `doctor`, `patient`,
-    `recover` and `weeks` all arrive at the encoder as `<unk>` and the
-    decoder answers fluent Korean nonsense
-    (`'process 잘 모기 댓글 upon9-2.'`). `transformers` builds the identical
-    input ids from the identical files, so this is an upstream export defect
-    that no inference change here can repair - the claim goes instead.
+    The en-ko base repo ships only the target (Korean) vocabulary as
+    `vocab.json`: 21% of the pieces `source.spm` produces have an id, so the
+    encoder reads English as `<unk>` and the decoder answers fluent Korean
+    nonsense. `transformers` builds the same ids from the same files. The
+    TigreGotico repo carries the source ids in `vocab.json` and the target ids
+    in `target_vocab.json`, and the entry has to name both: decoding
+    liv4ever-mt's output with `vocab.json` gives text in no language.
     """
 
-    def test_the_registry_no_longer_claims_the_pair(self):
+    @pytest.mark.parametrize("model_id", ["opus-mt-en-ko", "opus-mt-en-ko-int8",
+                                          "liv4ever-mt", "liv4ever-mt-int8"])
+    def test_the_entry_names_the_target_vocabulary(self, model_id):
         registry = json.loads((REPO_ROOT / "linguonnx" / "model_index"
                                / "translate.json").read_text(encoding="utf-8"))
-        assert not [m for m in registry if m.startswith("opus-mt-en-ko")]
+        side = registry[model_id]["side_files"]
+        prefix = "int8/" if model_id.endswith("-int8") else ""
+        assert (side["vocab"], side["target_vocab"]) == (
+            prefix + "vocab.json", prefix + "target_vocab.json")
 
-    def test_the_reason_is_recorded_rather_than_forgotten(self):
-        skipped = json.loads((REPO_ROOT / "linguonnx" / "model_index"
-                              / "skipped.json").read_text(encoding="utf-8"))
-        reason = skipped.get("TigreGotico/opus-mt-en-ko-onnx")
-        assert reason and "source.spm" in reason
-
-    def test_english_to_korean_still_routes(self):
-        """Withdrawing a broken claim must not withdraw the language.
-
-        The replacement was measured, not assumed: `m2m100-418M-int8` scores
-        **chrF 30.4** on `en->ko`, FLORES-200 devtest, n=100, beam4 - the same
-        corpus, metric and decoding mode every `quality` number in the
-        registry uses. It is in the band of the measured entries there
-        (`opus-mt-az-en` 25.9, `m2m100_418M_en_hau_rel_news_ft` 37.9). The
-        number is not written into `m2m100-418M-int8`'s `quality` field
-        because that field is a whole-model claim and this is one pair out of
-        that model's ~9900.
-        """
+    def test_english_to_korean_routes(self):
         translator = load_translator()
         assert translator.route("en", "ko").hops
 

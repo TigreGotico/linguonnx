@@ -757,6 +757,9 @@ SIDE_FILES: Dict[str, Dict[str, str]] = {
         "source_spm": "source.spm",
         "target_spm": "target.spm",
         "vocab": "vocab.json",
+        # Optional: a model trained with separate vocabularies numbers its
+        # target pieces in this file, and `vocab.json` holds the source ids.
+        "target_vocab": "target_vocab.json",
         "config": "config.json",
         "generation_config": "generation_config.json",
         # Optional: not every Marian export ships one, but when it does it is
@@ -2104,12 +2107,13 @@ def _marian_source_coverage(repo_id: str, files: Dict[str, int],
 
     Marian ids come from ``vocab.json``; the pieces come from ``source.spm``.
     Nothing upstream checks that the two agree, and
-    ``Helsinki-NLP/opus-mt-tc-big-en-ko`` proves they sometimes do not - its
-    ``vocab.json`` is the *target* (Korean) vocabulary, so 79% of the English
-    source pieces have no id and become ``<unk>``. `transformers` produces the
-    same broken ids from the same files, so this is an upstream defect and not
-    something an inference change can fix. The only honest response is to not
-    claim the pair.
+    ``Helsinki-NLP/opus-mt-tc-big-en-ko`` proves they sometimes do not. That
+    model was trained with separate source and target vocabularies, and its
+    ``vocab.json`` is the *target* (Korean) one, so 79% of the English source
+    pieces have no id and become ``<unk>``. `transformers` produces the same
+    broken ids from the same files. The export is fixed by publishing the
+    source vocabulary as ``vocab.json`` and the target one as
+    ``target_vocab.json``; until then the pair is not claimed.
 
     ``fetch`` is injectable so the decision - the coverage ratio and the floor
     it is held to - can be tested against synthetic exports without a network.

@@ -355,3 +355,40 @@ def test_an_instruction_the_vocabulary_cannot_spell_is_refused(tmp_path):
     tokenizer = _unigram(tmp_path)
     with pytest.raises(ValueError):
         tokenizer.encode("the king", prefix="¡¡¡")
+
+
+def _tiny_spm(tmp_path, name, lines):
+    import sentencepiece as spm
+
+    corpus = tmp_path / f"{name}.txt"
+    corpus.write_text("\n".join(lines * 60), encoding="utf-8")
+    spm.SentencePieceTrainer.Train(
+        input=str(corpus), model_prefix=str(tmp_path / name), vocab_size=40,
+        hard_vocab_limit=False, unk_id=0, bos_id=1, eos_id=2, pad_id=-1)
+    processor = spm.SentencePieceProcessor(model_file=str(tmp_path / f"{name}.model"))
+    return processor, [processor.IdToPiece(i) for i in range(processor.get_piece_size())]
+
+
+def test_a_separate_target_vocabulary_numbers_the_decoded_pieces(tmp_path):
+    """opus-mt-tc-big-en-ko was trained with separate vocabularies: the
+    encoder reads source ids from vocab.json and the decoder writes target
+    ids that only target_vocab.json names."""
+    from linguonnx.translate.tokenizers import MarianTokenizer
+
+    source, source_pieces = _tiny_spm(tmp_path, "source", ["hello world", "good day"])
+    target, target_pieces = _tiny_spm(tmp_path, "target", ["안녕 세계", "좋은 날"])
+    vocab = {piece: i for i, piece in enumerate(source_pieces + ["<pad>"])}
+    # Reversed, so no target id agrees with its source-vocabulary position.
+    target_order = list(reversed(target_pieces)) + ["<pad>"]
+    target_vocab = {piece: i for i, piece in enumerate(target_order)}
+    (tmp_path / "vocab.json").write_text(json.dumps(vocab), encoding="utf-8")
+    (tmp_path / "target_vocab.json").write_text(json.dumps(target_vocab),
+                                                encoding="utf-8")
+    tokenizer = MarianTokenizer(tmp_path / "source.model", tmp_path / "target.model",
+                                tmp_path / "vocab.json",
+                                target_vocab_path=tmp_path / "target_vocab.json")
+
+    pieces = source.encode("hello world", out_type=str)
+    assert tokenizer.encode("hello world") == [vocab[p] for p in pieces] + [vocab["</s>"]]
+    ids = [target_vocab[p] for p in target.encode("안녕 세계", out_type=str)]
+    assert tokenizer.decode(ids + [target_vocab["</s>"]]) == "안녕 세계"
