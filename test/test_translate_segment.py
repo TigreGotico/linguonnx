@@ -16,7 +16,8 @@ CUTS = [
     ("Really? Yes! Fine.", [("Really?", " "), ("Yes!", " "), ("Fine.", "")]),
     ("Wide.   Gap.\tTab.", [("Wide.", "   "), ("Gap.", "\t"), ("Tab.", "")]),
     ("Wait... what?! Ok.", [("Wait...", " "), ("what?!", " "), ("Ok.", "")]),
-    ('He said "Go." Then left.', [('He said "Go."', " "), ("Then left.", "")]),
+    ('He said "Stop." Then left.', [('He said "Stop."', " "), ("Then left.", "")]),
+    ("Hi. Bye now.", [("Hi. Bye now.", "")]),
     ("Use e.g. this one.", [("Use e.g. this one.", "")]),
     ("Dr. Silva is in.", [("Dr. Silva is in.", "")]),
     ("Pi is 3.14 today.", [("Pi is 3.14 today.", "")]),
@@ -104,7 +105,7 @@ def test_a_sentence_over_the_budget_still_raises(monkeypatch):
 
 
 def test_every_registry_target_has_a_script_answer():
-    targets = {lang for entry in list_models()
+    targets = {lang for entry in list_models("translate").values()
                for lang in entry.get("languages", [])}
     assert len(targets) > 300
     for tag in targets:
