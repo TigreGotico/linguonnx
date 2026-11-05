@@ -1533,10 +1533,9 @@ class TestTransformerLidEntries:
         with pytest.raises(sync.SkipRepo, match="softmax"):
             self._entries(sync, monkeypatch, "some-lid", config)
 
-    def test_afrolid_takes_the_upstream_licence_over_its_card(
-            self, sync, monkeypatch):
+    def test_afrolid_reads_its_licence_from_its_card(self, sync, monkeypatch):
         entries = self._entries(sync, monkeypatch, "afrolid_1.5", self.CONFIG,
-                                license="other")
+                                license="apache-2.0")
         assert {e["license"] for e in entries.values()} == {"Apache-2.0"}
         assert all("Yoruba" in e["notes"] for e in entries.values())
 
