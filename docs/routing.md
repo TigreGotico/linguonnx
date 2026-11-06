@@ -306,6 +306,17 @@ guessing at.
 over the budget is left out, and the router looks for a chain of smaller ones
 instead of failing.
 
+With no budget set, routing prefers models of 2048 MB or less
+(`linguonnx.limits.DEFAULT_MAX_MODEL_MB`). M2M100-418M and the aina models fit
+under that, and MADLAD does not. A pair that nothing under 2048 MB can serve
+falls back to the smallest larger model that covers it, so all 606 languages
+stay routable. `en -> tyv` goes to MADLAD and `pt -> ru` stays on M2M100.
+
+A budget that you set is a filter. It comes from `max_model_mb=` or from
+`LINGUONNX_MAX_MODEL_MB`, and no route goes past it unless you also pass
+`oversize_fallback=True`. A `LINGUONNX_MAX_DOWNLOAD_MB` below 2048 lowers the
+default, and the fallback stops at that same number.
+
 <!-- doc-check: norun the second line's answer depends on the local cache -->
 ```python
 tx = load_translator(max_model_mb=500)
@@ -396,8 +407,8 @@ that a 4-slot model cache cannot keep warm. But the budget that fixes that
 deletes 400 languages, because the tail exists only inside the models it
 excludes.
 
-`oversize_fallback=True` makes the budget a **preference** instead of a
-filter:
+`oversize_fallback=True` makes a budget you set a **preference** instead of a
+filter. It is the default only for the library's own budget:
 
 <!-- doc-check: norun the answers depend on the registry and the local cache -->
 ```python

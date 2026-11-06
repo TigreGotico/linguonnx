@@ -178,14 +178,12 @@ def test_max_hops_is_settable_per_call_and_per_translator(tx):
 def test_the_size_budget_is_settable_per_call_and_per_translator(tx):
     """Same shape as max_hops: constructor value, per-call override.
 
-    The unset default is no longer "no cap": it is the cold-download budget,
-    so routing cannot promise a model ``ensure_model_files`` will refuse to
-    fetch. Every model in this fixture is far under it, so the rest of the
-    test is unaffected.
+    Every model in this fixture is far under the library's default cap, so
+    the default routes as if there were none.
     """
-    from linguonnx.model_manager import DEFAULT_MAX_DOWNLOAD_MB
+    from linguonnx.limits import DEFAULT_MAX_MODEL_MB
 
-    assert tx.max_model_mb == DEFAULT_MAX_DOWNLOAD_MB
+    assert tx.max_model_mb == DEFAULT_MAX_MODEL_MB
     assert tx.route("pt", "ru").model_ids == ("multi",)
     assert tx.route("pt", "ru", max_model_mb=500).model_ids == ("pt-en", "en-ru")
     frugal = Translator(REGISTRY, max_model_mb=500)
@@ -252,17 +250,19 @@ def test_non_commercial_models_are_opt_in():
 def test_basque_is_routed_away_from_m2m100_in_the_real_registry():
     """M2M100 has no Basque. A flat default would silently drop it.
 
-    MADLAD carries Basque directly, so under the default `fewest_hops` policy
-    it now wins outright over the two-hop opus-mt chain - fewer hops always
-    beats more, and MADLAD is Apache-2.0, same tier as opus-mt.
+    MADLAD carries Basque directly but sits over the default cap, so the
+    pair goes through Catalan on two dedicated models that fit under it.
     """
     translator = load_translator()
     assert "eu" in translator.available_languages
     route = translator.route("pt", "eu")
     for hop in route.hops:
         assert not hop.model_id.startswith("m2m100") or "eu" not in (hop.src, hop.tgt)
-    assert route.n_hops == 1
-    assert route.model_ids == ("madlad400-3b-mt-int8",)
+    assert route.model_ids == ("aina-translator-pt-ca-int8", "mt-hitz-ca-eu-int8")
+    assert route.waived_size_cap is None
+    # Lifting the cap puts the one multilingual hop back.
+    assert translator.route("pt", "eu", max_model_mb=None).model_ids == \
+        ("madlad400-3b-mt-int8",)
     # A dedicated bilingual chain is still available under `prefer="dedicated"`.
     dedicated_route = translator.route("pt", "eu", prefer="dedicated")
     assert dedicated_route.n_multilingual_hops == 0
