@@ -665,8 +665,10 @@ badly" as distinct states.
 Two independent checks, either one enough on its own — see
 `linguonnx.translate.quality.quality_flag_reasons` for the exact logic:
 
-- **Absolute floor**: either precision's chrF-vs-reference below 40 flags the
-  entry, whatever the other precision scored. This is what should have
+- **Absolute floor**: chrF-vs-reference below 40 flags the entry. An entry
+  with no score of its own takes the score of its other precision, so
+  `opus-mt-az-en-int8` carries the flag that `opus-mt-az-en` measured. An
+  entry with its own score is judged on that score. This is what should have
   caught the Azerbaijani `opus-mt-*-az`/`opus-mt-az-*` trio and
   `m2m100_418M_en_hau_rel_news_ft` from the start — both hallucinate proper
   nouns and repeat garbled phrases on real news-domain text, in *both*
