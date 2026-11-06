@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.25.11a1](https://github.com/TigreGotico/linguonnx/tree/0.25.11a1) (2026-11-06)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.10a1...0.25.11a1)
+
+**Merged pull requests:**
+
+- fix: let an unmeasured precision take its counterpart's floor failure [\#161](https://github.com/TigreGotico/linguonnx/pull/161) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.25.10a1](https://github.com/TigreGotico/linguonnx/tree/0.25.10a1) (2026-11-06)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.9a1...0.25.10a1)
+
+**Merged pull requests:**
+
+- fix: withdraw opus-mt-en-jap from the registry [\#159](https://github.com/TigreGotico/linguonnx/pull/159) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.25.9a1](https://github.com/TigreGotico/linguonnx/tree/0.25.9a1) (2026-11-06)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.8a1...0.25.9a1)
+
+**Merged pull requests:**
+
+- fix: name the filter that dropped a model in NoRouteError [\#157](https://github.com/TigreGotico/linguonnx/pull/157) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.25.8a1](https://github.com/TigreGotico/linguonnx/tree/0.25.8a1) (2026-11-06)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.7a1...0.25.8a1)
+
+**Merged pull requests:**
+
+- fix: keep the script when a caller's tag falls back [\#155](https://github.com/TigreGotico/linguonnx/pull/155) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.25.7a1](https://github.com/TigreGotico/linguonnx/tree/0.25.7a1) (2026-11-05)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.6a1...0.25.7a1)
@@ -244,10 +276,6 @@
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.13.0a2...0.14.0a1)
 
-**Merged pull requests:**
-
-- feat: export and register IndicTrans2 en-indic-1B \(fp32 + int8\) [\#55](https://github.com/TigreGotico/linguonnx/pull/55) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [0.13.0a2](https://github.com/TigreGotico/linguonnx/tree/0.13.0a2) (2026-09-01)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.13.0a1...0.13.0a2)
@@ -364,33 +392,17 @@
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.2a1...0.8.2a2)
 
-**Merged pull requests:**
-
-- test: fix a test module that never ran, and what it was hiding [\#58](https://github.com/TigreGotico/linguonnx/pull/58) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [0.8.2a1](https://github.com/TigreGotico/linguonnx/tree/0.8.2a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.1a1...0.8.2a1)
-
-**Merged pull requests:**
-
-- fix: keep each model's own language spelling alongside the routing tag [\#56](https://github.com/TigreGotico/linguonnx/pull/56) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.8.1a1](https://github.com/TigreGotico/linguonnx/tree/0.8.1a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.0a2...0.8.1a1)
 
-**Merged pull requests:**
-
-- fix: repair mangled version.py so the published version is the real one [\#53](https://github.com/TigreGotico/linguonnx/pull/53) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [0.8.0a2](https://github.com/TigreGotico/linguonnx/tree/0.8.0a2) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.0a1...0.8.0a2)
-
-**Merged pull requests:**
-
-- ci: pass PYPI\_TOKEN explicitly to the reusable publish workflows [\#51](https://github.com/TigreGotico/linguonnx/pull/51) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.8.0a1](https://github.com/TigreGotico/linguonnx/tree/0.8.0a1) (2026-08-03)
 

@@ -67,6 +67,44 @@ DEFAULT_MAX_LOADED_MB = None
 DEFAULT_MAX_CONCURRENT_TRANSLATIONS = None
 
 
+#: The hint for a model a caller's `models=` list left out. ``{}`` takes the ids.
+_NOT_NAMED = ("model(s) not named in models= cover this pair: {}; "
+              "add them to use them")
+
+
+def _left_out(registry: Dict[str, dict], precision: Optional[str],
+              include_noncommercial: bool, exclude_flagged: bool = False,
+              min_chrf: Optional[float] = None) -> Dict[str, str]:
+    """``model_id -> hint`` for each model the selection filters drop.
+
+    Each hint names the filter and the way out. ``{}`` takes the model ids.
+    """
+    reasons = {}
+    for model_id, entry in registry.items():
+        quality = entry.get("quality") or {}
+        chrf = quality.get("chrf_vs_ref")
+        if not include_noncommercial and entry["license_tier"] == "non-commercial":
+            reasons[model_id] = ("excluded non-commercial model(s) cover this "
+                                 "pair: {}; pass include_noncommercial=True "
+                                 "to use them")
+        # A rule-based entry has no weights and so no precision; the filter
+        # does not apply to it.
+        elif precision and entry.get("precision") not in (None, precision):
+            reasons[model_id] = (f"model(s) left out by precision={precision!r} "
+                                 "cover this pair: {}; pass precision=None to "
+                                 "use them")
+        elif exclude_flagged and is_quality_flagged(model_id, registry):
+            reasons[model_id] = ("flagged model(s) cover this pair: {}; pass "
+                                 "exclude_flagged=False to use them")
+        # Absence means "not measured", never "scored badly" - it must not be
+        # excluded by a quality floor it was never checked against. Only a
+        # model actually measured below the floor is cut.
+        elif min_chrf is not None and chrf is not None and chrf < min_chrf:
+            reasons[model_id] = (f"model(s) below min_chrf={min_chrf} cover "
+                                 "this pair: {}; lower min_chrf to use them")
+    return reasons
+
+
 def _select_entries(precision: Optional[str], include_noncommercial: bool,
                     models: Optional[Sequence[str]],
                     exclude_flagged: bool = False,
@@ -81,26 +119,9 @@ def _select_entries(precision: Optional[str], include_noncommercial: bool,
         if missing:
             raise ValueError(f"unknown translation model(s): {', '.join(missing)}")
         return {m: registry[m] for m in models}
-    chosen = {}
-    for model_id, entry in registry.items():
-        # A rule-based entry has no weights and so no precision; the filter
-        # does not apply to it.
-        if precision and entry.get("precision") not in (None, precision):
-            continue
-        if not include_noncommercial and entry["license_tier"] == "non-commercial":
-            continue
-        if exclude_flagged and is_quality_flagged(model_id, registry):
-            continue
-        if min_chrf is not None:
-            quality = entry.get("quality") or {}
-            chrf = quality.get("chrf_vs_ref")
-            # Absence means "not measured", never "scored badly" - it must
-            # not be excluded by a quality floor it was never checked
-            # against. Only a model actually measured below the floor is cut.
-            if chrf is not None and chrf < min_chrf:
-                continue
-        chosen[model_id] = entry
-    return chosen
+    left_out = _left_out(registry, precision, include_noncommercial,
+                         exclude_flagged, min_chrf)
+    return {m: entry for m, entry in registry.items() if m not in left_out}
 
 
 class Translator:
@@ -127,7 +148,8 @@ class Translator:
                  DEFAULT_MAX_CONCURRENT_TRANSLATIONS,
                  enforce_download_budget: bool = True,
                  fetch_on_demand: bool = True,
-                 providers: Optional[Sequence[ProviderSpec]] = None):
+                 providers: Optional[Sequence[ProviderSpec]] = None,
+                 left_out: Optional[Dict[str, str]] = None):
         # Whether an absent model may be downloaded on the request path.
         # `False` is the embedded/metered stance: routing sees only what is
         # already on disk, so latency is bounded by decode instead of by a
@@ -178,13 +200,13 @@ class Translator:
         # Capabilities left out by ANY selection filter - licence tier,
         # precision, or an explicit `models=` - so a failed lookup can say
         # "a non-commercial model covers this" or "an fp32 model covers this"
-        # instead of looking unsupported. Uniform across filters on purpose:
-        # licence was not special-cased here before, and a caller who tuned
-        # `precision=` deserves the same "here is what you filtered out" as
-        # one who left non-commercial models out.
+        # instead of looking unsupported. Each one keeps the hint of the
+        # filter that dropped it, so the message names the knob that helps.
         chosen = set(entries)
+        left_out = left_out or {}
         self.graph.excluded_capabilities = [
-            capability_from_entry(e, registry)
+            (capability_from_entry(e, registry),
+             left_out.get(model_id, _NOT_NAMED))
             for model_id, e in registry.items()
             if model_id not in chosen and model_id not in absent
         ] if entries else []
@@ -764,6 +786,9 @@ def load_translator(models: Optional[Sequence[str]] = None,
     entries = _select_entries(precision, include_noncommercial, models,
                               exclude_flagged=exclude_flagged,
                               min_chrf=min_chrf)
+    left_out = {} if models is not None else _left_out(
+        list_models(kind="translate"), precision, include_noncommercial,
+        exclude_flagged, min_chrf)
     if not entries:
         raise ValueError("no translation models matched the given filters")
     waive_budget = models is not None and isinstance(max_model_mb, _Unset) \
@@ -797,4 +822,5 @@ def load_translator(models: Optional[Sequence[str]] = None,
                       max_loaded_mb=max_loaded_mb,
                       max_concurrent_translations=max_concurrent_translations,
                       fetch_on_demand=fetch_on_demand,
+                      left_out=left_out,
                       providers=providers)

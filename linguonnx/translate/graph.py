@@ -406,6 +406,12 @@ def _default_script(tag: str) -> Optional[str]:
     return langcodes.Language.get(tag).maximize().script
 
 
+def _same_script(tag: str, other: str) -> bool:
+    """Whether two tags write in one script. An unknown script matches any."""
+    script, other_script = _default_script(tag), _default_script(other)
+    return script is None or other_script is None or script == other_script
+
+
 def normalize_tag(tag: str, strict: bool = False) -> str:
     """Normalise any language tag shape to the graph's BCP-47 node name.
 
@@ -1447,11 +1453,15 @@ class TranslationGraph:
             return node
         # `pt-BR` is well-formed and unsupported as written, but the graph is
         # keyed on the language subtag, and refusing a region the models simply
-        # do not distinguish would be a worse answer than serving `pt`.
+        # do not distinguish would be a worse answer than serving `pt`. A
+        # script is what the reader must be able to read, so it never goes:
+        # `zh-TW` is `zh-Hant`, and `az-Cyrl` is not `az`.
         base = node.split("-")[0]
-        if base in self._addressable:
-            LOG.debug("%r is not a graph node; routing it as %r", node, base)
-            return base
+        target = base if _same_script(node, base) \
+            else f"{base}-{_default_script(node)}"
+        if target in self._addressable:
+            LOG.debug("%r is not a graph node; routing it as %r", node, target)
+            return target
         return node
 
     #: A language subtag followed by a region alone: `es-ES`, `es-419`.
@@ -1472,7 +1482,7 @@ class TranslationGraph:
         def base(node: str) -> str:
             match = self._REGION_TAG_RE.match(node)
             if match and match.group(1) in self._addressable \
-                    and _default_script(node) == _default_script(match.group(1)):
+                    and _same_script(node, match.group(1)):
                 return match.group(1)
             return node
 
@@ -1799,7 +1809,7 @@ class TranslationGraph:
                 return hint + ceiling
             if hint:
                 return hint
-            return (self._excluded_licence_hint(src, tgt)
+            return (self._excluded_hint(src, tgt)
                     + self._unrunnable_hint(src, tgt))
         if index.oversized:
             uncapped = self._index_for(None, True)
@@ -1817,7 +1827,7 @@ class TranslationGraph:
                     f"the download is already paid for")
         if hint:
             return hint
-        return (self._excluded_licence_hint(src, tgt)
+        return (self._excluded_hint(src, tgt)
                 + self._uncached_hint(src, tgt)
                 + self._unrunnable_hint(src, tgt))
 
@@ -1894,26 +1904,23 @@ class TranslationGraph:
              if lang in barred})
         return f" -- {'; '.join(flags)}" if flags else ""
 
-    def _excluded_licence_hint(self, src: str, tgt: str) -> str:
-        """Say so when the only thing blocking a route is the licence filter.
+    def _excluded_hint(self, src: str, tgt: str) -> str:
+        """Say so when the only thing blocking a route is a selection filter.
 
         Non-commercial models are left out of the default graph so nobody
         inherits CC-BY-NC output without asking for it. That is the right
         default, but silence is the wrong way to enforce it: a language only
         NLLB covers (Kabuverdianu, for one) would otherwise look simply
-        unsupported. Name the models and the flag instead.
+        unsupported. Name the models and the filter that dropped them.
+        :class:`~linguonnx.translate.Translator` fills
+        ``excluded_capabilities`` with ``(capability, hint)`` pairs.
         """
-        excluded = getattr(self, "excluded_capabilities", None)
-        if not excluded:
-            return ""
-        covering = sorted({
-            cap.model_id for cap in excluded
-            if cap.covers(src, tgt)
-        })
-        if not covering:
-            return ""
-        return (f" -- excluded non-commercial model(s) cover this pair: "
-                f"{', '.join(covering)}; pass include_noncommercial=True to use them")
+        covering: Dict[str, List[str]] = {}
+        for cap, hint in getattr(self, "excluded_capabilities", ()):
+            if cap.covers(src, tgt):
+                covering.setdefault(hint, []).append(cap.model_id)
+        return "".join(f" -- {hint.format(', '.join(sorted(ids)))}"
+                       for hint, ids in sorted(covering.items()))
 
     def _uncached_hint(self, src: str, tgt: str) -> str:
         """Say when the only thing blocking a route is that nothing is cached.

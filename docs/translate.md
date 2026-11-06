@@ -350,6 +350,10 @@ except NoRouteError as err:
 # model(s) cover this pair: nllb-600M-int8; pass include_noncommercial=True
 ```
 
+The message names the filter that dropped each model and the way out:
+`include_noncommercial=`, `precision=`, `exclude_flagged=`, `min_chrf=` or a
+`models=` list.
+
 See [licences.md](licences.md) for why that model is out of the default graph.
 
 Asking to translate a language into itself also raises, rather than returning
