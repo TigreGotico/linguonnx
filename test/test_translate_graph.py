@@ -761,7 +761,7 @@ def capped():
 
 
 def test_without_a_cap_the_big_model_wins_in_one_hop(capped):
-    route = TranslationGraph(capped).route("pt", "ru")
+    route = TranslationGraph(capped, max_model_mb=None).route("pt", "ru")
     assert route.model_ids == ("big-multi",)
 
 
@@ -800,7 +800,7 @@ def test_every_advertised_language_is_actually_routable_under_a_cap(capped):
 
 
 def test_the_cap_is_a_per_call_override_like_max_hops(capped):
-    graph = TranslationGraph(capped)
+    graph = TranslationGraph(capped, max_model_mb=None)
     assert graph.route("pt", "ru", max_model_mb=500).n_hops == 2
     assert graph.route("pt", "ru").n_hops == 1
 
@@ -926,14 +926,14 @@ def test_a_capability_outside_the_registry_is_never_cached():
 
 def test_a_route_reports_its_download_size(monkeypatch, capped):
     _stub_cache(monkeypatch)
-    route = TranslationGraph(capped).route("pt", "ru")
+    route = TranslationGraph(capped, max_model_mb=None).route("pt", "ru")
     assert route.download_size_mb == 4945
     assert route.cached_size_mb == 0
 
 
 def test_a_cached_route_costs_no_download(monkeypatch, capped):
     _stub_cache(monkeypatch, "big-multi")
-    route = TranslationGraph(capped).route("pt", "ru")
+    route = TranslationGraph(capped, max_model_mb=None).route("pt", "ru")
     assert route.download_size_mb == 0
     assert route.cached_size_mb == 4945
 

@@ -35,6 +35,7 @@ __all__ = [
     "MAX_ENCODER_TOKENS",
     "MAX_NUM_BEAMS",
     "MAX_LENGTH_PENALTY",
+    "DEFAULT_MAX_MODEL_MB",
     "MAX_MODEL_MB",
     "has_visible_content",
     "check_length",
@@ -129,6 +130,11 @@ MAX_NUM_BEAMS = _env_int("LINGUONNX_MAX_NUM_BEAMS", 32)
 #: afford the download - a Pi, a metered link - and coverage stays, latency
 #: grows. See ``docs/routing.md``.
 MAX_MODEL_MB = _env_optional_int("LINGUONNX_MAX_MODEL_MB")
+
+#: The size routing prefers when nobody set a cap. M2M100-418M and the aina
+#: models fit under it and MADLAD does not, so MADLAD serves only the pairs
+#: nothing smaller covers, through the oversize fallback.
+DEFAULT_MAX_MODEL_MB = 2048
 
 
 def operator_budget_is_set() -> bool:

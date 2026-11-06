@@ -139,7 +139,7 @@ class Translator:
                  pivot_ranking: str = "auto",
                  max_model_mb: Union[int, None, _Unset] = UNSET,
                  count_cached_as_free: Union[bool, _Unset] = UNSET,
-                 oversize_fallback: bool = False,
+                 oversize_fallback: Union[bool, _Unset] = UNSET,
                  num_beams: int = 4, max_new_tokens: int = 128,
                  length_penalty: float = 1.0, no_repeat_ngram_size: int = 0,
                  model_cache_size: int = DEFAULT_MODEL_CACHE_SIZE,
@@ -684,7 +684,7 @@ def load_translator(models: Optional[Sequence[str]] = None,
                     pivot_ranking: str = "auto",
                     max_model_mb: Union[int, None, _Unset] = UNSET,
                     count_cached_as_free: Union[bool, _Unset] = UNSET,
-                    oversize_fallback: bool = False,
+                    oversize_fallback: Union[bool, _Unset] = UNSET,
                     num_beams: int = 4,
                     max_new_tokens: int = 128,
                     length_penalty: float = 1.0,
@@ -743,7 +743,9 @@ def load_translator(models: Optional[Sequence[str]] = None,
         ``oversize_fallback`` is on and True otherwise, because on a warm
         cache the exemption waives the budget for every model there is.
     :param oversize_fallback: whether ``max_model_mb`` is a preference rather
-        than a filter. False (default) drops an oversized model from routing
+        than a filter. Unset is True under the library's default cap and False
+        under a cap from ``max_model_mb=`` or ``LINGUONNX_MAX_MODEL_MB``.
+        False drops an oversized model from routing
         outright. True keeps the cap for every pair a smaller model can serve,
         and falls back to the *smallest* oversized model that covers a pair
         nothing under the cap does - so a cap tuned for latency does not also

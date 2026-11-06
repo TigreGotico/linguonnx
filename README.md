@@ -101,8 +101,11 @@ print(route.pivots)         # ('ca',) — it went through Catalan
 print(route.license_tier)   # 'permissive' — the worst licence on the chain
 ```
 
-A per-model size budget turns a single large hop into a chain of small ones,
-for a host that cannot afford the download:
+Routing prefers models of 2048 MB or less. A pair that nothing that small can
+serve falls back to the smallest larger model that covers it, so every language
+stays routable. A size budget that you set is a filter instead. It turns a
+single large hop into a chain of small ones, for a host that cannot afford the
+download:
 
 ```python
 frugal = load_translator(max_model_mb=500)   # or LINGUONNX_MAX_MODEL_MB
