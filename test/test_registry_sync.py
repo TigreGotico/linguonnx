@@ -1563,8 +1563,7 @@ class TestCompleteNativeCodes:
         assert out["languages"] == ["en", "nso"]
         assert out["native_codes"] == {"en": "en", "nso": "ns"}
 
-    @pytest.mark.parametrize("code, tag", [("arn_Latn", "oc"), ("jap", "ja"),
-                                           ("ns", "nso")])
+    @pytest.mark.parametrize("code, tag", [("arn_Latn", "oc"), ("ns", "nso")])
     def test_a_model_spelling_becomes_the_language_it_means(self, code, tag):
         out = sync_registry.complete_native_codes(
             "x", {"languages": ["en", code]})

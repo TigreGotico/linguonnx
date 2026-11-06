@@ -2759,9 +2759,6 @@ MODEL_CODE_ALIASES: Dict[str, str] = {
     # Projecte Aina added a token for Aranese to NLLB and called it
     # ``arn_Latn``, which ISO assigns to Mapudungun.
     "arn_Latn": "oc",
-    # Helsinki-NLP's pair naming for one repo spells Japanese ``jap``. Every
-    # other opus-mt Japanese model spells it ``ja``.
-    "jap": "ja",
 }
 
 
