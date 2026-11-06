@@ -663,6 +663,17 @@ UNREDISTRIBUTABLE: Dict[str, str] = {
         "No term grants redistribution, so linguonnx does not register it"),
 }
 
+#: Models that stay on the Hub and leave the registry, because they do not
+#: translate and another model serves the pair. A low score alone never earns
+#: a place here: that model stays and loses in ranking. The repo outlives its
+#: entry so that installed versions which still route to it keep working.
+WITHDRAWN: Dict[str, str] = {
+    "opus-mt-en-jap": (
+        "does not translate: chrF 6.1 on FLORES-200 devtest, and it answers "
+        "any input in the register of its scripture training corpus. "
+        "M2M100, NLLB and MADLAD serve en -> ja"),
+}
+
 #: Licence -> routing tier. The graph will not put a more restrictive tier into
 #: a caller's output than they asked for, so this classification is load-bearing.
 LICENSE_TIERS: Dict[str, str] = {
@@ -2260,6 +2271,8 @@ def translate_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict
     name = repo_id.split("/")[1]
     model_id = MODEL_ID_OVERRIDES.get(
         name, name[:-len("-onnx")] if name.endswith("-onnx") else name)
+    if model_id in WITHDRAWN:
+        raise SkipRepo(WITHDRAWN[model_id])
     if model_id in _UNSUPPORTED_TOKENIZATION:
         raise SkipRepo(_UNSUPPORTED_TOKENIZATION[model_id])
     files = _files_of(detail)
@@ -3019,7 +3032,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return name[:-len("-onnx")] if name.endswith("-onnx") else name
 
     _allowlisted = (set(_KNOWN_UNRESOLVED_GROUP_MODELS) | set(_KNOWN_ARCH_MISMATCH)
-                    | set(_UNSUPPORTED_TOKENIZATION) | set(UNREDISTRIBUTABLE))
+                    | set(_UNSUPPORTED_TOKENIZATION) | set(UNREDISTRIBUTABLE)
+                    | set(WITHDRAWN))
     unexpected_skips = [
         (repo_id, reason) for repo_id, reason in skipped
         if _stem(repo_id) not in _allowlisted

@@ -690,17 +690,15 @@ Two independent checks, either one enough on its own — see
   that truncates long output moves chrF, so `mode` alone would not have pinned
   the number down.) `no_repeat_ngram_size=3` breaks every loop observed, and
   is left off by default on purpose — see below.
-  `opus-mt-en-jap` is the third case the floor catches, and the plainest:
-  chrF **6.1** on 100 FLORES-200 devtest sentences (int8, beam 4). It does not
-  translate the input at all. It answers in an archaic biblical register with
-  hallucinated proper names — `"I live in Lisbon."` comes back as
-  `わたし は 争い に よ っ て 生き る `, and a news sentence about diabetic mice
-  comes back naming tribes and territories. Helsinki-NLP trained the `jap`
-  pair on a corpus that is essentially scripture, and the export is faithful
-  to it. It is the only *dedicated* English→Japanese model in the registry, so
-  `prefer="dedicated"` selects it over M2M100-418M, which answers the same
-  input with `私はリスボンに住んでいます。`. A deployment that does not set
-  `exclude_flagged=True` gets the biblical one.
+  A low score alone keeps a model in the registry, where it loses in ranking.
+  A model leaves only with evidence that it does not translate or answers in
+  the wrong language, and only when another model serves the pair.
+  `opus-mt-en-jap` left on that evidence: chrF **6.1** on 100 FLORES-200
+  devtest sentences, with every output in the register of its scripture
+  training corpus. `"I live in Lisbon."` came back as
+  `わたし は 争い に よ っ て 生き る `, where M2M100-418M gives
+  `私はリスボンに住んでいます。`. `skipped.json` records the withdrawal, so a
+  registry sync does not add the model back.
 
 - **int8 gap**: int8 trailing fp32 by more than 2 chrF (against the
   reference) flags the int8 entry. Every pair actually measured — weak and
