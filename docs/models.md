@@ -2,7 +2,7 @@
 
 Two JSON files under `linguonnx/model_index/` say what exists: `lid.json` for
 language identification and `translate.json` for translation. They hold 12 and
-455 entries. Every ONNX entry names a HuggingFace repo, the exact files to
+453 entries. Every ONNX entry names a HuggingFace repo, the exact files to
 fetch, the languages covered, the licence and the size. A rule-based entry
 names a Python function instead of files. See
 [Rule-based models](#rule-based-models).
@@ -13,7 +13,7 @@ it sounds.
 
 ## What is in the translation registry
 
-455 entries is 226 int8 and 227 fp32 entries across 227 models, plus 2
+453 entries is 225 int8 and 226 fp32 entries across 226 models, plus 2
 rule-based entries. `load_translator()` defaults to `precision="int8"`; pass
 `precision="fp32"` or `precision=None` for both. A rule-based entry has no
 weights and no precision, so the precision filter never removes it.
@@ -60,18 +60,18 @@ af-en  ar-en  az-en  bg-en  bn-en  ca-en  ca-es  ca-fr
 ca-it  ceb-en  cs-en  cy-en  da-en  de-en  en-af  en-ar
 en-az  en-bg  en-ca  en-cs  en-cy  en-da  en-de  en-el
 en-es  en-et  en-eu  en-fi  en-fr  en-ga  en-gl  en-gmq
-en-he  en-hi  en-hu  en-hy  en-id  en-is  en-it  en-jap
-en-ko  en-ml  en-mr  en-nl  en-pl  en-pt  en-ro  en-ru
-en-sk  en-sq  en-sv  en-ti  en-tr  en-uk  en-ur  en-vi
-en-xh  en-zh  es-ca  es-en  es-eu  es-gl  et-en  eu-en
-eu-es  fi-en  fr-ca  fr-en  ga-en  gl-en  gl-es  gl-pt
-gmq-en  hi-en  hu-en  hy-en  id-en  is-en  it-en  itc-itc
-ja-en  ka-en  ko-en  lv-en  mg-en  mk-en  ml-en  mr-en
-mt-en  nl-en  pa-en  pl-en  pt-ca  pt-en  pt-gl  ru-en
-sk-en  sm-en  sn-en  sq-en  st-en  sv-en  tc-base-en-sh  tc-big-cat_oci_spa-en
-tc-big-el-en  tc-big-en-cat_oci_spa  tc-big-en-el  tc-big-en-ro  tc-big-en-zle  tc-big-gmw-gmw  tc-big-he-en  tc-big-itc-itc
-tc-big-sh-en  tc-big-zle-en  th-en  tl-en  tn-en  tr-az  tr-en  ts-en
-uk-en  ur-en  vi-en  xh-en  zh-en
+en-he  en-hi  en-hu  en-hy  en-id  en-is  en-it  en-ko
+en-ml  en-mr  en-nl  en-pl  en-pt  en-ro  en-ru  en-sk
+en-sq  en-sv  en-ti  en-tr  en-uk  en-ur  en-vi  en-xh
+en-zh  es-ca  es-en  es-eu  es-gl  et-en  eu-en  eu-es
+fi-en  fr-ca  fr-en  ga-en  gl-en  gl-es  gl-pt  gmq-en
+hi-en  hu-en  hy-en  id-en  is-en  it-en  itc-itc  ja-en
+ka-en  ko-en  lv-en  mg-en  mk-en  ml-en  mr-en  mt-en
+nl-en  pa-en  pl-en  pt-ca  pt-en  pt-gl  ru-en  sk-en
+sm-en  sn-en  sq-en  st-en  sv-en  tc-base-en-sh  tc-big-cat_oci_spa-en  tc-big-el-en
+tc-big-en-cat_oci_spa  tc-big-en-el  tc-big-en-ro  tc-big-en-zle  tc-big-gmw-gmw  tc-big-he-en  tc-big-itc-itc  tc-big-sh-en
+tc-big-zle-en  th-en  tl-en  tn-en  tr-az  tr-en  ts-en  uk-en
+ur-en  vi-en  xh-en  zh-en
 ```
 
 Together they reach 606 languages over the default graph. MADLAD supplies most
@@ -179,7 +179,7 @@ print(entry["arch"], entry["pair"], entry["license"], entry["size_mb"])
 # marian ['pt', 'en'] Apache-2.0 172
 
 print(len(list_models(kind="translate")), len(list_models(kind="lid")))
-# 455 12
+# 453 12
 ```
 
 ## The download cache
