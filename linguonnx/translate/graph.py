@@ -291,21 +291,6 @@ REGIONAL_PIVOTS: Dict[str, Tuple[str, ...]] = {
 PIVOT_RANKINGS: Tuple[str, ...] = ("auto", "phonological", "table")
 
 
-#: Model codes that are not valid language tags in any standard. M2M100 calls
-#: Northern Sotho ``ns``, which is a two-letter code ISO never assigned.
-MODEL_CODE_ALIASES: Dict[str, str] = {
-    "ns": "nso",
-    # Projecte Aina added a token for Aranese to NLLB and called it
-    # "arn_Latn" - which ISO already assigns to Mapudungun. Mapped here so the
-    # routing graph sees Occitan and never offers the model for Mapudungun.
-    "arn_Latn": "oc",
-    # Helsinki-NLP's own pair naming for this one repo spells Japanese "jap"
-    # (not a valid tag in any standard - every other opus-mt Japanese model
-    # spells it "ja") so it lands on its own dead-end graph node instead of
-    # the "ja" every other Japanese-capable model routes through.
-    "jap": "ja",
-}
-
 #: Graph nodes that no standard parses, keyed by their lowercase form and kept
 #: in their canonical spelling, whatever case the caller writes. The
 #: Barranquenho locale key spells its private-use subtag with nine letters,
@@ -349,8 +334,7 @@ SPECIALIST_MAP: Dict[str, str] = {
     "gl": "Proxecto Nós",
     "ast": "Proxecto Nós",
     # Catalan + its transitional neighbours: Aragonese and Occitan/Aranese by
-    # proximity, see above. Occitan and Aranese are the same graph node
-    # (`MODEL_CODE_ALIASES` maps `arn_Latn` -> `oc`).
+    # proximity, see above. Occitan and Aranese are the same graph node.
     "ca": "Projecte AINA",
     "an": "Projecte AINA",
     "oc": "Projecte AINA",
@@ -448,7 +432,6 @@ def normalize_tag(tag: str, strict: bool = False) -> str:
         raise MalformedTagError("empty language tag")
     if tag.lower() in NONSTANDARD_TAGS:
         return NONSTANDARD_TAGS[tag.lower()]
-    tag = MODEL_CODE_ALIASES.get(tag, tag)
     # FLORES/GlotLID spell a script suffix with an underscore ("ace_Arab");
     # NLLB's own registry card and some hand-written registry entries spell
     # the identical shape with a hyphen ("ace-Arab"). Only `to_bcp47` (the
