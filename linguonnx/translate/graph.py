@@ -989,6 +989,11 @@ class Route:
                 f"prefer={self.prefer}{waived}] {chain}")
 
 
+def _has_clean_route(routes: Sequence[Route]) -> bool:
+    """Whether any of ``routes`` runs on unflagged models alone."""
+    return any(not route.n_flagged_hops for route in routes)
+
+
 def _route_key(route: Route, prefer: str) -> tuple:
     """Score a route. Lower sorts first. The policy reorders the tuple only.
 
@@ -1337,9 +1342,14 @@ class TranslationGraph:
         return self._escalate(src, tgt, max_hops, prefer, short_circuit, index)
 
     def _escalate(self, src: str, tgt: str, max_hops: int, prefer: str,
-                  short_circuit: bool, index: _Index
+                  short_circuit: bool, index: _Index, clean_only: bool = False
                   ) -> Tuple[List[Route], Optional[int]]:
-        """The oversized half of :meth:`_search`, for a pair the cap cannot serve."""
+        """The oversized half of :meth:`_search`, for a pair the cap cannot serve.
+
+        ``clean_only`` is for a pair the cap serves only through flagged
+        models: a step counts only if it adds a route with no flagged hop.
+        """
+        accepted = _has_clean_route if clean_only else bool
         steps = self._fallback_steps(index, src, tgt, max_hops)
         if not steps:
             return [], None
@@ -1348,13 +1358,13 @@ class TranslationGraph:
                                  ceiling)
         at_widest = self._enumerate(src, tgt, max_hops, prefer, short_circuit,
                                     widest)
-        if not at_widest:
+        if not accepted(at_widest):
             return [], None
         for step in steps[:-1]:
             wider = self._index_for(step, index.count_cached_as_free, ceiling)
             found = self._enumerate(src, tgt, max_hops, prefer, short_circuit,
                                     wider)
-            if found:
+            if accepted(found):
                 return found, index.max_model_mb
         return at_widest, index.max_model_mb
 
@@ -1375,20 +1385,28 @@ class TranslationGraph:
         says which endpoints the caller sent with no subtag after the
         language: only those get a default region, so `es-MX`, routed as `es`,
         never becomes `es-ES`.
+
+        A flagged model serves a pair only when nothing else does, and that
+        includes a larger model the fallback may reach. Routes through flagged
+        models under the cap are held back while the escalation looks for a
+        clean one, and they answer only if it finds none.
         """
         for pairs in ([(src, tgt)] + self._regional_fallbacks(src, tgt),
                       self._default_region_fallbacks(src, tgt, *bare)):
+            held: List[Route] = []
             for pair_src, pair_tgt in pairs:
                 found = self._enumerate(pair_src, pair_tgt, max_hops, prefer,
                                         short_circuit, index)
-                if found:
+                if found and (not fallback or _has_clean_route(found)):
                     return found, None
+                held = held or found
             if not fallback:
                 continue
             escalated = []
             for pair_src, pair_tgt in pairs:
                 found, waived = self._escalate(pair_src, pair_tgt, max_hops,
-                                               prefer, short_circuit, index)
+                                               prefer, short_circuit, index,
+                                               clean_only=bool(held))
                 if found:
                     largest = min(max(hop.size_mb for hop in route.hops)
                                   for route in found)
@@ -1396,6 +1414,8 @@ class TranslationGraph:
             if escalated:
                 _, _, found, waived = min(escalated, key=lambda item: item[:2])
                 return found, waived
+            if held:
+                return held, None
         return [], None
 
     def _fallback_on(self, oversize_fallback: Optional[bool],
@@ -1683,7 +1703,7 @@ class TranslationGraph:
         # Under fewest_hops an unflagged direct route can never be beaten by a
         # longer one, so enumerating pivots would be pure waste on the hot path.
         if short_circuit and prefer == "fewest_hops" \
-                and any(not route.n_flagged_hops for route in routes):
+                and _has_clean_route(routes):
             return routes
         if max_hops < 2:
             return routes

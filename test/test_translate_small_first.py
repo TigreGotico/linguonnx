@@ -11,6 +11,7 @@ from linguonnx.limits import DEFAULT_MAX_MODEL_MB
 from linguonnx.model_manager import DEFAULT_MAX_DOWNLOAD_MB, list_models
 from linguonnx.translate import NoRouteError, load_translator
 from linguonnx.translate import graph as graph_module
+from linguonnx.translate.graph import Capability, TranslationGraph
 
 MADLAD = "madlad400-3b-mt-int8"
 ALL_LANGUAGES = 606
@@ -142,3 +143,48 @@ def test_a_named_model_is_not_bound_by_the_default_cap():
     translator = load_translator(models=[MADLAD])
     assert translator.max_model_mb is None
     assert translator.route("en", "tyv").waived_size_cap is None
+
+
+def _dedicated(model_id, size_mb, flagged=False, pair=("az", "ru")):
+    return Capability(model_id=model_id, arch="marian", license="Apache-2.0",
+                      license_tier="permissive", size_mb=size_mb,
+                      directions=frozenset({pair}), flagged=flagged)
+
+
+def test_a_flagged_model_under_the_cap_gives_way_to_a_clean_larger_one():
+    graph = TranslationGraph([_dedicated("weak", 300, flagged=True),
+                              _dedicated("clean", 3000)])
+    route = graph.route("az", "ru")
+    assert route.model_ids == ("clean",)
+    assert route.waived_size_cap == DEFAULT_MAX_MODEL_MB
+
+
+def test_the_smallest_clean_model_wins_that_escalation():
+    graph = TranslationGraph([_dedicated("weak", 300, flagged=True),
+                              _dedicated("clean", 3000),
+                              _dedicated("cleaner-but-huge", 7000)])
+    assert graph.route("az", "ru").model_ids == ("clean",)
+
+
+def test_a_flagged_model_stays_when_only_flagged_models_are_larger():
+    graph = TranslationGraph([_dedicated("weak", 300, flagged=True),
+                              _dedicated("also-weak", 3000, flagged=True)])
+    route = graph.route("az", "ru")
+    assert route.model_ids == ("weak",)
+    assert route.waived_size_cap is None
+
+
+def test_a_filter_keeps_the_flagged_model_a_cap_left_alone():
+    graph = TranslationGraph([_dedicated("weak", 300, flagged=True),
+                              _dedicated("clean", 3000)], max_model_mb=500)
+    assert graph.route("az", "ru").model_ids == ("weak",)
+
+
+def test_a_clean_chain_under_the_cap_beats_escalating_past_a_flagged_direct_model():
+    graph = TranslationGraph([_dedicated("weak", 300, flagged=True),
+                              _dedicated("clean-big", 3000),
+                              _dedicated("az-en", 100, pair=("az", "en")),
+                              _dedicated("en-ru", 100, pair=("en", "ru"))])
+    route = graph.route("az", "ru")
+    assert route.model_ids == ("az-en", "en-ru")
+    assert route.waived_size_cap is None
