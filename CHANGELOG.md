@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.1a1](https://github.com/TigreGotico/linguonnx/tree/0.26.1a1) (2026-11-06)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.0a1...0.26.1a1)
+
+**Merged pull requests:**
+
+- fix: stop reading model spellings in caller tags [\#165](https://github.com/TigreGotico/linguonnx/pull/165) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.26.0a1](https://github.com/TigreGotico/linguonnx/tree/0.26.0a1) (2026-11-06)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.11a1...0.26.0a1)
@@ -384,10 +392,6 @@
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.3a1...0.9.0a1)
 
-**Merged pull requests:**
-
-- feat: measured translation quality field in the registry [\#62](https://github.com/TigreGotico/linguonnx/pull/62) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [0.8.3a1](https://github.com/TigreGotico/linguonnx/tree/0.8.3a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.2a2...0.8.3a1)
@@ -466,15 +470,15 @@
 
 ## [0.5.1a1](https://github.com/TigreGotico/linguonnx/tree/0.5.1a1) (2026-08-02)
 
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0...0.5.1a1)
-
-## [0.5.0](https://github.com/TigreGotico/linguonnx/tree/0.5.0) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0a1...0.5.0)
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0a1...0.5.1a1)
 
 ## [0.5.0a1](https://github.com/TigreGotico/linguonnx/tree/0.5.0a1) (2026-08-02)
 
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.4.0a1...0.5.0a1)
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0...0.5.0a1)
+
+## [0.5.0](https://github.com/TigreGotico/linguonnx/tree/0.5.0) (2026-08-02)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.4.0a1...0.5.0)
 
 ## [0.4.0a1](https://github.com/TigreGotico/linguonnx/tree/0.4.0a1) (2026-08-02)
 
