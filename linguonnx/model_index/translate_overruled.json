@@ -1,0 +1,68 @@
+{
+  "m2m100_418M_bbj_fr_rel_news_ft": {
+    "notes": "M2M100-418M fine-tune, Ghomala -> French."
+  },
+  "m2m100_418M_bbj_fr_rel_news_ft-int8": {
+    "notes": "M2M100-418M fine-tune, Ghomala -> French."
+  },
+  "m2m100_418M_en_hau_rel_news_ft": {
+    "notes": "M2M100-418M fine-tune, English -> Hausa."
+  },
+  "m2m100_418M_en_hau_rel_news_ft-int8": {
+    "notes": "M2M100-418M fine-tune, English -> Hausa."
+  },
+  "m2m100_418M_mos_fr_rel_news_ft": {
+    "notes": "M2M100-418M fine-tune, Mossi -> French."
+  },
+  "m2m100_418M_mos_fr_rel_news_ft-int8": {
+    "notes": "M2M100-418M fine-tune, Mossi -> French."
+  },
+  "nos-coda_iacobus-en-es": {
+    "notes": "OpenNMT-py English -> Spanish."
+  },
+  "nos-coda_iacobus-en-es-int8": {
+    "notes": "OpenNMT-py English -> Spanish."
+  },
+  "nos-coda_iacobus-en-gl": {
+    "notes": "OpenNMT-py English -> Galician."
+  },
+  "nos-coda_iacobus-en-gl-int8": {
+    "notes": "OpenNMT-py English -> Galician."
+  },
+  "nos-coda_iacobus-en-pt": {
+    "notes": "OpenNMT-py English -> Portuguese."
+  },
+  "nos-coda_iacobus-en-pt-int8": {
+    "notes": "OpenNMT-py English -> Portuguese."
+  },
+  "nos-coda_iacobus-es-gl": {
+    "notes": "OpenNMT-py Spanish -> Galician."
+  },
+  "nos-coda_iacobus-es-gl-int8": {
+    "notes": "OpenNMT-py Spanish -> Galician."
+  },
+  "nos-coda_iacobus-es-pt": {
+    "notes": "OpenNMT-py Spanish -> Portuguese."
+  },
+  "nos-coda_iacobus-es-pt-int8": {
+    "notes": "OpenNMT-py Spanish -> Portuguese."
+  },
+  "nos-coda_iacobus-pt-gl": {
+    "notes": "OpenNMT-py Portuguese -> Galician."
+  },
+  "nos-coda_iacobus-pt-gl-int8": {
+    "notes": "OpenNMT-py Portuguese -> Galician."
+  },
+  "opus-mt-en-gmq": {
+    "notes": "opus-mt group model ('opus-mt-en-gmq-onnx' names a collection code 'gmq' on the target side: a language family, not a language). en -> the 6 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically. The token set is the *target* side only - the encoder was trained on en alone."
+  },
+  "opus-mt-en-gmq-int8": {
+    "notes": "opus-mt group model ('opus-mt-en-gmq-onnx' names a collection code 'gmq' on the target side: a language family, not a language). en -> the 6 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically. The token set is the *target* side only - the encoder was trained on en alone."
+  },
+  "opus-mt-tc-big-en-zle": {
+    "notes": "opus-mt group model ('opus-mt-tc-big-en-zle-onnx' names a collection code 'zle' on the target side: a language family, not a language). en -> the 4 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically. The token set is the *target* side only - the encoder was trained on en alone."
+  },
+  "opus-mt-tc-big-en-zle-int8": {
+    "notes": "opus-mt group model ('opus-mt-tc-big-en-zle-onnx' names a collection code 'zle' on the target side: a language family, not a language). en -> the 4 languages its own vocabulary carries a >>xxx<< target token for; the token is mandatory and is applied automatically. The token set is the *target* side only - the encoder was trained on en alone."
+  }
+}

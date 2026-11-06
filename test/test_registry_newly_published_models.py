@@ -1,0 +1,126 @@
+"""Coverage for the DSFSI Northern Sotho pair, and an honest record of the
+published repos that cannot be registered.
+
+``m2m100_418m-eng-nso`` / ``m2m100_418m-nso-eng``: DSFSI fine-tunes of
+`facebook/m2m100_418M`, same shape as the Masakhane fine-tunes already in
+``BILINGUAL_FINETUNES``: the card declares 2 languages but the export's
+tokenizer still carries the base model's full 100-language
+``special_tokens_map.json``/``added_tokens.json`` inventory. Northern
+Sotho/Sepedi's own token is spelled ``__ns__`` (m2m100 uses the ISO 639-1
+code ``ns``), not ``__nso__`` - ``to_bcp47("ns")`` cannot resolve it (it is
+not a registered IANA subtag on its own), so routing uses the BCP-47/ISO
+639-3 macrolanguage code ``nso`` and ``native_codes`` carries the model's own
+``ns`` spelling through to the tokenizer, the same fix shape PR #56 used for
+IndicTrans2's FLORES tags and the AINA bilingual entries - not a
+``normalize_tag`` alias, which would apply the substitution to every caller
+of ``ns``/``nso`` project-wide rather than just this one model.
+
+``afrolid_1.5`` is an XLM-R sequence classifier that ``linguonnx.detect``
+runs with its ``transformer-onnx`` engine. Its card says ``other``; the
+AfroLID repository states Apache-2.0 for the pre-trained models, and the
+registry carries that. ``arabic-MARBERT-dialect-identification-city`` is
+recorded in ``skipped.json``: neither the fine-tune nor its research-only
+MARBERT base grants redistribution.
+"""
+
+import json
+from pathlib import Path
+
+import pytest
+
+from linguonnx.model_manager import list_models
+from linguonnx.translate.models import TranslationModel
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+TRANSLATE = list_models("translate")
+LID = list_models("lid")
+SKIPPED = json.loads(
+    (REPO_ROOT / "linguonnx" / "model_index" / "skipped.json")
+    .read_text(encoding="utf-8"))
+
+
+# ---------------------------------------------------------------------------
+# Registered: the DSFSI Northern Sotho pair
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("model_id", [
+    "m2m100_418m-eng-nso", "m2m100_418m-eng-nso-int8",
+    "m2m100_418m-nso-eng", "m2m100_418m-nso-eng-int8",
+])
+def test_the_dsfsi_nso_entries_are_registered(model_id):
+    assert model_id in TRANSLATE
+    entry = TRANSLATE[model_id]
+    assert entry["arch"] == "m2m100"
+    assert set(entry["pair"]) == {"en", "nso"}
+
+
+@pytest.mark.parametrize("model_id", [
+    "m2m100_418m-eng-nso", "m2m100_418m-nso-eng",
+])
+def test_nso_routes_to_the_models_own_ns_token(model_id):
+    """`native_code('nso')` must answer `'ns'`, or `lang_id` raises on every
+    call - the tokenizer's vocabulary has no `nso` token, only `ns`."""
+    entry = TRANSLATE[model_id]
+    model = TranslationModel(model_id, entry=entry)
+    assert model.native_code("nso") == "ns"
+
+
+def test_nso_is_not_bent_into_a_global_alias():
+    """The fix is `native_codes` on these two entries, not a `normalize_tag`
+    rewrite - `to_bcp47('ns')` must not resolve to `'nso'` project-wide. `ns`
+    is not a registered IANA subtag on its own (`to_bcp47` emits it as-is,
+    unresolved); the `ns` -> `nso` correspondence is scoped to these two
+    models' `native_codes`, not a global alias every other caller inherits."""
+    from linguonnx.detect.labels import to_bcp47
+
+    assert to_bcp47("ns") != "nso"
+
+
+def test_the_registry_still_has_bilingual_finetune_entries():
+    """Guards the tests above from passing because they found nothing."""
+    assert any(e.get("pair") for e in TRANSLATE.values())
+
+
+# ---------------------------------------------------------------------------
+# Skipped, honestly: architectures this library does not implement
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("hf_repo,expect_substring", [
+    ("TigreGotico/arabic-MARBERT-dialect-identification-city-onnx",
+     "exclusively for research"),
+])
+def test_unregisterable_repos_are_recorded_with_their_real_reason(
+        hf_repo, expect_substring):
+    reason = SKIPPED.get(hf_repo)
+    assert reason, f"{hf_repo} is missing from skipped.json entirely"
+    assert expect_substring in reason
+
+
+@pytest.mark.parametrize("model_id,onnx_file", [
+    ("afrolid_1.5", "model.onnx"), ("afrolid_1.5-int8", "model.int8.onnx"),
+])
+def test_afrolid_is_registered_for_the_transformer_engine(model_id, onnx_file):
+    entry = LID[model_id]
+    assert entry["hf_repo"] == "TigreGotico/afrolid_1.5-onnx"
+    assert entry["engine"] == "transformer-onnx"
+    assert entry["onnx_file"] == onnx_file
+    assert entry["side_files"] == {"tokenizer_json": "tokenizer.json",
+                                   "config": "config.json"}
+    assert entry["num_labels"] == 518
+    assert entry["license"] == "Apache-2.0"
+    assert "TigreGotico/afrolid_1.5-onnx" not in SKIPPED
+
+
+@pytest.mark.parametrize("model_id", ["afrolid_1.5", "afrolid_1.5-int8"])
+def test_afrolid_upstream_yoruba_caveat_is_in_the_notes(model_id):
+    """Short Yoruba sentences are misread by the unmodified upstream
+    checkpoint too; the caveat travels with the registry entry."""
+    notes = LID[model_id]["notes"]
+    assert "Yoruba" in notes
+    assert "upstream" in notes.lower()
+
+
+def test_marbert_is_not_registered():
+    claimed = {entry.get("hf_repo") for entry in LID.values()}
+    assert ("TigreGotico/arabic-MARBERT-dialect-identification-city-onnx"
+            not in claimed)
