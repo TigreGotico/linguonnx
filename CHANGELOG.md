@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.9a1](https://github.com/TigreGotico/linguonnx/tree/0.25.9a1) (2026-11-06)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.8a1...0.25.9a1)
+
+**Merged pull requests:**
+
+- fix: name the filter that dropped a model in NoRouteError [\#157](https://github.com/TigreGotico/linguonnx/pull/157) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.25.8a1](https://github.com/TigreGotico/linguonnx/tree/0.25.8a1) (2026-11-06)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.7a1...0.25.8a1)
@@ -387,10 +395,6 @@
 ## [0.8.1a1](https://github.com/TigreGotico/linguonnx/tree/0.8.1a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.0a2...0.8.1a1)
-
-**Merged pull requests:**
-
-- fix: repair mangled version.py so the published version is the real one [\#53](https://github.com/TigreGotico/linguonnx/pull/53) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.8.0a2](https://github.com/TigreGotico/linguonnx/tree/0.8.0a2) (2026-08-03)
 
