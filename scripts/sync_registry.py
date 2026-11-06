@@ -126,8 +126,8 @@ MODEL_ID_OVERRIDES: Dict[str, str] = {
 #: ``aina-es-oc``: a full fine-tune of NLLB-200-600M for Spanish -> Aranese.
 #: Aranese is not in NLLB, so Projecte Aina *added* a token for it - and chose
 #: ``arn_Latn``, which collides with the ISO code for Mapudungun. The pair is
-#: stated in the model's own codes; ``normalize_tag`` maps ``arn_Latn`` to
-#: ``oc`` so the routing graph never sees the collision.
+#: stated in the model's own codes; ``MODEL_CODE_ALIASES`` maps ``arn_Latn``
+#: to ``oc`` so the routing graph never sees the collision.
 #: Source: https://huggingface.co/projecte-aina/aina-translator-es-oc
 #:   "Since the original NLLB-200-600M doesn't support Aranese, we added a new
 #:    token ("arn_Latn") to enable translation into Aranese."
@@ -446,7 +446,7 @@ MARIAN_MULTILINGUAL_OVERRIDES: Dict[str, Dict] = {
 #: adds three tokens after ``<mask>``: ``arg_Latn``, ``arn_Latn`` (Aranese,
 #: not Mapudungun ``arn``) and ``val_Latn`` (Valencian). ``tokenizer.json``
 #: states their ids. Aranese is ``oc``, as for ``aina-es-oc`` and
-#: ``nos-mt-es-arn`` (see ``MODEL_CODE_ALIASES`` in graph.py). Valencian is
+#: ``nos-mt-es-arn`` (see ``MODEL_CODE_ALIASES``). Valencian is
 #: left out: the router treats ``ca-valencia`` as ``ca``, and a separate
 #: Valencian node served only by this 3 GB model would take ``ca-valencia``
 #: requests away from the small Catalan models and fail them under a 500 MB
@@ -2751,6 +2751,17 @@ def human_owned_losses(existing: Dict[str, dict],
 _CODE_LIST_KEYS = ("pair", "languages", "src_languages", "tgt_languages")
 
 
+#: Model spellings that mean something else as a language tag, or nothing.
+#: They apply here only: a caller's ``arn_Latn`` is Mapudungun.
+MODEL_CODE_ALIASES: Dict[str, str] = {
+    # M2M100 calls Northern Sotho ``ns``, a code ISO never assigned.
+    "ns": "nso",
+    # Projecte Aina added a token for Aranese to NLLB and called it
+    # ``arn_Latn``, which ISO assigns to Mapudungun.
+    "arn_Latn": "oc",
+}
+
+
 def complete_native_codes(model_id: str, entry: dict) -> dict:
     """Write every code as BCP-47 and give ``native_codes`` one row per code.
 
@@ -2774,7 +2785,7 @@ def complete_native_codes(model_id: str, entry: dict) -> dict:
             continue
         tags: List[str] = []
         for code in entry[key]:
-            tag = normalize_tag(code)
+            tag = normalize_tag(MODEL_CODE_ALIASES.get(code, code))
             native = overrides.get(tag, code)
             if table.setdefault(tag, native) != native:
                 raise ValueError(
