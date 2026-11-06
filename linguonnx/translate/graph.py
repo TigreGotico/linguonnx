@@ -55,6 +55,12 @@ Oversize fallback
 model, and a pair *nothing* under the cap can serve falls back to the
 smallest oversized model that does, rather than failing.
 
+Left unset, the fallback follows who chose the cap. The library's own
+:data:`~linguonnx.limits.DEFAULT_MAX_MODEL_MB` is a preference, so it is on. A
+cap from ``max_model_mb=`` or ``LINGUONNX_MAX_MODEL_MB`` is a filter, so it is
+off: a budget set for a metered link or a small disk outranks anything the
+library infers.
+
 The filter semantics alone force a choice nobody wants to make. The long tail
 of languages exists only inside a few very large multilingual models - MADLAD
 (4945 MB), NLLB (1866 MB), M2M100-418M (1207 MB) - so a 500 MB cap that
@@ -208,7 +214,7 @@ from typing import (Dict, FrozenSet, Iterable, List, Optional, Sequence,
 import langcodes
 from linguatag import with_default_region
 
-from linguonnx.limits import MAX_MODEL_MB
+from linguonnx.limits import DEFAULT_MAX_MODEL_MB, MAX_MODEL_MB
 from linguonnx.translate import distance as _distance
 
 LOG = logging.getLogger(__name__)
@@ -1105,7 +1111,7 @@ class TranslationGraph:
         pivot_ranking: str = "auto",
         max_model_mb: Union[int, None, "_Unset"] = UNSET,
         count_cached_as_free: Union[bool, "_Unset"] = UNSET,
-        oversize_fallback: bool = False,
+        oversize_fallback: Union[bool, "_Unset"] = UNSET,
     ):
         if max_hops < 1:
             raise ValueError("max_hops must be at least 1")
@@ -1146,7 +1152,10 @@ class TranslationGraph:
         self.max_model_mb = self._check_max_model_mb(max_model_mb)
         #: Whether a pair no model under the cap covers may fall back to the
         #: smallest oversized model that does. See the module docstring.
-        self.oversize_fallback = bool(oversize_fallback)
+        self._fallback_follows_cap = isinstance(oversize_fallback, _Unset)
+        self.oversize_fallback = (isinstance(max_model_mb, _Unset)
+                                  and MAX_MODEL_MB is None) \
+            if self._fallback_follows_cap else bool(oversize_fallback)
         # The cached-is-free exemption is about a *download* budget. With a
         # fallback in play the cap is a load-latency budget instead, and on a
         # warm cache the exemption would waive it for every model there is.
@@ -1165,8 +1174,9 @@ class TranslationGraph:
     def _check_max_model_mb(value: Union[int, None, "_Unset"]) -> Optional[int]:
         """Resolve the size cap, with the environment as the default.
 
-        ``UNSET`` (the default) reads ``LINGUONNX_MAX_MODEL_MB``, and falls
-        back to the **download budget** when that is not set. Routing has to
+        ``UNSET`` (the default) reads ``LINGUONNX_MAX_MODEL_MB``. When that
+        is not set it is :data:`~linguonnx.limits.DEFAULT_MAX_MODEL_MB`, or
+        the **download budget** when the budget is lower. Routing has to
         agree with what ``ensure_model_files`` will actually fetch: a model
         over ``LINGUONNX_MAX_DOWNLOAD_MB`` cannot be downloaded, so planning a
         route through it makes ``can_translate`` answer True for a pair that
@@ -1186,7 +1196,9 @@ class TranslationGraph:
             if value is None:
                 from linguonnx.model_manager import download_budget_mb
 
-                value = download_budget_mb()
+                budget = download_budget_mb()
+                value = DEFAULT_MAX_MODEL_MB if budget is None \
+                    else min(budget, DEFAULT_MAX_MODEL_MB)
         if value is None:
             return None
         value = int(value)
@@ -1386,9 +1398,18 @@ class TranslationGraph:
                 return found, waived
         return [], None
 
-    def _fallback_on(self, oversize_fallback: Optional[bool]) -> bool:
-        return self.oversize_fallback if oversize_fallback is None \
-            else bool(oversize_fallback)
+    def _fallback_on(self, oversize_fallback: Optional[bool],
+                     max_model_mb: Union[int, None, "_Unset"] = UNSET) -> bool:
+        """Whether a call may escalate, after its per-call overrides.
+
+        A cap somebody set is a filter unless they also asked for the
+        fallback, on a single call as much as on the constructor.
+        """
+        if oversize_fallback is not None:
+            return bool(oversize_fallback)
+        if self._fallback_follows_cap and not isinstance(max_model_mb, _Unset):
+            return False
+        return self.oversize_fallback
 
     # -- introspection ----------------------------------------------------
 
@@ -1418,7 +1439,8 @@ class TranslationGraph:
         still ask what that budget covers.
         """
         index = self._resolve(max_model_mb, count_cached_as_free)
-        return self._languages_for(index, self._fallback_on(oversize_fallback))
+        return self._languages_for(
+            index, self._fallback_on(oversize_fallback, max_model_mb))
 
     def _languages_for(self, index: _Index, fallback: bool) -> FrozenSet[str]:
         """The languages :meth:`route` can reach against ``index``.
@@ -1723,7 +1745,7 @@ class TranslationGraph:
         index = self._resolve(max_model_mb, count_cached_as_free)
         if src == tgt:
             return []
-        fallback = self._fallback_on(oversize_fallback)
+        fallback = self._fallback_on(oversize_fallback, max_model_mb)
         found, waived = self._search_endpoints(src, tgt, max_hops, prefer,
                                                short_circuit=False, index=index,
                                                fallback=fallback, bare=bare)
@@ -1765,7 +1787,7 @@ class TranslationGraph:
             raise NoRouteError(
                 f"source and target are the same language ({src!r}); nothing to translate")
         index = self._resolve(max_model_mb, count_cached_as_free)
-        fallback = self._fallback_on(oversize_fallback)
+        fallback = self._fallback_on(oversize_fallback, max_model_mb)
         found, waived = self._search_endpoints(src, tgt, max_hops, prefer,
                                                short_circuit=True, index=index,
                                                fallback=fallback, bare=bare)
@@ -1773,7 +1795,7 @@ class TranslationGraph:
             raise NoRouteError(
                 f"no route from {raw_src!r} to {raw_tgt!r} within "
                 f"{max_hops} hop(s)"
-                f"{self._why_not(src, tgt, max_hops, prefer, index, fallback=self._fallback_on(oversize_fallback))}"
+                f"{self._why_not(src, tgt, max_hops, prefer, index, fallback=fallback)}"
                 f"{self._barred_hint(src, tgt)}")
         best = min(found, key=lambda r: _route_key(r, prefer))
         if waived is not None:
@@ -1827,6 +1849,7 @@ class TranslationGraph:
             if hint:
                 return hint
             return (self._excluded_hint(src, tgt)
+                    + self._uncached_hint(src, tgt)
                     + self._unrunnable_hint(src, tgt))
         if index.oversized:
             uncapped = self._index_for(None, True)
