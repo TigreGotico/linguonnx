@@ -94,10 +94,16 @@ that a *human* can always tell the scores apart, and that the flag message
 names the corpus it is quoting, so nobody reads 23.9 on ``mafand-test`` as if
 it were 23.9 on FLORES-200. If a third corpus ever arrives, revisit this.
 
-Flagging never excludes a model from the registry - the "publish everything"
-rule holds regardless of quality. It only informs :func:`_select_entries`
-callers (``exclude_flagged=``, ``min_chrf=``) who choose to filter at
-runtime, exactly like the existing ``precision=``/``max_model_mb=`` knobs.
+Flagging never excludes a model from the registry. A flagged model loses in
+ranking, and it serves a pair only when nothing else does. It also informs
+:func:`_select_entries` callers (``exclude_flagged=``, ``min_chrf=``) who
+choose to filter at runtime, exactly like the ``precision=`` and
+``max_model_mb=`` knobs.
+
+A low score alone never removes a model. A model leaves the registry only with
+evidence that it does not translate or that it answers in the wrong language,
+and only when another model serves the pair. ``WITHDRAWN`` in
+``scripts/sync_registry.py`` lists those models.
 
 Per-language flags
 ------------------
