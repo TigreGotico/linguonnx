@@ -64,11 +64,12 @@ Flag policy
 
 Two independent checks, either sufficient on its own:
 
-- **Absolute floor** (:data:`QUALITY_ABSOLUTE_FLOOR`): either precision's
-  chrF-vs-reference below 40 flags the entry, regardless of the other
-  precision's score. This is what should have caught the Azerbaijani
-  opus-mt trio and ``m2m100_418M_en_hau`` from the start - a weak base
-  model is a weak base model in both precisions.
+- **Absolute floor** (:data:`QUALITY_ABSOLUTE_FLOOR`): chrF-vs-reference
+  below 40 flags the entry. An entry with no score of its own takes its
+  counterpart's, because a weak base model is weak in both precisions. An
+  entry with its own score is judged on that score. This is what should have
+  caught the Azerbaijani opus-mt trio and ``m2m100_418M_en_hau`` from the
+  start.
 - **int8 gap** (:data:`QUALITY_INT8_GAP`): int8's chrF-vs-reference trailing
   fp32's by more than 2 points flags the int8 entry. Every pair actually
   measured in the FLORES-200 campaign - weak (Azerbaijani, Hausa) and strong
@@ -208,8 +209,8 @@ __all__ = [
     "flagged_target_languages",
 ]
 
-#: chrF-vs-reference below this, in either precision, is a weak-model flag
-#: independent of quantisation. See module docstring.
+#: chrF-vs-reference below this is a weak-model flag independent of
+#: quantisation. See module docstring.
 QUALITY_ABSOLUTE_FLOOR = 40.0
 
 #: How many chrF-vs-reference points int8 may trail fp32 by before the int8
@@ -239,26 +240,30 @@ def quality_flag_reasons(entry: Dict, counterpart_entry: Optional[Dict]) -> Tupl
     registry/selection) - no I/O, no graph, so it is trivial to unit test
     against synthetic entries.
     """
-    quality = entry.get("quality")
-    if not quality or "chrf_vs_ref" not in quality:
+    quality = entry.get("quality") or {}
+    counterpart = counterpart_entry or {}
+    counterpart_quality = counterpart.get("quality") or {}
+    measured = quality if "chrf_vs_ref" in quality else counterpart_quality
+    if "chrf_vs_ref" not in measured:
         return ()
-    chrf = quality["chrf_vs_ref"]
+    chrf = measured["chrf_vs_ref"]
     reasons = []
     if chrf < QUALITY_ABSOLUTE_FLOOR:
+        build = ("" if measured is quality
+                 else f" of the {counterpart.get('precision')} build")
         reasons.append(
-            f"chrF-vs-reference {chrf:.1f} is below the "
+            f"chrF-vs-reference {chrf:.1f}{build} is below the "
             f"{QUALITY_ABSOLUTE_FLOOR:.0f} floor "
-            f"({quality.get('corpus', 'unknown corpus')}, n={quality.get('n', '?')})")
-    if entry.get("precision") == "int8" and counterpart_entry:
-        counterpart_quality = counterpart_entry.get("quality")
-        if counterpart_quality and "chrf_vs_ref" in counterpart_quality:
-            fp32_chrf = counterpart_quality["chrf_vs_ref"]
-            gap = fp32_chrf - chrf
-            if gap > QUALITY_INT8_GAP:
-                reasons.append(
-                    f"int8 chrF-vs-reference {chrf:.1f} trails fp32's "
-                    f"{fp32_chrf:.1f} by {gap:.1f}, over the "
-                    f"{QUALITY_INT8_GAP:.1f} threshold")
+            f"({measured.get('corpus', 'unknown corpus')}, n={measured.get('n', '?')})")
+    if (measured is quality and entry.get("precision") == "int8"
+            and "chrf_vs_ref" in counterpart_quality):
+        fp32_chrf = counterpart_quality["chrf_vs_ref"]
+        gap = fp32_chrf - chrf
+        if gap > QUALITY_INT8_GAP:
+            reasons.append(
+                f"int8 chrF-vs-reference {chrf:.1f} trails fp32's "
+                f"{fp32_chrf:.1f} by {gap:.1f}, over the "
+                f"{QUALITY_INT8_GAP:.1f} threshold")
     return tuple(reasons)
 
 
