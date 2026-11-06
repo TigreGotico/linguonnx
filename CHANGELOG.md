@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.0a1](https://github.com/TigreGotico/linguonnx/tree/0.26.0a1) (2026-11-06)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.11a1...0.26.0a1)
+
+**Merged pull requests:**
+
+- feat: prefer small models when no size budget is set [\#163](https://github.com/TigreGotico/linguonnx/pull/163) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.25.11a1](https://github.com/TigreGotico/linguonnx/tree/0.25.11a1) (2026-11-06)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.10a1...0.25.11a1)
@@ -383,10 +391,6 @@
 ## [0.8.3a1](https://github.com/TigreGotico/linguonnx/tree/0.8.3a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.2a2...0.8.3a1)
-
-**Merged pull requests:**
-
-- fix: address M2M100 language tokens by name, not by list position [\#60](https://github.com/TigreGotico/linguonnx/pull/60) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.8.2a2](https://github.com/TigreGotico/linguonnx/tree/0.8.2a2) (2026-08-03)
 
