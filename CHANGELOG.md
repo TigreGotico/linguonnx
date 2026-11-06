@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.10a1](https://github.com/TigreGotico/linguonnx/tree/0.25.10a1) (2026-11-06)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.9a1...0.25.10a1)
+
+**Merged pull requests:**
+
+- fix: withdraw opus-mt-en-jap from the registry [\#159](https://github.com/TigreGotico/linguonnx/pull/159) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.25.9a1](https://github.com/TigreGotico/linguonnx/tree/0.25.9a1) (2026-11-06)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.25.8a1...0.25.9a1)
@@ -260,10 +268,6 @@
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.13.0a2...0.14.0a1)
 
-**Merged pull requests:**
-
-- feat: export and register IndicTrans2 en-indic-1B \(fp32 + int8\) [\#55](https://github.com/TigreGotico/linguonnx/pull/55) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [0.13.0a2](https://github.com/TigreGotico/linguonnx/tree/0.13.0a2) (2026-09-01)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.13.0a1...0.13.0a2)
@@ -387,10 +391,6 @@
 ## [0.8.2a1](https://github.com/TigreGotico/linguonnx/tree/0.8.2a1) (2026-08-03)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.8.1a1...0.8.2a1)
-
-**Merged pull requests:**
-
-- fix: keep each model's own language spelling alongside the routing tag [\#56](https://github.com/TigreGotico/linguonnx/pull/56) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.8.1a1](https://github.com/TigreGotico/linguonnx/tree/0.8.1a1) (2026-08-03)
 
