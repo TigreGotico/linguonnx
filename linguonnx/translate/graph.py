@@ -422,6 +422,12 @@ def _default_script(tag: str) -> Optional[str]:
     return langcodes.Language.get(tag).maximize().script
 
 
+def _same_script(tag: str, other: str) -> bool:
+    """Whether two tags write in one script. An unknown script matches any."""
+    script, other_script = _default_script(tag), _default_script(other)
+    return script is None or other_script is None or script == other_script
+
+
 def normalize_tag(tag: str, strict: bool = False) -> str:
     """Normalise any language tag shape to the graph's BCP-47 node name.
 
@@ -1464,11 +1470,15 @@ class TranslationGraph:
             return node
         # `pt-BR` is well-formed and unsupported as written, but the graph is
         # keyed on the language subtag, and refusing a region the models simply
-        # do not distinguish would be a worse answer than serving `pt`.
+        # do not distinguish would be a worse answer than serving `pt`. A
+        # script is what the reader must be able to read, so it never goes:
+        # `zh-TW` is `zh-Hant`, and `az-Cyrl` is not `az`.
         base = node.split("-")[0]
-        if base in self._addressable:
-            LOG.debug("%r is not a graph node; routing it as %r", node, base)
-            return base
+        target = base if _same_script(node, base) \
+            else f"{base}-{_default_script(node)}"
+        if target in self._addressable:
+            LOG.debug("%r is not a graph node; routing it as %r", node, target)
+            return target
         return node
 
     #: A language subtag followed by a region alone: `es-ES`, `es-419`.
@@ -1489,7 +1499,7 @@ class TranslationGraph:
         def base(node: str) -> str:
             match = self._REGION_TAG_RE.match(node)
             if match and match.group(1) in self._addressable \
-                    and _default_script(node) == _default_script(match.group(1)):
+                    and _same_script(node, match.group(1)):
                 return match.group(1)
             return node
 

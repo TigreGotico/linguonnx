@@ -872,6 +872,11 @@ Nodes are BCP-47, and `normalize_tag` maps every shape onto one node name:
 models do not distinguish routes as its language, so `route("pt-BR", "en")`
 serves `pt`.
 
+A tag never loses its script. A region that implies another script resolves
+to that script's node, so `zh-TW` and `zh-HK` route as `zh-Hant`, following
+CLDR's likely subtags. With no such node the tag has no route: `az-Cyrl` and
+`pa-PK` raise `NoRouteError` and do not route as `az` and `pa`.
+
 A region a model does distinguish is a node of its own: `es-ES`, `es-419`,
 `fr-CA` and `fa-AF` are served by MADLAD models. When such a node has no route
 within the cap, because the cap leaves out the only model that serves it or
