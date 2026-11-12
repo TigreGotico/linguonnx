@@ -627,14 +627,18 @@ def load_fast_tokenizer(tokenizer_json):
             "Install it: pip install 'linguonnx[fast-tokenizers]'") from exc
     tok = tokenizers.Tokenizer.from_file(str(tokenizer_json))
     # tokenizers 1.0 replaced no_truncation() and no_padding() with
-    # properties that take None, and only the CompiledTokenizer that
-    # compile() builds from those settings can encode.
-    if int(tokenizers.__version__.split(".")[0]) >= 1:
+    # properties that take None. From 1.0.0rc4 only the CompiledTokenizer
+    # that compile() builds can encode, and compile() freezes the settings,
+    # so they come first. The release candidates differ, so each step tests
+    # for the method rather than for the version.
+    if hasattr(tok, "no_truncation"):
+        tok.no_truncation()
+        tok.no_padding()
+    else:
         tok.truncation = None
         tok.padding = None
+    if hasattr(tok, "compile"):
         return tok.compile()
-    tok.no_truncation()
-    tok.no_padding()
     return tok
 
 

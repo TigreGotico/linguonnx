@@ -95,6 +95,47 @@ def test_a_truncation_setting_in_tokenizer_json_does_not_cut_the_input(tmp_path)
     assert tokenizer.encode("a b c d e f g h") == [4, 5, 6, 7, 8, 9, 10, 11, 1]
 
 
+class _Rc3Tokenizer:
+    """tokenizers 1.0.0rc3: settings are properties and the Tokenizer itself
+    encodes; there is no compile()."""
+
+    def __init__(self):
+        self.truncation = self.padding = "set in the file"
+
+    @classmethod
+    def from_file(cls, path):
+        return cls()
+
+
+class _Rc4Tokenizer(_Rc3Tokenizer):
+    """tokenizers 1.0.0rc4: only what compile() returns encodes, and it
+    keeps the settings the Tokenizer had at that moment."""
+
+    def compile(self):
+        return {"truncation": self.truncation, "padding": self.padding}
+
+
+@pytest.mark.parametrize("stub, version, expected", [
+    (_Rc3Tokenizer, "1.0.0-rc.3", None),
+    (_Rc4Tokenizer, "0.0.0", {"truncation": None, "padding": None}),
+])
+def test_the_loader_follows_the_api_not_the_version(monkeypatch, stub, version,
+                                                    expected):
+    """The release candidates of tokenizers 1.0 share the major version and
+    differ in API, so a version check picks the wrong path on one of them."""
+    import tokenizers
+
+    from linguonnx.translate.tokenizers import load_fast_tokenizer
+
+    monkeypatch.setattr(tokenizers, "Tokenizer", stub)
+    monkeypatch.setattr(tokenizers, "__version__", version)
+    tok = load_fast_tokenizer("tokenizer.json")
+    if expected is None:
+        assert isinstance(tok, stub)
+        assert (tok.truncation, tok.padding) == (None, None)
+    else:
+        assert tok == expected
+
 def test_a_unigram_vocabulary_gives_each_special_token_its_list_position(tmp_path):
     """The Softcatala Pegasus exports hold a Unigram model, whose vocabulary is
     a list of ``[piece, score]``: a token's id is its position in that list."""
