@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from huggingface_hub import hf_hub_download
 
 from linguonnx.model_manager import list_models
 from linguonnx.translate import load_translator
@@ -27,6 +28,16 @@ SOURCES = {"acm", "aeb", "afb", "apc", "apd", "arq", "ars", "ary", "arz",
 REFERENCE = json.loads((ROOT / "test" / "data" / "arat5_reference.json")
                        .read_text(encoding="utf-8"))
 TRANSLATE = list_models(kind="translate")
+
+#: tokenizers 0.23.3 on the published tokenizer.json, for the first three
+#: reference sentences joined by spaces: 66 tokens and ``</s>``.
+THREE_SENTENCE_IDS = [
+    23506, 568, 18890, 597, 2514, 109598, 151, 21852, 66514, 8755, 31, 15174,
+    630, 8790, 109598, 4510, 12657, 109779, 62543, 35290, 14423, 109598, 548,
+    66514, 396, 24407, 1743, 109566, 31183, 560, 109598, 6848, 8755, 31,
+    15174, 630, 14649, 1157, 52512, 147, 2743, 245, 715, 678, 40, 109566,
+    3316, 109590, 151, 21063, 8755, 31, 50063, 630, 8790, 410, 66371, 147,
+    4429, 109598, 425, 13749, 3614, 66371, 729, 823, 1]
 
 
 @pytest.mark.parametrize("model_id", [MODEL_ID, MODEL_ID + "-int8"])
@@ -119,6 +130,23 @@ def test_t5_fast_decoding_applies_the_configured_clean_up(tmp_path):
 
 def test_reference_fixture_covers_every_registered_source():
     assert {row["src"] for row in REFERENCE} == SOURCES
+
+
+@pytest.mark.network
+def test_the_published_tokenizer_encodes_past_its_64_token_truncation():
+    """The tokenizers package reads the published tokenizer.json, on 0.x and
+    1.x. Each reference sentence gets the reference ids, and a 67-id input
+    reaches the encoder whole although the file truncates at 64."""
+    repo = TRANSLATE[MODEL_ID]["hf_repo"]
+    tokenizer = load_tokenizer("t5-fast", {
+        name: hf_hub_download(repo, filename) for name, filename in (
+            ("tokenizer_json", "tokenizer.json"),
+            ("tokenizer_config", "tokenizer_config.json"),
+            ("special_tokens_map", "special_tokens_map.json"))}, ())
+    assert [tokenizer.encode(row["text"]) for row in REFERENCE] \
+        == [row["input_ids"] for row in REFERENCE]
+    text = " ".join(row["text"] for row in REFERENCE[:3])
+    assert tokenizer.encode(text) == THREE_SENTENCE_IDS
 
 
 @pytest.mark.network
