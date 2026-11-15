@@ -20,7 +20,8 @@ The three graphs
     returns ``logits`` plus new ``present.*`` for the self-attention entries
     only. The cross-attention entries do not change after step 0 - the encoder
     output they were computed from is fixed - so they are threaded straight
-    through from the step-0 outputs.
+    through from the step-0 outputs. Some exports also declare
+    ``encoder_hidden_states`` on this graph; it is then fed the encoder output.
 
 Cache wiring is done **by name**, not by position: every
 ``past_key_values.<i>.<attn>.<kv>`` input is matched to the graph output of the
@@ -29,32 +30,140 @@ layer count, an attention-head layout, or that the two decoder graphs order
 their tensors the same way. If a graph ever turns up with a naming scheme this
 does not cover, :class:`Seq2SeqDecoder` raises at load time instead of
 producing silent garbage.
+
+Decoder-only graphs
+-------------------
+
+A prompted translator such as Projecte AINA's Plume has no encoder. Its one
+``model.onnx`` takes ``input_ids``, ``attention_mask`` and a self-attention
+``past_key_values.<i>.key``/``.value`` per layer, and returns ``logits`` and
+the matching ``present.*``. :class:`CausalLMDecoder` runs the whole prompt
+through it once with an empty cache, then one token per step. The greedy and
+beam searches are the ones above; only the graph calls differ.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
+from dataclasses import dataclass, field
+from typing import Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-__all__ = ["Seq2SeqDecoder", "GenerationConfig"]
+from linguonnx.limits import (MAX_ENCODER_TOKENS, MAX_LENGTH_PENALTY,
+                              MAX_NUM_BEAMS, DecodeError, OutputTruncatedError,
+                              check_length)
+
+__all__ = ["Seq2SeqDecoder", "CausalLMDecoder", "GenerationConfig"]
 
 
 @dataclass
 class GenerationConfig:
-    """Decoding knobs. ``num_beams=1`` means greedy."""
+    """Decoding knobs. ``num_beams=1`` means greedy.
+
+    The values are validated on construction. They are caller-settable all the
+    way from ``Translator(...)``, several of them cost memory linearly or
+    worse, and two of them have a range where the decoder still returns
+    something - just not a translation. An error at the boundary is the only
+    place the caller can act on it.
+    """
 
     max_new_tokens: int = 128
     num_beams: int = 4
     length_penalty: float = 1.0
     no_repeat_ngram_size: int = 0
-    early_stopping: bool = True
+    #: Stop as soon as ``num_beams`` hypotheses have finished. `transformers`
+    #: defaults this off and so does linguonnx, because the cheaper rule ends
+    #: the search while a better hypothesis is still growing - it costs about
+    #: one sentence in ten against a `transformers` reference. Set it to
+    #: ``True`` when speed matters more than matching.
+    early_stopping: bool = False
+    #: Token ids that must never be generated as content, sourced from the
+    #: model's own ``generation_config.json`` (``bad_words_ids``, single-token
+    #: entries only). Some Marian checkpoints rank their own
+    #: ``decoder_start_token_id``/``pad_token_id`` above every real word at
+    #: generation step 1 - a known degenerate mode the upstream config already
+    #: names by banning that id - but nothing before this field enforced the
+    #: ban. Unenforced, the decoder emits that id for the whole budget, the
+    #: tokenizer strips it as a special token on the way out, and the caller
+    #: gets "" back for a perfectly good input. See ``linguonnx#42``.
+    banned_token_ids: FrozenSet[int] = field(default_factory=frozenset)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.max_new_tokens, int) or self.max_new_tokens < 1:
+            raise ValueError(
+                f"max_new_tokens must be a positive int, got "
+                f"{self.max_new_tokens!r}")
+        if not isinstance(self.num_beams, int) or self.num_beams < 1:
+            raise ValueError(
+                f"num_beams must be a positive int, got {self.num_beams!r}")
+        if self.num_beams > MAX_NUM_BEAMS:
+            # Beams past the number of finite candidates are padded with PAD
+            # and contribute nothing, but they are still full rows of the
+            # cross-attention cache, re-gathered on every step.
+            raise ValueError(
+                f"num_beams={self.num_beams} is over the limit of "
+                f"{MAX_NUM_BEAMS}; beam search stops paying for itself long "
+                f"before this, and every beam costs a full copy of the "
+                f"attention cache (raise LINGUONNX_MAX_NUM_BEAMS to allow it)")
+        if not np.isfinite(self.length_penalty):
+            raise ValueError(
+                f"length_penalty must be finite, got {self.length_penalty!r}")
+        if not 0.0 <= self.length_penalty <= MAX_LENGTH_PENALTY:
+            # Beam scores are log probabilities, so they are negative, and the
+            # score is divided by length**length_penalty. A negative exponent
+            # therefore *multiplies* the penalty term by the length and makes
+            # longer sequences rank higher - including a beam padded out with
+            # PAD tokens, which is the worst hypothesis in the set.
+            raise ValueError(
+                f"length_penalty must be between 0.0 and "
+                f"{MAX_LENGTH_PENALTY}, got {self.length_penalty}; a negative "
+                f"value inverts beam ranking and can hand back the worst "
+                f"hypothesis")
+        if not isinstance(self.no_repeat_ngram_size, int) \
+                or self.no_repeat_ngram_size < 0:
+            raise ValueError(
+                f"no_repeat_ngram_size must be a non-negative int, got "
+                f"{self.no_repeat_ngram_size!r}")
+        if self.no_repeat_ngram_size == 1:
+            # Size 1 has no useful reading. Here the n-gram prefix is empty, so
+            # every token ever emitted is banned from recurring and the output
+            # collapses; in transformers the lookup key is the whole sequence,
+            # which never matches, so the setting silently does nothing. Two
+            # opposite wrong answers, neither of them what a caller wants.
+            raise ValueError(
+                "no_repeat_ngram_size=1 would ban every token from appearing "
+                "twice, which no real translation survives; use 0 to disable "
+                "the guard or 2 or more to block repeated phrases")
+        # Accept any iterable (a model passes a plain list); freeze it once
+        # here so every later lookup is a fast set membership test instead of
+        # a per-step scan.
+        self.banned_token_ids = frozenset(int(t) for t in self.banned_token_ids)
+
+
+def _truncated(max_new_tokens: int,
+               tokens: List[int]) -> OutputTruncatedError:
+    return OutputTruncatedError(
+        f"generation reached max_new_tokens={max_new_tokens} before the model "
+        f"finished, so the output would stop mid-text; split the input or "
+        f"raise max_new_tokens", tokens)
 
 
 def _log_softmax(x: np.ndarray) -> np.ndarray:
-    x = x - x.max(axis=-1, keepdims=True)
-    return x - np.log(np.exp(x).sum(axis=-1, keepdims=True))
+    """Log-softmax over the last axis, with dead rows kept dead.
+
+    A row with no finite entry (every candidate banned, or a model that
+    returns -inf everywhere) has no distribution. The plain formula turns it
+    into NaN through ``-inf - -inf`` and prints a RuntimeWarning on the way;
+    the caller then cannot tell "no survivor" from a numeric fault. Such a
+    row comes back as all -inf, which is what the beam and greedy loops test
+    for.
+    """
+    peak = x.max(axis=-1, keepdims=True)
+    dead = ~np.isfinite(peak)
+    shifted = x - np.where(dead, 0.0, peak)
+    total = np.exp(shifted).sum(axis=-1, keepdims=True)
+    log_total = np.where(dead, np.inf, np.log(np.where(dead, 1.0, total)))
+    return shifted - log_total
 
 
 def _banned_ngram_tokens(sequence: Sequence[int], ngram_size: int) -> List[int]:
@@ -74,7 +183,9 @@ class Seq2SeqDecoder:
     """Greedy and beam-search generation over three ONNX Runtime sessions."""
 
     def __init__(self, encoder_session, decoder_session, decoder_past_session,
-                 eos_id: int, pad_id: int, decoder_start_id: int):
+                 eos_id: int, pad_id: int, decoder_start_id: Optional[int],
+                 max_input_tokens: int = MAX_ENCODER_TOKENS):
+        self.max_input_tokens = max_input_tokens
         self.encoder = encoder_session
         self.decoder = decoder_session
         self.decoder_past = decoder_past_session
@@ -95,6 +206,8 @@ class Seq2SeqDecoder:
         self._dec_ids_input = self._pick(self._dec_inputs, "input_ids")
         self._past_ids_input = self._pick(self._past_inputs, "input_ids")
         self._past_mask_input = self._pick(self._past_inputs, "encoder_attention_mask")
+        past_hidden = [n for n in self._past_inputs if n.endswith("encoder_hidden_states")]
+        self._past_hidden_input = past_hidden[0] if past_hidden else None
 
         # past_key_values.<i>.<attn>.<kv>  <->  present.<i>.<attn>.<kv>
         self._cache_names = [n for n in self._past_inputs
@@ -126,6 +239,13 @@ class Seq2SeqDecoder:
     # -- graph calls ------------------------------------------------------
 
     def _encode(self, input_ids: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        # Self-attention is quadratic in the source length, and beam search
+        # then re-gathers the cross-attention cache - which is also linear in
+        # that length - once per generated token. Long inputs are therefore
+        # paid for twice over, and past the model's positional table the
+        # result is not a translation anyway.
+        check_length(input_ids.shape[-1], self.max_input_tokens, "tokens",
+                     "LINGUONNX_MAX_ENCODER_TOKENS")
         mask = np.ones_like(input_ids, dtype=np.int64)
         feeds = {"input_ids": input_ids, "attention_mask": mask}
         feeds = {name: feeds[name] for name in self._enc_inputs}
@@ -144,11 +264,13 @@ class Seq2SeqDecoder:
         cache = {name: named[self._present_for[name]] for name in self._cache_names}
         return named[self._logits_name][:, -1, :], cache
 
-    def _step(self, tokens: np.ndarray, mask: np.ndarray,
+    def _step(self, tokens: np.ndarray, hidden: np.ndarray, mask: np.ndarray,
               cache: Dict[str, np.ndarray]) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
         feeds = dict(cache)
         feeds[self._past_ids_input] = tokens
         feeds[self._past_mask_input] = mask
+        if self._past_hidden_input:
+            feeds[self._past_hidden_input] = self._expand(hidden, len(mask))
         outputs = self.decoder_past.run(self._past_outputs, feeds)
         named = dict(zip(self._past_outputs, outputs))
         new_cache = dict(cache)
@@ -175,17 +297,28 @@ class Seq2SeqDecoder:
 
     def generate(self, input_ids: Sequence[int],
                  forced_bos_token_id: Optional[int] = None,
-                 config: Optional[GenerationConfig] = None) -> List[int]:
+                 config: Optional[GenerationConfig] = None,
+                 decoder_start_token_id: Optional[int] = None) -> List[int]:
+        """``decoder_start_token_id`` replaces the model's own start token
+        for this call. mBART selects its target language that way: the target
+        tag is the decoder's first *input*, and the config names no start
+        token at all."""
         config = config or GenerationConfig()
+        start = (self.decoder_start_id if decoder_start_token_id is None
+                 else decoder_start_token_id)
+        if start is None:
+            raise ValueError(
+                "no decoder start token: the model's config names no "
+                "decoder_start_token_id and the caller supplied none")
         ids = np.asarray([list(input_ids)], dtype=np.int64)
         if config.num_beams <= 1:
-            return self._greedy(ids, forced_bos_token_id, config)
-        return self._beam(ids, forced_bos_token_id, config)
+            return self._greedy(ids, forced_bos_token_id, config, start)
+        return self._beam(ids, forced_bos_token_id, config, start)
 
     def _greedy(self, input_ids: np.ndarray, forced_bos: Optional[int],
-                config: GenerationConfig) -> List[int]:
+                config: GenerationConfig, start: int) -> List[int]:
         hidden, mask = self._encode(input_ids)
-        logits, cache = self._first_step(hidden, mask, self.decoder_start_id)
+        logits, cache = self._first_step(hidden, mask, start)
 
         generated: List[int] = []
         for step in range(config.max_new_tokens):
@@ -193,6 +326,8 @@ class Seq2SeqDecoder:
                 token = forced_bos
             else:
                 scores = logits[0].astype(np.float64)
+                for banned in config.banned_token_ids:
+                    scores[banned] = -np.inf
                 for banned in _banned_ngram_tokens(generated, config.no_repeat_ngram_size):
                     scores[banned] = -np.inf
                 token = int(np.argmax(scores))
@@ -200,16 +335,54 @@ class Seq2SeqDecoder:
                 break
             generated.append(token)
             if step == config.max_new_tokens - 1:
-                break
+                raise _truncated(config.max_new_tokens, generated)
             logits, cache = self._step(
-                np.array([[token]], dtype=np.int64), mask, cache)
+                np.array([[token]], dtype=np.int64), hidden, mask, cache)
+        if not generated:
+            # The first sampled token was EOS. Empty input never gets this
+            # far, so an empty generation is a failure, and the caller has to
+            # be able to tell it from the empty string it asks for.
+            raise DecodeError(
+                "greedy decoding ended before emitting a single token; "
+                "no output can be produced for this input")
         return generated
 
+    def _hypothesis_score(self, sequence: Sequence[int], total_logprob: float,
+                          length_penalty: float) -> float:
+        """Length-normalised score of a finished hypothesis.
+
+        The divisor counts the **decoder start token as well**, which is not a
+        detail: `transformers` normalises by ``decoder_input_ids.shape[-1]``,
+        and that tensor begins with ``decoder_start_token_id``. Dividing by the
+        generated length alone is off by one, and the error does not cancel
+        between hypotheses of different lengths - it re-ranks them. Matching
+        this is worth roughly a third of the sentences on a beam-4 comparison
+        against `transformers`.
+        """
+        return total_logprob / (len(sequence) + 1) ** length_penalty
+
     def _beam(self, input_ids: np.ndarray, forced_bos: Optional[int],
-              config: GenerationConfig) -> List[int]:
+              config: GenerationConfig, start: int) -> List[int]:
+        """Beam search, written to agree with `transformers` token for token.
+
+        The published parity numbers for every model in the registry were
+        measured against `transformers.generate()`, so the selection rules here
+        follow ``BeamSearchScorer`` rather than a textbook beam search. Three of
+        them are load-bearing and none of them fails loudly when broken - they
+        just return a slightly different, plausible sentence:
+
+        * the length normaliser counts the decoder start token
+          (:meth:`_hypothesis_score`);
+        * an EOS candidate ranked at or below ``num_beams`` is **discarded**,
+          not finished, because a hypothesis that bad would never win;
+        * search stops on the "cannot be beaten" test, not on "``num_beams``
+          hypotheses exist". ``early_stopping=True`` restores the cheaper,
+          slightly worse rule.
+        """
         beams = config.num_beams
+        length_penalty = config.length_penalty
         hidden, mask = self._encode(input_ids)
-        logits, cache = self._first_step(hidden, mask, self.decoder_start_id)
+        logits, cache = self._first_step(hidden, mask, start)
 
         # Expand the single step-0 result into `beams` identical rows. Only the
         # first beam starts alive: with identical rows, an all-zero score vector
@@ -221,7 +394,17 @@ class Seq2SeqDecoder:
         scores = np.full(beams, -np.inf, dtype=np.float64)
         scores[0] = 0.0
         sequences: List[List[int]] = [[] for _ in range(beams)]
-        finished: List[Tuple[float, List[int]]] = []
+        # Best `beams` finished hypotheses, worst first is not maintained; the
+        # list is trimmed instead, which is cheap at these sizes. The flag says
+        # whether the hypothesis reached EOS.
+        finished: List[Tuple[float, List[int], bool]] = []
+
+        def remember(sequence: List[int], total: float, ended: bool) -> None:
+            finished.append((self._hypothesis_score(sequence, total, length_penalty),
+                             list(sequence), ended))
+            if len(finished) > beams:
+                finished.sort(key=lambda item: item[0], reverse=True)
+                del finished[beams:]
 
         for step in range(config.max_new_tokens):
             logprobs = _log_softmax(logits.astype(np.float64))
@@ -229,6 +412,8 @@ class Seq2SeqDecoder:
                 forced = np.full_like(logprobs, -np.inf)
                 forced[:, forced_bos] = 0.0
                 logprobs = forced
+            for banned in config.banned_token_ids:
+                logprobs[:, banned] = -np.inf
             if config.no_repeat_ngram_size:
                 for beam, sequence in enumerate(sequences):
                     for banned in _banned_ngram_tokens(sequence, config.no_repeat_ngram_size):
@@ -244,30 +429,42 @@ class Seq2SeqDecoder:
 
             next_scores, next_tokens, next_parents, next_seqs = [], [], [], []
             vocab = logprobs.shape[1]
-            for index in top:
+            for rank, index in enumerate(top):
                 parent, token = int(index // vocab), int(index % vocab)
                 score = float(flat[index])
                 if not np.isfinite(score):
                     continue
                 sequence = sequences[parent]
                 if token == self.eos_id:
-                    if sequence:
-                        length = max(len(sequence), 1) ** config.length_penalty
-                        finished.append((score / length, list(sequence)))
-                    continue
-                if len(next_tokens) < beams:
+                    # Ranked below the beam width: `transformers` drops it.
+                    if rank < beams and sequence:
+                        remember(sequence, score, True)
+                else:
                     next_scores.append(score)
                     next_tokens.append(token)
                     next_parents.append(parent)
                     next_seqs.append(sequence + [token])
-                # No early break: the beam set can be full while EOS candidates
-                # are still further down the ranking, and those are exactly the
-                # finished hypotheses this loop exists to collect.
+                if len(next_tokens) == beams:
+                    break
 
             if not next_tokens:
                 break
-            if config.early_stopping and len(finished) >= beams:
+
+            done = False
+            if len(finished) >= beams:
+                if config.early_stopping:
+                    done = True
+                else:
+                    # Nothing still running can beat the worst kept hypothesis,
+                    # even if it ended on the very next token. `step + 1` is the
+                    # decoder length before this step's token is appended, which
+                    # is the length `transformers` normalises this bound by.
+                    best_attainable = (float(flat[top[0]])
+                                       / (step + 1) ** length_penalty)
+                    done = min(item[0] for item in finished) >= best_attainable
+            if done:
                 break
+
             while len(next_tokens) < beams:  # pad a collapsed beam set
                 next_scores.append(-np.inf)
                 next_tokens.append(self.pad_id)
@@ -280,13 +477,134 @@ class Seq2SeqDecoder:
             if step == config.max_new_tokens - 1:
                 break
             logits, cache = self._step(
-                np.asarray(next_tokens, dtype=np.int64)[:, None], mask, cache)
+                np.asarray(next_tokens, dtype=np.int64)[:, None], hidden, mask, cache)
 
-        if finished:
-            return max(finished, key=lambda item: item[0])[1]
-        # Nothing hit EOS inside the budget: hand back the best live beam.
-        alive = [(scores[i] / max(len(sequences[i]), 1) ** config.length_penalty, i)
-                 for i in range(beams) if np.isfinite(scores[i])]
-        if not alive:
-            return []
-        return sequences[max(alive)[1]]
+        # Out of budget with too few finished hypotheses: the live beams count
+        # too, exactly as `transformers` folds them in at ``finalize()``.
+        if len(finished) < beams:
+            for i in range(beams):
+                if sequences[i] and np.isfinite(scores[i]):
+                    remember(sequences[i], float(scores[i]), False)
+        if not finished:
+            # Every beam was padded to -inf and none reached EOS. Returning []
+            # here would decode to "", which is exactly what the caller layer
+            # returns for empty input - so a real decode failure would arrive
+            # indistinguishable from "you gave me nothing".
+            raise DecodeError(
+                f"beam search finished no hypothesis and every beam collapsed "
+                f"after {config.max_new_tokens} steps; no output can be "
+                f"produced for this input")
+        _, best, ended = max(finished, key=lambda item: item[0])
+        if not ended:
+            raise _truncated(config.max_new_tokens, best)
+        return best
+
+
+_ORT_FLOAT_TYPES = {"tensor(float)": np.float32, "tensor(float16)": np.float16}
+
+
+class CausalLMDecoder(Seq2SeqDecoder):
+    """Greedy and beam search over one decoder-only ONNX Runtime session.
+
+    The "encoder output" the inherited searches carry is the prompt itself,
+    and step 0 runs the full prompt with an empty cache. The prompt's last
+    token takes the place of a decoder start token, so the search's start id
+    is never fed to the graph. The attention mask grows with the cache, one
+    column per generated token. Every cache entry is self-attention, so every
+    one is refreshed on every step.
+
+    The generated ids exclude the prompt and the stop token.
+    """
+
+    def __init__(self, session, eos_id: int, pad_id: int,
+                 max_input_tokens: int = MAX_ENCODER_TOKENS):
+        self.max_input_tokens = max_input_tokens
+        self.decoder = session
+        self.eos_id = eos_id
+        self.pad_id = pad_id
+        self.decoder_start_id = None
+
+        inputs = {i.name: i for i in session.get_inputs()}
+        self._outputs = [o.name for o in session.get_outputs()]
+        self._logits_name = self._pick(self._outputs, "logits")
+        self._ids_input = self._pick(list(inputs), "input_ids")
+        self._mask_input = self._pick(list(inputs), "attention_mask")
+        self._cache_names = [n for n in inputs if n.startswith("past_key_values.")]
+        if not self._cache_names:
+            raise ValueError(
+                "decoder-only graph has no past_key_values.* inputs; linguonnx "
+                "needs an export with its key/value cache "
+                "(text-generation-with-past)")
+        unknown = set(inputs) - {self._ids_input, self._mask_input} \
+            - set(self._cache_names)
+        if unknown:
+            raise ValueError(
+                f"decoder-only graph takes inputs linguonnx does not feed: "
+                f"{sorted(unknown)}")
+        self._present_for = {}
+        self._empty_cache: Dict[str, Tuple[Tuple[int, ...], type]] = {}
+        for name in self._cache_names:
+            present = name.replace("past_key_values.", "present.", 1)
+            if present not in self._outputs:
+                raise ValueError(
+                    f"decoder cache input {name!r} has no matching graph output "
+                    f"{present!r}; this decoder uses a key/value naming scheme "
+                    f"linguonnx does not know how to wire")
+            self._present_for[name] = present
+            shape = inputs[name].shape
+            if len(shape) != 4 or not isinstance(shape[1], int) \
+                    or not isinstance(shape[3], int):
+                raise ValueError(
+                    f"decoder cache input {name!r} has shape {shape}; linguonnx "
+                    f"needs [batch, heads, past_length, head_dim] with fixed "
+                    f"heads and head_dim to build the empty step-0 cache")
+            dtype = _ORT_FLOAT_TYPES.get(inputs[name].type)
+            if dtype is None:
+                raise ValueError(
+                    f"decoder cache input {name!r} has type "
+                    f"{inputs[name].type}, which linguonnx does not feed")
+            self._empty_cache[name] = ((1, shape[1], 0, shape[3]), dtype)
+
+    def generate(self, input_ids: Sequence[int],
+                 forced_bos_token_id: Optional[int] = None,
+                 config: Optional[GenerationConfig] = None,
+                 decoder_start_token_id: Optional[int] = None) -> List[int]:
+        """A decoder-only graph has no start token to replace: the prompt
+        carries the target tag, and its last token starts the search."""
+        if decoder_start_token_id is not None:
+            raise ValueError(
+                "a decoder-only model takes its target language from the "
+                "prompt, not from a decoder start token")
+        config = config or GenerationConfig()
+        ids = np.asarray([list(input_ids)], dtype=np.int64)
+        if config.num_beams <= 1:
+            return self._greedy(ids, forced_bos_token_id, config, None)
+        return self._beam(ids, forced_bos_token_id, config, None)
+
+    def _encode(self, input_ids: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        check_length(input_ids.shape[-1], self.max_input_tokens, "tokens",
+                     "LINGUONNX_MAX_ENCODER_TOKENS")
+        return input_ids, np.ones_like(input_ids, dtype=np.int64)
+
+    def _run(self, tokens: np.ndarray, cache: Dict[str, np.ndarray]
+             ) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
+        past_length = next(iter(cache.values())).shape[2]
+        feeds = dict(cache)
+        feeds[self._ids_input] = tokens
+        feeds[self._mask_input] = np.ones(
+            (tokens.shape[0], past_length + tokens.shape[1]), dtype=np.int64)
+        outputs = self.decoder.run(self._outputs, feeds)
+        named = dict(zip(self._outputs, outputs))
+        new_cache = {name: named[present]
+                     for name, present in self._present_for.items()}
+        return named[self._logits_name][:, -1, :], new_cache
+
+    def _first_step(self, hidden: np.ndarray, mask: np.ndarray,
+                    token: Optional[int]) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
+        empty = {name: np.zeros(shape, dtype=dtype)
+                 for name, (shape, dtype) in self._empty_cache.items()}
+        return self._run(hidden, empty)
+
+    def _step(self, tokens: np.ndarray, hidden: np.ndarray, mask: np.ndarray,
+              cache: Dict[str, np.ndarray]) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
+        return self._run(tokens, cache)

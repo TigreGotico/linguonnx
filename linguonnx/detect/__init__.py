@@ -1,18 +1,23 @@
-"""Language identification engine: fastText feature hashing (Python) feeding
-an ONNX graph that does the embedding-average + matmul + softmax.
+"""Language identification, with two engines chosen by the registry entry's
+``engine`` field.
 
-Models trained with hierarchical softmax (``loss=hs``, e.g. fastText's
-classic ``lid.176``) end in ``Sigmoid`` over Huffman-tree nodes instead, and
-need one more Python step to turn node scores into label probabilities; see
-:mod:`linguonnx.detect.hs`. Which path a model takes is decided by its
-declared loss, never by its name.
+``fasttext-onnx``: fastText feature hashing (Python) feeding an ONNX graph
+that does the embedding-average + matmul + softmax. Models trained with
+hierarchical softmax (``loss=hs``, e.g. fastText's classic ``lid.176``) end in
+``Sigmoid`` over Huffman-tree nodes instead, and need one more Python step to
+turn node scores into label probabilities; see :mod:`linguonnx.detect.hs`.
+Which path a model takes is decided by its declared loss, never by its name.
+
+``transformer-onnx``: a transformer encoder with a sequence-classification
+head (AfroLID's XLM-R), tokenized with the export's own ``tokenizer.json``;
+see :mod:`linguonnx.detect.transformer`.
 """
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Sequence
 
 import numpy as np
 import onnxruntime as ort
@@ -21,34 +26,78 @@ from linguonnx import model_manager
 from linguonnx.detect.hashing import GlotLIDFeaturizer
 from linguonnx.detect.hs import HSCombiner
 from linguonnx.detect.labels import LABEL_PREFIX, LabelMapper, collapse_variety
+from linguonnx.detect.transformer import SequenceClassifier
+from linguonnx.limits import (MAX_DETECT_CHARS, MAX_LINE_TOKENS,
+                              EmptyInputError, has_visible_content)
+from linguonnx.providers import ProviderSpec, make_session
 
-# GlotLID is the default on purpose: it is the only Apache-2.0 model in the
-# registry. OpenLID v1/v2 are GPL-3.0 and lid.176 is CC-BY-SA-3.0, so a user
-# must ask for those by name rather than inherit their terms by accident.
+# GlotLID is the default on purpose: it is Apache-2.0 and covers 2102
+# language-script labels. OpenLID v1/v2 are GPL-3.0 and lid.176 is
+# CC-BY-SA-3.0, so a user must ask for those by name rather than inherit their
+# terms by accident. AfroLID is Apache-2.0 too, but covers African languages
+# only.
 DEFAULT_MODEL_ID = "glotlid-int8"
+
+FASTTEXT_ENGINE = "fasttext-onnx"
+TRANSFORMER_ENGINE = "transformer-onnx"
 
 
 class LanguageDetector:
-    """Loads one fastText-ONNX LID model + its side files and runs detection."""
+    """Loads one LID model + its side files and runs detection."""
 
     def __init__(self, model_id: str = DEFAULT_MODEL_ID,
-                 session_options: Optional[ort.SessionOptions] = None):
+                 session_options: Optional[ort.SessionOptions] = None,
+                 max_chars: int = MAX_DETECT_CHARS,
+                 max_tokens: int = MAX_LINE_TOKENS,
+                 providers: Optional[Sequence[ProviderSpec]] = None):
+        """``max_chars``/``max_tokens`` bound the input; see
+        :mod:`linguonnx.limits` for the defaults and their environment
+        variables. Text over either bound raises
+        :class:`~linguonnx.limits.InputTooLongError`.
+
+        ``providers`` selects the ONNX Runtime execution providers; see
+        :mod:`linguonnx.providers`. Left unset, it resolves from
+        ``LINGUONNX_ONNX_PROVIDERS`` and then auto-detection, which is
+        CPU-only on the default ``onnxruntime`` install."""
         self.model_id = model_id
         entry = model_manager.registry_entry(model_id)
         self.num_labels = entry["num_labels"]
+        self.engine = entry.get("engine", FASTTEXT_ENGINE)
+        if self.engine not in (FASTTEXT_ENGINE, TRANSFORMER_ENGINE):
+            raise ValueError(f"model {model_id!r} declares unknown engine "
+                             f"{self.engine!r}")
 
         paths = model_manager.ensure_model_files(model_id)
+        with open(paths["config"], encoding="utf-8") as fh:
+            self._config = json.load(fh)
+        self._session = make_session(
+            paths["onnx_file"], providers=providers, sess_options=session_options,
+        )
+        self._featurizer: Optional[GlotLIDFeaturizer] = None
+        self._classifier: Optional[SequenceClassifier] = None
+        self._hs_combiner: Optional[HSCombiner] = None
 
-        with open(paths["labels"], encoding="utf-8") as fh:
-            raw_labels = json.load(fh)
+        if self.engine == TRANSFORMER_ENGINE:
+            self._classifier = SequenceClassifier(
+                paths["tokenizer_json"], self._config, self._session,
+                max_chars=max_chars)
+            raw_labels = self._classifier.labels
+            # A sequence-classification head is a softmax over its logits.
+            self.loss = "softmax"
+        else:
+            raw_labels = self._load_fasttext(entry, paths, max_chars, max_tokens)
+
         self._raw_labels = [
             l[len(LABEL_PREFIX):] if l.startswith(LABEL_PREFIX) else l
             for l in raw_labels
         ]
         self._label_mapper = LabelMapper(raw_labels)
 
-        with open(paths["config"], encoding="utf-8") as fh:
-            self._config = json.load(fh)
+    def _load_fasttext(self, entry: dict, paths: dict, max_chars: int,
+                       max_tokens: int) -> list:
+        """Set up the fastText featurizer and output path; return the labels."""
+        with open(paths["labels"], encoding="utf-8") as fh:
+            raw_labels = json.load(fh)
 
         self._featurizer = GlotLIDFeaturizer(
             words=Path(paths["vocab"]).read_text(encoding="utf-8").split("\n"),
@@ -56,6 +105,8 @@ class LanguageDetector:
             minn=self._config["minn"],
             maxn=self._config["maxn"],
             bucket=self._config["bucket"],
+            max_chars=max_chars,
+            max_tokens=max_tokens,
         )
         # from_files() trims a trailing blank line from vocab.txt; do the same
         # here since we read the file ourselves to avoid a second disk read.
@@ -63,10 +114,6 @@ class LanguageDetector:
             self._featurizer.words.pop()
             self._featurizer.word2id = {w: i for i, w in enumerate(self._featurizer.words)}
 
-        self._session = ort.InferenceSession(
-            str(paths["onnx_file"]), sess_options=session_options,
-            providers=["CPUExecutionProvider"],
-        )
         self._input_name = self._session.get_inputs()[0].name
         self._output_name = self._session.get_outputs()[0].name
 
@@ -76,20 +123,31 @@ class LanguageDetector:
         # fallback, and a model that declares nothing is plain softmax -
         # every fastText LID export before lid.176 was.
         self.loss = entry.get("loss") or self._config.get("loss") or "softmax"
-        self._hs_combiner: Optional[HSCombiner] = None
         if self.loss == "hs":
             if "hs_tree" not in paths:
                 raise ValueError(
-                    f"model {model_id!r} declares loss=hs but its registry "
+                    f"model {self.model_id!r} declares loss=hs but its registry "
                     "entry has no 'hs_tree' side file"
                 )
-            self._hs_combiner = HSCombiner.from_file(paths["hs_tree"])
+            self._hs_combiner = HSCombiner.from_file(
+                paths["hs_tree"], num_labels=self.num_labels)
+        return raw_labels
 
     @property
     def available_languages(self) -> set:
         return self._label_mapper.available_languages
 
     def _probs(self, text: str) -> np.ndarray:
+        # An input with no visible content still hashes to the lone EOS
+        # feature and still gets a confident-looking label out of the graph.
+        # str.strip() does not catch it on its own: zero-width and bidi
+        # format characters survive it, and text pasted out of HTML or a PDF
+        # carries them routinely.
+        if not has_visible_content(text):
+            raise EmptyInputError(
+                "cannot detect the language of text with no visible content")
+        if self._classifier is not None:
+            return self._classifier(text)
         feature_ids = self._featurizer(text)
         (raw,) = self._session.run(
             [self._output_name], {self._input_name: feature_ids}
@@ -102,7 +160,8 @@ class LanguageDetector:
         return raw
 
     def detect_raw(self, text: str) -> tuple:
-        """Return (native GlotLID label, confidence), e.g. ("glg_Latn", 0.82)."""
+        """Return (native model label, confidence), e.g. ("glg_Latn", 0.82)
+        from GlotLID or ("yor", 0.97) from AfroLID."""
         probs = self._probs(text)
         best = int(np.argmax(probs))
         return self._raw_labels[best], float(probs[best])

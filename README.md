@@ -24,10 +24,42 @@ quantised model is a trade nobody on a small device wants to make.
 ```bash
 pip install linguonnx
 pip install linguonnx[distance]   # adds orthography2ipa, for pivot ranking
+pip install linguonnx[rules]      # adds pt2barranquenho and pt2mirandese
 ```
 
+By default every session runs on `CPUExecutionProvider`. `onnxruntime` and
+`onnxruntime-gpu` provide the same `onnxruntime` import namespace and must
+never both be installed, so the `gpu` extra cannot pull `onnxruntime-gpu` in
+automatically without breaking that constraint - it is a no-op label. A GPU
+host swaps the runtime itself, in the same environment linguonnx is already
+installed in:
+
+```bash
+pip uninstall onnxruntime
+pip install onnxruntime-gpu
+export LINGUONNX_ONNX_PROVIDERS=auto   # or a CSV list, e.g. CUDAExecutionProvider
+```
+
+`auto` picks the best provider the installed ONNX Runtime build actually
+offers, always falling back to CPU. A requested provider that fails to
+initialize - a CUDA build with no CUDA device, say - is something ONNX Runtime
+does not raise on; it silently runs the next provider in the list instead.
+`linguonnx` checks this after building each session and logs a warning when
+the active provider is not the one that was asked for, so a misconfigured GPU
+deployment does not run on CPU indefinitely without anyone noticing. See
+`linguonnx/providers.py`. Whether a given model architecture actually runs on
+a non-CPU provider depends on the ops in its exported ONNX graph and has to be
+verified per architecture on real hardware; provider selection here is honest
+about what got selected, not a claim that every export runs on it.
+
 Models download from HuggingFace on first use and are cached under
-`~/.cache/linguonnx/models/<model_id>/`.
+`~/.cache/linguonnx/models/<model_id>/`. Set `LINGUONNX_CACHE` to put that
+somewhere else — on a server the weights are tens of gigabytes and `$HOME` is
+usually the small root volume:
+
+```bash
+export LINGUONNX_CACHE=/mnt/bulk/linguonnx
+```
 
 ## Identify a language
 
@@ -69,6 +101,24 @@ print(route.pivots)         # ('ca',) — it went through Catalan
 print(route.license_tier)   # 'permissive' — the worst licence on the chain
 ```
 
+Routing prefers models of 2048 MB or less. A pair that nothing that small can
+serve falls back to the smallest larger model that covers it, so every language
+stays routable. A size budget that you set is a filter instead. It turns a
+single large hop into a chain of small ones, for a host that cannot afford the
+download:
+
+```python
+frugal = load_translator(max_model_mb=500)   # or LINGUONNX_MAX_MODEL_MB
+```
+
+Not every model is a neural network. `pt2barranquenho` and `pt2mirandese` are
+rule-based translators from Portuguese into Barranquenho (`ext-PT-x-barrancos`)
+and Mirandese (`mwl`). They come from the `rules` extra, download nothing and
+route like any other model. Other languages reach Barranquenho through
+Portuguese. Mirandese has neural models too, and every source except
+Portuguese routes to it through them. See
+[docs/models.md](docs/models.md#rule-based-models).
+
 See [docs/translate.md](docs/translate.md) for the API and
 [docs/routing.md](docs/routing.md) for how a route is chosen.
 
@@ -76,12 +126,12 @@ See [docs/translate.md](docs/translate.md) for the API and
 
 | | |
 |---|---|
-| Language identification | 4 models, 176 to 2102 labels, 33 MB to 1.7 GB |
-| Translation | 150 registry entries — fp32 and int8 of 75 models |
-| Reachable languages | 459, over the default graph |
-| Default LID model | `glotlid-int8` — Apache-2.0, the only permissive LID option |
-| Default translation graph | every permissive int8 model, fewest hops, capped at 2 |
-| Licences | Apache-2.0, MIT and CC-BY-4.0 by default; GPL-3.0 and CC-BY-NC-4.0 must be asked for by name |
+| Language identification | 6 models, 176 to 2102 labels, 33 MB to 1.7 GB |
+| Translation | 453 registry entries — 225 int8 and 226 fp32 across 226 models, plus 2 rule-based translators |
+| Reachable languages | 606, over the default graph |
+| Default LID model | `glotlid-int8` — Apache-2.0, the widest coverage |
+| Default translation graph | every int8 or rule-based model that is not non-commercial, fewest hops, capped at 2 |
+| Licences | Apache-2.0, MIT, CC-BY-4.0 and CC-BY-SA-4.0 by default; GPL-3.0 and CC-BY-NC-4.0 must be asked for by name |
 
 `linguonnx` itself is Apache-2.0 and downloads no model you did not ask for.
 Some of the models are not: OpenLID is GPL-3.0 and NLLB-200 is CC-BY-NC-4.0,
@@ -96,7 +146,8 @@ to opt in.
 - [docs/translate.md](docs/translate.md) — the translation API, and how each
   architecture picks its target language. Get that wrong and nothing raises.
 - [docs/routing.md](docs/routing.md) — capabilities rather than edges, the
-  `prefer` policies, hop caps, pivot ranking, pinning a route yourself.
+  `prefer` policies, hop caps, the size budget, pivot ranking, pinning a route
+  yourself.
 - [docs/models.md](docs/models.md) — the registry, what is in it, and the
   generated `sync_registry.py` workflow that keeps it honest.
 - [docs/licences.md](docs/licences.md) — the licence tiers and what
@@ -105,6 +156,15 @@ to opt in.
 Runnable scripts live in [`examples/`](examples/). Each says in its docstring
 what it demonstrates and what it downloads.
 
+## Use it from OpenVoiceOS
+
+[`ovos-plugin-linguonnx`](https://github.com/OpenVoiceOS/ovos-plugin-linguonnx)
+wraps this library as two OVOS plugins from one install: a language detector
+(`opm.lang.detect`, id `ovos-lang-detect-plugin-linguonnx`) and a translator
+(`opm.lang.translate`, id `ovos-translate-plugin-linguonnx`). Both load their
+models on first use, and every knob in `load_detector` and `load_translator` is
+reachable from `mycroft.conf`.
+
 ## Development
 
 ```bash
@@ -112,6 +172,8 @@ uv pip install -e .[test]
 pytest test/ -m "not network"     # unit tests: no download, no model
 pytest test/                      # also runs the real model downloads
 python scripts/check_docs.py      # execute every code sample in these docs
+                                   # (needs network: it downloads real models,
+                                   # same as `pytest -m network`; not run in CI)
 ```
 
 Routing and decoding are tested without any real model. The graph is pure
