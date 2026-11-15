@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.2a1](https://github.com/TigreGotico/linguonnx/tree/0.26.2a1) (2026-11-15)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.1a1...0.26.2a1)
+
+**Merged pull requests:**
+
+- fix: encode through Tokenizer.compile\(\) on tokenizers 1.0 [\#167](https://github.com/TigreGotico/linguonnx/pull/167) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.26.1a1](https://github.com/TigreGotico/linguonnx/tree/0.26.1a1) (2026-11-06)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.0a1...0.26.1a1)
@@ -383,10 +391,6 @@
 ## [0.9.1a1](https://github.com/TigreGotico/linguonnx/tree/0.9.1a1) (2026-08-04)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.9.0a1...0.9.1a1)
-
-**Merged pull requests:**
-
-- fix: three target-language and routing defects from the live quality sweep [\#64](https://github.com/TigreGotico/linguonnx/pull/64) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.9.0a1](https://github.com/TigreGotico/linguonnx/tree/0.9.0a1) (2026-08-03)
 
