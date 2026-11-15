@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from huggingface_hub import hf_hub_download
 
 from linguonnx.model_manager import list_models
 from linguonnx.translate import load_translator
@@ -27,6 +28,16 @@ SOURCES = {"acm", "aeb", "afb", "apc", "apd", "arq", "ars", "ary", "arz",
 REFERENCE = json.loads((ROOT / "test" / "data" / "arat5_reference.json")
                        .read_text(encoding="utf-8"))
 TRANSLATE = list_models(kind="translate")
+
+#: tokenizers 0.23.3 on the published tokenizer.json, for the first three
+#: reference sentences joined by spaces: 66 tokens and ``</s>``.
+THREE_SENTENCE_IDS = [
+    23506, 568, 18890, 597, 2514, 109598, 151, 21852, 66514, 8755, 31, 15174,
+    630, 8790, 109598, 4510, 12657, 109779, 62543, 35290, 14423, 109598, 548,
+    66514, 396, 24407, 1743, 109566, 31183, 560, 109598, 6848, 8755, 31,
+    15174, 630, 14649, 1157, 52512, 147, 2743, 245, 715, 678, 40, 109566,
+    3316, 109590, 151, 21063, 8755, 31, 50063, 630, 8790, 410, 66371, 147,
+    4429, 109598, 425, 13749, 3614, 66371, 729, 823, 1]
 
 
 @pytest.mark.parametrize("model_id", [MODEL_ID, MODEL_ID + "-int8"])
@@ -84,6 +95,47 @@ def test_a_truncation_setting_in_tokenizer_json_does_not_cut_the_input(tmp_path)
     assert tokenizer.encode("a b c d e f g h") == [4, 5, 6, 7, 8, 9, 10, 11, 1]
 
 
+class _Rc3Tokenizer:
+    """tokenizers 1.0.0rc3: settings are properties and the Tokenizer itself
+    encodes; there is no compile()."""
+
+    def __init__(self):
+        self.truncation = self.padding = "set in the file"
+
+    @classmethod
+    def from_file(cls, path):
+        return cls()
+
+
+class _Rc4Tokenizer(_Rc3Tokenizer):
+    """tokenizers 1.0.0rc4: only what compile() returns encodes, and it
+    keeps the settings the Tokenizer had at that moment."""
+
+    def compile(self):
+        return {"truncation": self.truncation, "padding": self.padding}
+
+
+@pytest.mark.parametrize("stub, version, expected", [
+    (_Rc3Tokenizer, "1.0.0-rc.3", None),
+    (_Rc4Tokenizer, "0.0.0", {"truncation": None, "padding": None}),
+])
+def test_the_loader_follows_the_api_not_the_version(monkeypatch, stub, version,
+                                                    expected):
+    """The release candidates of tokenizers 1.0 share the major version and
+    differ in API, so a version check picks the wrong path on one of them."""
+    import tokenizers
+
+    from linguonnx.translate.tokenizers import load_fast_tokenizer
+
+    monkeypatch.setattr(tokenizers, "Tokenizer", stub)
+    monkeypatch.setattr(tokenizers, "__version__", version)
+    tok = load_fast_tokenizer("tokenizer.json")
+    if expected is None:
+        assert isinstance(tok, stub)
+        assert (tok.truncation, tok.padding) == (None, None)
+    else:
+        assert tok == expected
+
 def test_a_unigram_vocabulary_gives_each_special_token_its_list_position(tmp_path):
     """The Softcatala Pegasus exports hold a Unigram model, whose vocabulary is
     a list of ``[piece, score]``: a token's id is its position in that list."""
@@ -119,6 +171,23 @@ def test_t5_fast_decoding_applies_the_configured_clean_up(tmp_path):
 
 def test_reference_fixture_covers_every_registered_source():
     assert {row["src"] for row in REFERENCE} == SOURCES
+
+
+@pytest.mark.network
+def test_the_published_tokenizer_encodes_past_its_64_token_truncation():
+    """The tokenizers package reads the published tokenizer.json, on 0.x and
+    1.x. Each reference sentence gets the reference ids, and a 67-id input
+    reaches the encoder whole although the file truncates at 64."""
+    repo = TRANSLATE[MODEL_ID]["hf_repo"]
+    tokenizer = load_tokenizer("t5-fast", {
+        name: hf_hub_download(repo, filename) for name, filename in (
+            ("tokenizer_json", "tokenizer.json"),
+            ("tokenizer_config", "tokenizer_config.json"),
+            ("special_tokens_map", "special_tokens_map.json"))}, ())
+    assert [tokenizer.encode(row["text"]) for row in REFERENCE] \
+        == [row["input_ids"] for row in REFERENCE]
+    text = " ".join(row["text"] for row in REFERENCE[:3])
+    assert tokenizer.encode(text) == THREE_SENTENCE_IDS
 
 
 @pytest.mark.network
