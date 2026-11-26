@@ -1,4 +1,5 @@
 # Routing
+<!-- agent-hint: how the router selects a route: prefer policies, hop caps, the size budget, pivot ranking, quality flags. Verify: `python scripts/check_docs.py docs/routing.md` and `pytest -q test/test_docs.py`. -->
 
 No single translation model covers every pair anyone wants. Some pairs have a
 dedicated bilingual model, some are only reachable inside a big multilingual
@@ -30,31 +31,31 @@ fails at runtime.
 ## Coverage and runnability are separate
 
 A capability says what a model's weights know. It also says whether this
-library can **run** them, which is a different question: an entry can be a
-correct claim about languages and still have no inference pipeline here.
-IndicTrans2 needs the IndicProcessor preprocessing chain and ProxectoNos'
-OpenNMT exports need Moses plus subword-nmt BPE; neither is vendored, so
-`TranslationModel.translate` raises `NotImplementedError` for them.
+library can **run** them, which is a different question. An entry can be a
+correct claim about languages, and the model can still need packages that are
+not installed. IndicTrans2 needs the IndicProcessor preprocessing chain from
+the `indic` extra. The Proxecto Nós OpenNMT exports need Moses and subword-nmt
+BPE from the `opennmt` extra.
 
-The routing layer agrees with that. A model the registry marks unrunnable is
-excluded from `route()`, `routes()`, `can_translate()` and
-`available_languages`, so a caller who asks "will this work" before committing
-gets the same answer `translate()` will give:
+The routing layer agrees with that. A model that cannot run is excluded from
+`route()`, `routes()`, `can_translate()` and `available_languages`. A caller who
+asks "will this work" before the call gets the same answer that `translate()`
+gives:
 
 ```python
 from linguonnx import load_translator
 
 tx = load_translator()
-print(tx.can_translate("en", "sat"))    # False — no runnable model has Santali
+print(tx.can_translate("en", "sat"))    # True — with the indic extra installed
 ```
 
-The pair is still covered by an entry, and the error says so instead of
-implying the language is unknown:
+Without the `indic` extra the answer is `False`. The pair is still covered by an
+entry, and the error says so. It does not say that the language is unknown:
 
 ```
-no route from 'en' to 'sat' within 2 hop(s) -- model(s) cover this pair but
-cannot be run: indictrans2-en-indic-dist-200M-int8 (IndicTrans2 needs the
-IndicProcessor preprocessing pipeline ...)
+no route from 'en' to 'sat' within 2 hop(s) -- ... -- model(s) cover this pair
+but cannot be run: indictrans2-en-indic-1B-int8, indictrans2-en-indic-dist-200M-int8
+(indic-nlp-library-itt not installed; install linguonnx[indic])
 ```
 
 Runnability is registry data, not a list of architecture names in the router.
@@ -106,16 +107,17 @@ from linguonnx import load_translator
 tx = load_translator()
 route = tx.route("pt", "eu")
 
-print(route.n_hops)         # 1
-print(route.model_ids)      # ('madlad400-3b-mt-int8',)
-print(route.pivots)         # () — no pivot on a direct route
-print(route.licenses)       # ('Apache-2.0',)
+print(route.n_hops)         # 2
+print(route.model_ids)      # ('aina-translator-pt-ca-int8', 'mt-hitz-ca-eu-int8')
+print(route.pivots)         # ('ca',)
+print(route.licenses)       # ('Apache-2.0', 'Apache-2.0')
 print(route.license_tier)   # 'permissive' — the worst tier on the chain
 print(route.prefer)         # 'fewest_hops' — the policy that produced this
-print(route.pivot_basis)    # 'phonological' or 'table'
+# 'phonological' or 'table'
+print(route.pivot_basis)
 print(route)
-# [pt->eu, 1 hop(s), prefer=fewest_hops] pt->eu via madlad400-3b-mt-int8
-# (multilingual, Apache-2.0)
+# [pt->eu, 2 hop(s), prefer=fewest_hops] pt->ca via aina-translator-pt-ca-int8 ...
+#  | ca->eu via mt-hitz-ca-eu-int8 (dedicated, Apache-2.0, specialist:HiTZ)
 ```
 
 A `Route` is always available to the caller, and `translate(...,
@@ -154,22 +156,24 @@ rather than intuition. So it is a parameter, not a baked-in assumption:
 ```python
 tx = load_translator(prefer="fewest_hops")   # the default
 tx = load_translator(prefer="dedicated")     # 2 dedicated hops > 1 multilingual
-print(tx.route("pt", "ru", prefer="fewest_hops").model_ids)  # or per call
+# or per call
+print(tx.route("pt", "ru", prefer="fewest_hops").model_ids)
 ```
 
 `fewest_hops` is the default because it is the conservative choice: it never
 doubles latency or compounds error unless it is asked to. It is not a claim
 that it produces better text.
 
-The two policies really do diverge. Under the default, `pt -> eu` is one MADLAD
-hop; under `prefer="dedicated"` it is a two-hop Marian chain through Catalan.
+The two policies give different routes. Under the default, `pt -> ru` is one
+M2M100 hop. Under `prefer="dedicated"` it is a chain of two Marian models
+through English.
 
 ```python
 tx = load_translator()
-print(tx.route("pt", "eu").model_ids)
-# ('madlad400-3b-mt-int8',)
-print(tx.route("pt", "eu", prefer="dedicated").model_ids)
-# ('opus-mt-pt-ca-int8', 'mt-hitz-ca-eu-int8')
+print(tx.route("pt", "ru").model_ids)
+# ('m2m100-418M-int8',)
+print(tx.route("pt", "ru", prefer="dedicated").model_ids)
+# ('opus-mt-pt-en-int8', 'opus-mt-en-ru-int8')
 ```
 
 Basque is a good illustration of why the default graph is not flat: **M2M100
@@ -285,7 +289,8 @@ existed.
 
 ```python
 tx = load_translator(max_hops=2)             # the default
-print(tx.route("pt", "en", max_hops=1))      # per-call override
+# a per-call override
+print(tx.route("pt", "en", max_hops=1))
 ```
 
 `max_hops=1` means direct models only: it raises `NoRouteError` rather than
@@ -734,8 +739,8 @@ a pair only when nothing else does, so two clean hops beat one flagged hop.
 ```python
 from linguonnx.translate.quality import is_quality_flagged
 
-print(is_quality_flagged("opus-mt-az-en"))    # True  - below the absolute floor
-print(is_quality_flagged("opus-mt-en-es"))    # False - a calibration-set model
+print(is_quality_flagged("opus-mt-az-en"))    # True — below the absolute floor
+print(is_quality_flagged("opus-mt-en-es"))    # False — a calibration-set model
 ```
 
 ### Filtering on it
@@ -962,11 +967,10 @@ a poor pivot inside the Iberian peninsula, where Spanish keeps far more of the
 morphology and lexicon than English does.
 
 `linguonnx/translate/graph.py` holds a global `DEFAULT_PIVOT_PREFERENCE` and a
-per-language `REGIONAL_PIVOTS` table, and both are overridable:
+per-language `REGIONAL_PIVOTS` table. You can override both:
 
 ```python
 tx = load_translator(pivot_preference=("es", "en", "fr"))
-print(tx.route("gl", "ca", prefer="dedicated").pivots)   # ('pt',)
 ```
 
 ### Ranking pivots by measured distance
@@ -981,7 +985,8 @@ pip install linguonnx[distance]     # adds orthography2ipa
 
 ```python
 tx = load_translator(pivot_ranking="auto")   # the default
-print(tx.pivot_ranking)                      # 'phonological' or 'table'
+# 'phonological' or 'table'
+print(tx.pivot_ranking)
 print(tx.route("pt", "eu").pivot_basis)
 ```
 
@@ -1036,3 +1041,6 @@ dataset carries an empty ancestry list, so Ibero-Romance languages never meet
 at a shared ancestor and `full_distance` ends up rating English closer to
 Catalan than Spanish is. That data gap has to close before the switch is worth
 making.
+
+---
+[← Prev](translate.md) · [Home](index.md) · [Next →](models.md)

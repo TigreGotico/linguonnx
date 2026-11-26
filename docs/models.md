@@ -1,4 +1,5 @@
 # The model registry
+<!-- agent-hint: the model registry, the rule-based models and the sync workflow. Verify: `python scripts/check_docs.py docs/models.md`. -->
 
 Two JSON files under `linguonnx/model_index/` say what exists: `lid.json` for
 language identification and `translate.json` for translation. They hold 12 and
@@ -14,7 +15,7 @@ it sounds.
 ## What is in the translation registry
 
 453 entries is 225 int8 and 226 fp32 entries across 226 models, plus 2
-rule-based entries. `load_translator()` defaults to `precision="int8"`; pass
+rule-based entries. `load_translator()` defaults to `precision="int8"`. Pass
 `precision="fp32"` or `precision=None` for both. A rule-based entry has no
 weights and no precision, so the precision filter never removes it.
 
@@ -101,7 +102,7 @@ Three opus-mt group models translate **from English only**, into the
 languages their vocabulary carries a `>>xxx<<` token for:
 `opus-mt-tc-big-en-zle` (be, ru, rue, uk), `opus-mt-en-gmq`
 (da, fo, is, nb, nn, sv) and `opus-mt-tc-big-en-cat_oci_spa` (ca, es, oc).
-The token set names the target side; the encoder reads English and nothing
+The token set names the target side. The encoder reads English and nothing
 else. `opus-mt-tc-big-en-zle` also carries `>>orv<<`/`>>orv_Cyrl<<` (Old East
 Slavic) in its vocabulary, but both produce modern Russian, so neither is
 claimed.
@@ -156,7 +157,7 @@ print(tx.route("en", "ext-PT-x-barrancos").model_ids)
 same way: one line at a time, `{slots}` kept, one-way. Its code is Apache-2.0
 and its word lists include CC-BY-SA-4.0 data, so the entry's tier is
 `share-alike`. Mirandese is also covered by MADLAD-400 and the two opus-mt
-Italic group models, `opus-mt-itc-itc` and `opus-mt-tc-big-itc-itc`; when the
+Italic group models, `opus-mt-itc-itc` and `opus-mt-tc-big-itc-itc`. When the
 package is not installed, `pt -> mwl` routes through those instead.
 
 The package comes from the `rules` extra:
@@ -188,12 +189,12 @@ Files are cached under `$LINGUONNX_CACHE/models/<model_id>/`, defaulting to
 `~/.cache/linguonnx`. The variable is read once at import, so set it before
 importing linguonnx. Point it at bulk storage on a server: the whole
 translation registry is well over 100 GB, and a symlink at `~/.cache/linguonnx`
-is not a substitute — it is invisible to anyone reading the code and the root
+is not a substitute: it is invisible to anyone reading the code and the root
 disk fills up the moment it goes missing or a service runs as another user.
 
 Downloads go
 through `huggingface_hub.hf_hub_download`, which does its own resumable and
-checksummed download, and are then copied into the cache atomically — written
+checksummed download, and are then copied into the cache atomically, written
 to a temp sibling and `os.replace`'d into place, so a killed process never
 leaves a truncated file at the final path. A zero-byte file there is always
 treated as "not cached" and fetched again.
@@ -202,7 +203,7 @@ The temp name is unique per process and per call. That is what makes the
 guarantee hold when two workers cold-start the same model at the same time:
 they write to different temp files, and the second `os.replace` publishes a
 complete file. A shared temp name lets them interleave, and the result is a
-corrupt file that is not zero bytes — which no later run would notice.
+corrupt file that is not zero bytes, which no later run would notice.
 
 A registry filename must stay inside its model's cache directory. Absolute
 paths and `..` components are refused, so an edited registry file cannot turn
@@ -221,7 +222,7 @@ published to the cache. Both fields are optional and no entry carries them yet;
 
 A cold fetch bigger than `LINGUONNX_MAX_DOWNLOAD_MB` raises
 `DownloadTooLargeError` instead of holding a request thread for an hour on a
-slow link. The default of 8192 refuses nothing in the current registry; set it
+slow link. The default of 8192 refuses nothing in the current registry. Set it
 lower on a server where the request path must stay predictable. `0` disables
 the check. A warm cache never trips it.
 
@@ -241,7 +242,7 @@ prefetch("opus-mt-pt-en-int8", kind="translate")
 A `Translator` keeps at most `model_cache_size` loaded models alive, four by
 default, and evicts the least recently used one. Eviction drops the cache's
 reference, which releases that model's three ONNX sessions once nothing else
-holds it — so a request still decoding through an evicted model keeps working,
+holds it, so a request still decoding through an evicted model keeps working,
 and its sessions go when it finishes.
 
 The bound matters because the whole default graph is 73 models and about
@@ -253,10 +254,11 @@ every download again.
 from linguonnx import load_translator
 
 tx = load_translator(model_cache_size=8)   # more RAM, fewer reloads
-print(tx.loaded_models)                    # least recently used first
+# least recently used first
+print(tx.loaded_models)
 ```
 
-Raise it when one process serves a few hot pairs and has the RAM; lower it on a
+Raise it when one process serves a few hot pairs and has the RAM. Lower it on a
 small device. An evicted model reloads from the disk cache on next use, so
 eviction costs session-build time, not a download.
 
@@ -268,7 +270,8 @@ Marian models are about 1.4 GB, four MADLAD-400-3B are about 20 GB. Set
 
 ```python
 tx = load_translator(model_cache_size=8, max_loaded_mb=2000)
-print(tx.loaded_mb)    # declared MB the cache currently retains
+# the declared MB that the cache retains
+print(tx.loaded_mb)
 ```
 
 Whichever limit binds first evicts. `loaded_mb` sums the registry's declared
@@ -326,11 +329,11 @@ wait for a slot instead of loading another model.
 **Size from the largest model a route can reach, not from `max_loaded_mb`.**
 
 The default graph contains **MADLAD-400-3B: 4945 MB declared, Apache-2.0,
-int8** — it is permissively licensed, so it is *not* excluded by
+int8**. It is permissively licensed, so it is *not* excluded by
 `include_noncommercial=False`, and it covers the long tail of languages, so
 routing reaches for it exactly when nothing smaller can serve a pair. One
 MADLAD in flight measures **9081 MB**. On a 12 GiB (12288 MB) host that leaves
-about 3.0 GiB, and a *second* concurrent MADLAD needs 18.3 GB total — so the
+about 3.0 GiB, and a *second* concurrent MADLAD needs 18.3 GB total, so the
 box OOMs on the second concurrent request.
 
 That gives two supportable configurations, and concurrency alone is not enough
@@ -371,9 +374,9 @@ tx = load_translator(
 ```
 
 Setting `max_model_mb` costs coverage: a language that only MADLAD serves
-becomes unroutable. `oversize_fallback=True` softens that — every pair a
+becomes unroutable. `oversize_fallback=True` softens that. Every pair a
 smaller model can serve still uses it, and only a pair nothing under the cap
-covers escalates — but an escalated route puts MADLAD back in flight, so size
+covers escalates, but an escalated route puts MADLAD back in flight, so size
 for case A if you enable it.
 
 **Keep the container memory limit whatever these settings say.** It is the
@@ -400,15 +403,15 @@ and which are stale, so "someone published a model and forgot the registry"
 shows up as a failing check instead of a silent gap. Re-running the generator
 on an unchanged Hub produces a byte-identical file.
 
-It needs a network and a full 280-repo crawl, so no workflow runs it — it is a
+It needs a network and a full 280-repo crawl, so no workflow runs it. It is a
 command a maintainer runs, not a gate CI applies. Everything that *can* be
 checked offline against the committed registry is a test in
 `test/test_registry_sync.py`, and those do run in CI.
 
 A sync never destroys hand-verified work. The script owns the fields it
-derives from the Hub — `GENERATED_KEYS` in `scripts/sync_registry.py`: the file
+derives from the Hub (`GENERATED_KEYS` in `scripts/sync_registry.py`: the file
 listing, the licence, the size, the `>>xxx<<` coverage read out of each
-export's own `vocab.json` — and may overwrite or remove those. Every other
+export's own `vocab.json`), and may overwrite or remove those. Every other
 field in an entry is carried across untouched, whether or not anyone declared
 it. `notes` and `quality` go further and win outright: the script writes a
 default one-line `notes`, but the committed text may carry a caveat somebody
@@ -421,13 +424,13 @@ Where the generator disagrees with a curated field, the curated value is kept
 from freezing the entry: the registry text no longer moves when an upstream
 card is rewritten, so nothing else would report it, but `_overruled.json`
 changes and `--check` fails on it like any other drift (`OVERRULED-DRIFT` on
-stderr). Clearing it is the normal loop — run the sync, read the diff, fold in
+stderr). Clearing it is the normal loop: run the sync, read the diff, fold in
 anything real, commit. Failing on the disagreement itself would never clear: a
 curated note differs from the generated one by definition.
 
-Fields in neither list — a typo'd `note`, or one whose generator was deleted —
+Fields in neither list (a typo'd `note`, or one whose generator was deleted)
 are preserved and printed with a `CURATED` prefix. They are immortal by
-design; the print is so they are not also invisible.
+design. The print is so they are not also invisible.
 
 `human_owned_losses` refuses to write if a run would fail to reproduce a
 curated value, naming each entry and field. It is a tripwire on the merge
@@ -438,7 +441,7 @@ because that function is the thing that broke.
 The allow-list is of generated keys, not of human ones, on purpose: a list of
 human-owned keys fails silently the first time somebody curates a field nobody
 remembered to add to it. Adding a derived field means adding it to
-`GENERATED_KEYS`; the script refuses to run until you do.
+`GENERATED_KEYS`. The script refuses to run until you do.
 
 A rule-based model is not a Hub repo, so the crawl never finds it. The script
 adds every entry in its `RULE_BASED_MODELS` table to each generated registry.
@@ -487,7 +490,7 @@ dependency. An export with neither shape complete is skipped rather than
 registered half-readable.
 
 That reader implements a Unigram lattice and nothing else. An export whose
-`tokenizer.json` declares a normaliser is refused, not approximated — a
+`tokenizer.json` declares a normaliser is refused, not approximated. A
 normaliser rewrites the text before segmentation, and ignoring one produces a
 plausible tokenisation of a string the model was never given.
 
@@ -525,7 +528,7 @@ corpus, and the registered sources are the varieties whose city blocks in that
 data are named by their own dialect features. Hijazi, Omani and Saidi Arabic
 are in the data too but are not registered, because which block holds each is
 not settled. The `tokenizer.json` also sets truncation at 64 tokens, which
-`transformers` ignores unless asked; linguonnx switches it off the same way.
+`transformers` ignores unless asked. Linguonnx switches it off the same way.
 
 **Valencian.** `IbRo-nllb` also has a Valencian token, `val_Latn`, which the
 registry does not register. The router treats `ca-valencia` as `ca`, so a
@@ -558,7 +561,7 @@ here, not a substitute for a deterministic sign mapping.
 **Group models.** A repo called `opus-mt-en-pl-onnx` is an export of
 `opus-mt-en-sla`, a model that serves several Slavic languages from one decoder
 and needs a `>>pol<<` prefix token on the input. The script cross-checks the
-repo name against the base model named in the card; when the target side
+repo name against the base model named in the card. When the target side
 disagrees it records the `target_token` the export was verified against, and
 skips the repo entirely if the card does not show one. Publishing a coverage
 claim that cannot be honoured is worse than publishing nothing.
@@ -591,9 +594,9 @@ a token this way, each measured with and without it:
 asks for `pt-BR` gets the `>>por<<` output. That is a coverage gap in the
 entry, not an ambiguity in this rule.
 
-A repo whose *name* is a family — `opus-mt-itc-itc`, `opus-mt-mul-en` — is not
+A repo whose *name* is a family, `opus-mt-itc-itc`, `opus-mt-mul-en`, is not
 a pair at all and is not treated as one. `itc` is the Italic family, so no
-caller can ask for it; the entry that used to say `pair: ["itc", "itc"]` was an
+caller can ask for it. The entry that used to say `pair: ["itc", "itc"]` was an
 edge nobody could reach, and the mandatory prefix token was missing because the
 "base target differs from repo target" test cannot fire when both sides say
 `itc`. These take the token path instead: the `>>xxx<<` keys in the export's own
@@ -630,3 +633,6 @@ There is a third hand-maintained fix-up, `MARIAN_MULTILINGUAL_OVERRIDES`, for a
 model whose own code collides with a different language's ISO tag —
 `liv4ever-mt`'s `<2li>` means Livonian, not Limburgish. Left alone, the router
 would offer that model for a language it has never seen.
+
+---
+[← Prev](routing.md) · [Home](index.md) · [Next →](licences.md)

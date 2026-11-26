@@ -1,8 +1,9 @@
 # Licences
+<!-- agent-hint: licence tiers, non-commercial models and NoRouteError. Verify: `python scripts/check_docs.py docs/licences.md`. -->
 
 `linguonnx` is Apache-2.0. The models are not all Apache-2.0, and a model's
 licence follows its output into whatever you build. So the library treats
-licence as a first-class routing fact rather than a footnote: it downloads no
+licence as a routing fact rather than a footnote: it downloads no
 model you did not ask for, keeps the restrictive ones out of the default
 translation graph, and reports the tier of every route it returns.
 
@@ -28,7 +29,7 @@ name. But the choice matters:
 
 - **GlotLID** is Apache-2.0. It is the default because it is permissive and
   has the widest coverage.
-- **AfroLID** is Apache-2.0 as well. Its Hub card declares no licence; the
+- **AfroLID** is Apache-2.0 as well. Its Hub card declares no licence. The
   AfroLID repository states that its Apache-2.0 licence applies to the
   pre-trained models. It covers African languages only.
 - **OpenLID and OpenLID-v2 are GPL-3.0**, inherited from the upstream models.
@@ -47,7 +48,7 @@ precisions. All of them are
 CC-BY-NC-4.0.
 
 A share-alike model stays in the default graph. CC-BY-SA permits commercial
-use; its condition is that a derived work keeps the same licence. Two
+use. Its condition is that a derived work keeps the same licence. Two
 translation entries have this tier: `pt2mirandese`, whose word lists are
 CC-BY-SA-4.0, and `vinai-translate-vi2en-v2`. A caller who must avoid
 share-alike terms can check `route.license_tier`, or name the models in
@@ -95,8 +96,8 @@ try:
 except ValueError as err:
     print(err)
     # 'nllb-600M-int8' is not in this translator's models. It is
-    # filtered out (see include_noncommercial=, precision= and models= on
-    # load_translator) or it does not exist.
+    #  filtered out (see include_noncommercial=, precision= and models= on
+    #  load_translator) or it does not exist.
 ```
 
 This is what makes `include_noncommercial=False` a guarantee about the output
@@ -153,8 +154,9 @@ whole:
 ```python
 tx = load_translator()
 route = tx.route("pt", "eu", prefer="dedicated")
-print(route.licenses)       # one licence per hop
-print(route.license_tier)   # the most restrictive of them
+# one licence per hop, then the most restrictive of them
+print(route.licenses)
+print(route.license_tier)
 ```
 
 `license_tier` is the **most restrictive** tier on the chain, because a route
@@ -178,7 +180,7 @@ try:
     tx.route("pt", "kea")
 except NoRouteError as err:
     print(err)
-# no route from 'pt' to 'kea' within 2 hop(s) -- excluded non-commercial
+# no route from 'pt' to 'kea' within 2 hop(s) -- excluded non-commercial ...
 # model(s) cover this pair: nllb-600M-int8; pass include_noncommercial=True
 # to use them
 ```
@@ -187,3 +189,6 @@ The hint only appears when the licence filter is genuinely the thing in the
 way. A pair no model covers at all gets the plain message, and `max_hops=1`
 adds its own note saying only direct models were considered, so the three
 reasons a route can fail are never confused with each other.
+
+---
+[← Prev](models.md) · [Home](index.md)

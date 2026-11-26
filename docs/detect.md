@@ -1,4 +1,5 @@
 # Language identification
+<!-- agent-hint: language identification: the models, variety labels, BCP-47 mapping and input limits. Verify: `python scripts/check_docs.py docs/detect.md`. -->
 
 `linguonnx.detect` answers one question: what language is this text in?
 
@@ -10,9 +11,9 @@ det = load_detector()                 # glotlid-int8, the default
 # openlid-v2-int8, afrolid_1.5-int8
 
 print(det.detect("Egun on, zer moduz?"))          # 'eu' — best-guess BCP-47 tag
-print(det.detect_probs("Bon dia a tothom", 3))    # {'ca': 0.998, ...}
-print(det.detect_raw("Bon dia a tothom"))         # ('cat_Latn', 0.998)
-print(len(det.available_languages))               # 2099 BCP-47 tags
+print(det.detect_probs("Bon dia a tothom", 3))    # {'ca': 0.999, ...}
+print(det.detect_raw("Bon dia a tothom"))         # ('cat_Latn', 0.999)
+print(len(det.available_languages))               # 2099 — BCP-47 tags
 print(det.loss)                                   # 'softmax'
 ```
 
@@ -157,7 +158,7 @@ most callers want a tag they can act on: a TTS voice, a translation target.
 Both are available:
 
 ```python
-print(det.detect_raw("وش لونك يا خوي"))                      # ('ars_Arab', 0.99)
+print(det.detect_raw("وش لونك يا خوي"))                      # ('ars_Arab', 1.0)
 print(det.detect("وش لونك يا خوي"))                          # 'ars'
 print(det.detect("وش لونك يا خوي", collapse_varieties=True)) # 'ar'
 ```
@@ -296,3 +297,6 @@ try:
 except EmptyInputError as err:
     print(err)
 ```
+
+---
+[← Prev](install.md) · [Home](index.md) · [Next →](translate.md)
