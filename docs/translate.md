@@ -1,4 +1,5 @@
 # Translation
+<!-- agent-hint: the translation API and how each architecture selects its target language. Verify: `python scripts/check_docs.py docs/translate.md`. -->
 
 `linguonnx.translate` runs encoder-decoder translation models on ONNX Runtime,
 with numpy doing the generation loop. Nothing here imports torch.
@@ -82,9 +83,9 @@ tx.translate("bom dia", src="pt", tgt="en", num_beams=1)   # greedy, ~4x faster
 **It stays off by default**, for two reasons. `transformers` defaults it to 0
 and every parity and chrF number in this registry was measured against it at
 0, so turning it on globally would silently re-score every model against
-numbers taken under different settings. And where it helps most — the weakest
-fine-tunes, which loop a phrase until the token budget runs out — it does not
-make the output correct; it replaces a repetitive wrong answer with a
+numbers taken under different settings. And where it helps most (the weakest
+fine-tunes, which loop a phrase until the token budget runs out), it does not
+make the output correct. It replaces a repetitive wrong answer with a
 non-repetitive wrong answer of the same chrF. A visible loop is a more honest
 signal than a fluent hallucination. Set it per call when you would rather
 have the latter:
@@ -158,12 +159,12 @@ the work on the way in. Both live in `linguonnx/translate/preprocess.py`, one
 `Pipeline` subclass each, so that the two halves are written next to each other
 and cannot drift apart.
 
-Neither is installed by default. `linguonnx` itself stays on `onnxruntime`,
-`numpy` and `sentencepiece`; the extras add the tokenisation these two need.
+Neither is installed by default. The runtime dependencies of `linguonnx` are
+the ones that `pyproject.toml` lists, and they do not include these. The extras add the tokenisation these two need.
 When an extra is missing, its models are left out of routing, and a call
 pinned to one with `model=` raises `NoRouteError` naming the extra. It never
 falls back to a simpler tokenisation, because a wrong tokenisation does not
-fail — it translates fluently into the wrong words.
+fail: it translates fluently into the wrong words.
 
 ### IndicTrans2
 
@@ -184,7 +185,7 @@ On the way in:
    Perso-Arabic, Ol Chiki, Meetei Mayek and Latin, because the model's shared
    vocabulary is written in Devanagari;
 6. the `<src_tag> <tgt_tag> ` prefix — FLORES-style tags such as `hin_Deva` or
-   `tam_Taml` — which is what selects the pair.
+   `tam_Taml`, which is what selects the pair.
 
 On the way out, all of that in reverse: script fix-ups for Perso-Arabic and
 Oriya, placeholders restored, **transliteration back into the target script**,
@@ -198,7 +199,7 @@ The processing code is vendored from AI4Bharat's
 [`IndicTransToolkit`](https://github.com/VarunGumma/IndicTransToolkit) rather
 than depended on, because that package declares `transformers` as a hard
 dependency and `linguonnx` keeps `transformers` out of the runtime. It is a
-copy, not a reimplementation — see
+copy, not a reimplementation: see
 [`_indic_processor.py`](../linguonnx/translate/_indic_processor.py) and
 [licences.md](licences.md).
 
@@ -216,32 +217,32 @@ pip install 'linguonnx[opennmt]'
 In: Moses-tokenise with the source language's rules, apply the `*_35k.code` /
 `source.bpe` merges shipped in the model repo **constrained by the export's own
 source vocabulary**, look the pieces up in that vocabulary, and add
-`source_offset`. OpenNMT-py keeps separate source and target vocabularies; the
+`source_offset`. OpenNMT-py keeps separate source and target vocabularies. The
 export concatenates them as `[target | source]`, so encoder input ids carry
 that offset and decoder output ids do not. No `</s>` is appended to the source,
 because OpenNMT-py does not append one.
 
 The vocabulary constraint is `subword-nmt`'s `--vocabulary`, and it is not
-optional. The merge table says *how* to join characters; the vocabulary says
+optional. The merge table says *how* to join characters. The vocabulary says
 *how far*. Given the vocabulary, `apply_bpe` re-splits any segment the
 vocabulary does not contain until every piece has an embedding. Given none, it
 applies every merge that fits and hands back a segment the model has never
-seen — which becomes `<unk>` on the encoder input, for a word the model knows
+seen, which becomes `<unk>` on the encoder input, for a word the model knows
 perfectly well. On `nos-mt-es-arg`, *duerme* merged to `duer@@ me` and `duer@@`
-is not in that export's source vocabulary, while `du@@ er@@ me` is; the model
+is not in that export's source vocabulary, while `du@@ er@@ me` is. The model
 was handed `Lo <unk> <unk> me` and answered accordingly.
 
 The constraint only ever *adds* splits. Segmenting 409,408 words across the
-thirteen models — for each, every whole word named by any export with the same
+thirteen models: for each, every whole word named by any export with the same
 source language, so the pool is not biased towards words a given model already
-holds — it repaired 56,869 and changed **zero** words that were already
+holds. It repaired 56,869 and changed **zero** words that were already
 segmenting into in-vocabulary pieces. Eleven of the thirteen repair something;
 `nos-mt-es-arg` repairs 6,852 and `nos-coda_iacobus-en-es` 13,519, while
 `nos-mt-gl-en` and `nos-mt-gl-es` need nothing.
 
 Out: map through the target vocabulary, strip the `@@` merge markers, Moses-
 detokenise. The markers are removed with the upstream `sed 's/@\s*//g'` rule,
-not `replace("@@ ", "")` — the two differ on a word-final `@@` before
+not `replace("@@ ", "")`: the two differ on a word-final `@@` before
 punctuation, where the naive form glues two words together.
 
 **`<unk>` is kept in the output.** Upstream `onmt_translate` hides it with
@@ -249,10 +250,10 @@ punctuation, where the naive form glues two words together.
 cross-attention weights. Those weights are not outputs of the exported graph,
 so the substitution cannot be reproduced, and inventing a replacement would be
 a guess presented as a translation. A visible `<unk>` says where the model
-failed; the original `onmt_translate` emits one in the same places.
+failed. The original `onmt_translate` emits one in the same places.
 
 That is true of the **target** side only. A `<unk>` on the *source* side is
-always a linguonnx bug, and is asserted against per model — see
+always a linguonnx bug, and is asserted against per model: see
 `TestEveryOpenNmtExportSegmentsIntoItsOwnVocabulary` in
 `test/test_translate_preprocess.py`.
 
@@ -266,7 +267,7 @@ ladr@@    6.43     <- in the target vocabulary
 lad@@     5.71     <- also in the target vocabulary
 ```
 
-and the *next* step emits `ra` — so the model had `ladr@@ a` available and
+and the *next* step emits `ra`, so the model had `ladr@@ a` available and
 chose `<unk>` for the first piece. OpenNMT-py replaces rare target words with
 `<unk>` during training, so the model learned to emit it; `-replace_unk` is
 what puts the word back at inference, and it cannot run here.
@@ -303,7 +304,7 @@ entry can carry `"runnable": false` with an `unrunnable_reason`, and the router
 honours it: the model is excluded from `route()`, `routes()`, `can_translate()`
 and `available_languages`, while remaining listed, licensed and sized. Listing
 a model while routing through it would put the failure in the worst possible
-place — `can_translate()` answering `True`, then a raise from the call the
+place: `can_translate()` answering `True`, then a raise from the call the
 caller made on the strength of that answer. `NoRouteError` names such a model
 when it is the only cover for a pair. See
 [routing.md](routing.md#coverage-and-runnability-are-separate).
@@ -334,7 +335,7 @@ entry, and `NoRouteError` names the extra. A caller who pins the model with
 
 ## When there is no route
 
-`route()` and `translate()` raise `NoRouteError` — a `LookupError` subclass —
+`route()` and `translate()` raise `NoRouteError` (a `LookupError` subclass)
 when nothing within `max_hops` connects the pair. The message says what was
 tried, and says so specifically when the licence filter is the only thing in
 the way:
@@ -346,7 +347,7 @@ try:
     tx.route("pt", "kea")           # Kabuverdianu
 except NoRouteError as err:
     print(err)
-# no route from 'pt' to 'kea' within 2 hop(s) -- excluded non-commercial
+# no route from 'pt' to 'kea' within 2 hop(s) -- excluded non-commercial ...
 # model(s) cover this pair: nllb-600M-int8; pass include_noncommercial=True
 ```
 
@@ -364,7 +365,7 @@ in their language detection.
 
 The source text is bounded before it reaches the encoder. Self-attention is
 quadratic in the source length, and beam search then re-gathers the whole
-cross-attention cache once per generated token — around 0.4 MB per source
+cross-attention cache once per generated token: around 0.4 MB per source
 token for M2M100-418M at 4 beams, so a 1,000-token input moves over a gigabyte
 per token produced. Past the model's positional table the output is not a
 translation anyway.
@@ -376,21 +377,21 @@ translation anyway.
 
 1,024 is the largest positional table among the registered architectures
 (M2M100); Marian stops at 512. Crossing the bound raises
-`linguonnx.limits.InputTooLongError` — split long text into sentences or
+`linguonnx.limits.InputTooLongError`: split long text into sentences or
 paragraphs and translate them one at a time.
 
 `GenerationConfig` validates its values on construction, which is the boundary
 `Translator(...)` and `load_translator(...)` pass through:
 
-- `num_beams` — positive int, at most 32. Beams past the number of finite
+- `num_beams`: positive int, at most 32. Beams past the number of finite
   candidates are padded with PAD tokens and add nothing, but each is still a
   full row of the attention cache, re-gathered every step.
-- `max_new_tokens` — positive int.
-- `length_penalty` — between `0.0` and `10.0`. Beam scores are log
+- `max_new_tokens`: positive int.
+- `length_penalty`: between `0.0` and `10.0`. Beam scores are log
   probabilities, so they are negative and divided by
-  `length ** length_penalty`; a negative exponent rewards longer sequences and
+  `length ** length_penalty`. A negative exponent rewards longer sequences and
   can rank a PAD-padded beam first.
-- `no_repeat_ngram_size` — `0` (off) or `2` and above. **`1` is rejected**: in
+- `no_repeat_ngram_size`: `0` (off) or `2` and above. **`1` is rejected**: in
   this loop the n-gram prefix is empty, so every token ever emitted would be
   banned from recurring and the output collapses, while in `transformers` the
   same setting silently does nothing because its lookup key is the whole
@@ -430,3 +431,6 @@ raise `max_new_tokens`. The end-of-sequence token counts against the budget,
 as it does in `transformers`. Beam search raises when the best-scoring
 hypothesis has not ended, even if a lower-scoring one has: on long input a
 finished hypothesis is often a short one that stopped early.
+
+---
+[← Prev](detect.md) · [Home](index.md) · [Next →](routing.md)
