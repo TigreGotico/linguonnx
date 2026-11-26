@@ -33,5 +33,14 @@ def draw(fig, theme, rows):
     models.set_ylabel("max_model_mb")
 
 
+def alt(rows):
+    full = rows[0]
+    at = {r["budget"]: r for r in rows}
+    return (f"A 500 MB budget keeps {at['500 MB']['models']} of {full['models']} models but only "
+            f"{at['500 MB']['languages']} of {full['languages']} languages; 300 MB keeps {at['300 MB']['languages']} languages.")
+
+
 if __name__ == "__main__":
-    save(str(ROOT / "docs" / "img" / "budgets"), draw, budgets(), height=2.8)
+    rows = budgets()
+    save(str(ROOT / "docs" / "img" / "budgets"), draw, rows, height=2.8)
+    print(alt(rows))
