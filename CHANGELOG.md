@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.2a3](https://github.com/TigreGotico/linguonnx/tree/0.26.2a3) (2026-11-26)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.2a2...0.26.2a3)
+
+**Merged pull requests:**
+
+- docs: budget figure and routing numbers from benchmarks/results.json [\#170](https://github.com/TigreGotico/linguonnx/pull/170) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.26.2a2](https://github.com/TigreGotico/linguonnx/tree/0.26.2a2) (2026-11-26)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.2a1...0.26.2a2)
@@ -390,10 +398,6 @@
 ## [0.9.2a1](https://github.com/TigreGotico/linguonnx/tree/0.9.2a1) (2026-08-04)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.9.1a1...0.9.2a1)
-
-**Merged pull requests:**
-
-- fix: sweep\_empty\_output.py must not substitute a fallback English sample [\#67](https://github.com/TigreGotico/linguonnx/pull/67) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.9.1a1](https://github.com/TigreGotico/linguonnx/tree/0.9.1a1) (2026-08-04)
 
