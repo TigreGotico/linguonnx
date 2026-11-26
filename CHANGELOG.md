@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.2a5](https://github.com/TigreGotico/linguonnx/tree/0.26.2a5) (2026-11-26)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.2a4...0.26.2a5)
+
+**Merged pull requests:**
+
+- docs: README, docs index, navigation and agent hints [\#176](https://github.com/TigreGotico/linguonnx/pull/176) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.26.2a4](https://github.com/TigreGotico/linguonnx/tree/0.26.2a4) (2026-11-26)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.2a3...0.26.2a4)
@@ -393,10 +401,6 @@
 ## [0.9.3a2](https://github.com/TigreGotico/linguonnx/tree/0.9.3a2) (2026-08-04)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.9.3a1...0.9.3a2)
-
-**Merged pull requests:**
-
-- fix: a registry re-sync no longer destroys hand-verified data [\#71](https://github.com/TigreGotico/linguonnx/pull/71) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.9.3a1](https://github.com/TigreGotico/linguonnx/tree/0.9.3a1) (2026-08-04)
 
