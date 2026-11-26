@@ -218,6 +218,7 @@
   "TigreGotico/audiosronnx-sidon": null,
   "TigreGotico/audiosronnx-unipase": null,
   "TigreGotico/audiosronnx-voicefixer": null,
+  "TigreGotico/audiosronnx-voiceisolator": null,
   "TigreGotico/bilstm-diacritizer": [
     "ar"
   ],
@@ -378,6 +379,9 @@
   ],
   "TigreGotico/jevhakim-4b": [
     "ar"
+  ],
+  "TigreGotico/kolokwa-g2p-onnx": [
+    "lir"
   ],
   "TigreGotico/libtashkeel-diacritizer": [
     "ar"
