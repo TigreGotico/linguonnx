@@ -42,10 +42,7 @@ def test_detect_table():
     text = page("detect.md")
     for case in RESULTS["detect"]["galician_short_text"]:
         rows = table_rows(text, re.escape(f"`{case['input']}`"))
-        if not rows:
-            continue
+        assert len(rows) == 1, f"no table row for {case['input']!r}"
         assert rows[0][1] == str(case["length"]), case["input"]
         assert rows[0][2].split()[0] == f"`{case['detected']}`", case["input"]
         assert rows[0][3] == f"{case['confidence']:.2f}", case["input"]
-    shown = [c for c in RESULTS["detect"]["galician_short_text"] if table_rows(text, re.escape(f"`{c['input']}`"))]
-    assert len(shown) >= 3

@@ -214,7 +214,7 @@ related languages collapse into each other. Galician shows this clearly:
 | `Bo día` | 6 | `pap` (Papiamento) | 0.77 |
 | `Bo día, como estás?` | 19 | `es` | 0.53 |
 | `Bo día, o meu nome é Miro` | 25 | `gl` | 1.00 |
-| `A lingua galega é unha lingua románica...` | 113 | `gl` | 1.00 |
+| `A lingua galega é unha lingua románica que se fala principalmente en Galicia.` | 77 | `gl` | 1.00 |
 
 The first two are wrong, and the second is wrong *confidently enough to look
 plausible* — Galician and Spanish share most of their character n-grams, so a
