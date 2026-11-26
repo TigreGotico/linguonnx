@@ -2568,7 +2568,8 @@ def lid_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict]:
         if not candidates:
             continue
         onnx_file = sorted(candidates)[0]
-        entries[model_id + suffix] = {
+        extra = _with_external_data(files, [onnx_file])
+        entry = {
             "model_id": model_id + suffix,
             "hf_repo": repo_id,
             "onnx_file": onnx_file,
@@ -2579,9 +2580,12 @@ def lid_entries(repo_id: str, detail: dict, readme: str) -> Dict[str, dict]:
             "num_labels": num_labels,
             "size_mb": max(1, round(
                 (files.get(onnx_file, 0)
-                 + sum(files.get(f, 0) for f in side.values())) / 1e6)),
+                 + sum(files.get(f, 0) for f in list(side.values()) + extra)) / 1e6)),
             "precision": "int8" if suffix else "fp32",
         }
+        if extra:
+            entry["extra_files"] = extra
+        entries[model_id + suffix] = entry
     return entries
 
 
