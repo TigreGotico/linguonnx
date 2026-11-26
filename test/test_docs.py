@@ -99,3 +99,19 @@ def test_opus_mt_model_count_in_models_md():
     names = {model_id.removesuffix("-int8") for model_id in list_models(kind="translate")}
     count = sum(name.startswith("opus-mt-") for name in names)
     assert f"| `opus-mt-*` ({count}) |" in page("models.md")
+
+
+NUMBER_WORDS = {14: "fourteen", 15: "fifteen", 16: "sixteen", 17: "seventeen", 18: "eighteen"}
+
+
+def test_afl_model_count_in_licences_md_and_models_md():
+    from linguonnx.model_manager import list_models
+    translate = list_models(kind="translate")
+    african = {model_id.removesuffix("-int8") for model_id in translate if model_id.lower().startswith(("m2m100_418m_", "m2m100_418m-"))}
+    afl = {model_id.removesuffix("-int8") for model_id, entry in translate.items()
+           if entry.get("license") == "AFL-3.0"}
+    assert afl <= african
+    word = NUMBER_WORDS[len(afl)]
+    assert f"carried by {word} of the `m2m100_418M_*` African fine-tunes" in page("licences.md")
+    assert f"African fine-tunes ({len(african)})" in page("models.md")
+    assert f"AFL-3.0 for the other {word}." in page("models.md")

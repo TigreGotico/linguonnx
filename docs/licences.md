@@ -61,7 +61,7 @@ CC-BY-SA does not have: a service that lets users interact with a modified
 version over a network must offer them its source. A caller who runs a
 translation service should check this model separately.
 
-`AFL-3.0` — carried by ten of the `m2m100_418M_*` African fine-tunes — is
+`AFL-3.0`, carried by sixteen of the `m2m100_418M_*` African fine-tunes, is
 classified `permissive` and stays in the default graph. It grants use,
 modification and redistribution, but its patent-retaliation clause and naming
 restriction go beyond Apache-2.0 or MIT, so a caller with its own downstream
