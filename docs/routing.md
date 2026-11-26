@@ -309,7 +309,7 @@ instead of failing.
 With no budget set, routing prefers models of 2048 MB or less
 (`linguonnx.limits.DEFAULT_MAX_MODEL_MB`). M2M100-418M and the aina models fit
 under that, and MADLAD does not. A pair that nothing under 2048 MB can serve
-falls back to the smallest larger model that covers it, so all 606 languages
+falls back to the smallest larger model that covers it, so all 592 languages
 stay routable. `en -> tyv` goes to MADLAD and `pt -> ru` stays on M2M100.
 
 A budget that you set is a filter. It comes from `max_model_mb=` or from
@@ -359,26 +359,33 @@ model already on disk costs quality and saves nothing.
 ### What a budget costs in coverage
 
 Over the default selection — int8 and rule-based models that are not
-non-commercial, 196 models —
+non-commercial, 211 models —
 with an empty cache:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="img/budgets-dark.svg">
+  <img alt="A 500 MB budget keeps 131 of 211 models but only 235 of 592 languages; 300 MB keeps 77 languages." src="img/budgets.svg">
+</picture>
+
+`img/plot_budgets.py` makes this figure from `benchmarks/results.json`, which `scripts/benchmark.py` writes.
 
 | `max_model_mb` | models kept | languages routable |
 |---|---|---|
-| none | 196 | 606 |
-| 2000 | 183 | 303 |
-| 1000 | 157 | 258 |
-| 500 | 131 | 255 |
-| 300 | 121 | 78 |
+| none | 211 | 592 |
+| 2000 | 191 | 289 |
+| 1000 | 157 | 238 |
+| 500 | 131 | 235 |
+| 300 | 120 | 77 |
 
 The model column and the language column tell different stories, and the second
-one is the one to plan against. A 500 MB budget drops 65 of 196 models, but
-those 65 include `madlad400-3b-mt-int8` (4945 MB), `m2m100-1.2B-int8` (2344 MB)
+one is the one to plan against. A 500 MB budget drops 80 of 211 models, but
+those 80 include `madlad400-3b-mt-int8` (4945 MB), `m2m100-1.2B-int8` (2344 MB)
 and `m2m100-418M-int8` (1207 MB), and the big multilingual models are where the
 long tail of languages lives. MADLAD is the only model in the registry with
 Tuvan at all; no chain of small models replaces it, because there is no small
 model on either side of it.
 
-What survives is what has bilingual models: the 255 languages opus-mt,
+What survives is what has bilingual models: the 235 languages opus-mt,
 mt-hitz, NLLB-200-distilled and the Iberian pairs cover between them.
 `pt -> ru`, `nl -> fi`, `pt -> eu` all still route under 500 MB, as chains.
 `en -> tyv` does not, because MADLAD is the only model with Tuvan.
@@ -417,7 +424,7 @@ tx = load_translator(max_model_mb=500, oversize_fallback=True)
 print(tx.route("en", "ca").model_ids)      # ('opus-mt-en-ca-int8',)   157 MB
 print(tx.route("en", "tyv").model_ids)     # ('madlad400-3b-mt-int8',) 4945 MB
 print(tx.route("en", "tyv").waived_size_cap)  # 500
-print(len(tx.available_languages))         # 606, not 255
+print(len(tx.available_languages))         # 592, not 235
 ```
 
 `en -> ca` stays on the small model, because one exists. Tuvan routes at

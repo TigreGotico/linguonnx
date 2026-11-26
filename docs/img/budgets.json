@@ -1,0 +1,27 @@
+[
+ {
+  "budget": "none",
+  "models": 211,
+  "languages": 592
+ },
+ {
+  "budget": "2000 MB",
+  "models": 191,
+  "languages": 289
+ },
+ {
+  "budget": "1000 MB",
+  "models": 157,
+  "languages": 238
+ },
+ {
+  "budget": "500 MB",
+  "models": 131,
+  "languages": 235
+ },
+ {
+  "budget": "300 MB",
+  "models": 120,
+  "languages": 77
+ }
+]
