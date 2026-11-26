@@ -1481,6 +1481,32 @@ class TestARuleBasedEntrySurvivesAResync:
             {"chrf_vs_ref": 50.0}
 
 
+class TestFastTextLidExternalData:
+    """A fastText export whose graph keeps its weights in ``<graph>_data``."""
+
+    # Sizes of TigreGotico/lid218e-onnx on the Hub.
+    FILES = {"lid218e.onnx": 474, "lid218e.onnx_data": 1_173_665_792,
+             "lid218e.int8.onnx": 293_417_764, "lid218e_hash.py": 4_785,
+             "vocab.txt": 1_370_564, "labels.json": 4_578, "config.json": 123}
+
+    def test_size_and_extra_files_count_the_external_weights(self, monkeypatch):
+        sync = _load_sync_registry()
+        monkeypatch.setattr(sync, "raw_file", lambda repo_id, path: json.dumps(
+            ["eng_Latn", "por_Latn"] if path == "labels.json"
+            else {"loss": "softmax"}))
+        detail = {"cardData": {"license": "cc-by-nc-4.0"},
+                  "siblings": [{"rfilename": f, "size": n}
+                               for f, n in self.FILES.items()]}
+        entries = sync.lid_entries("TigreGotico/lid218e-onnx", detail, "")
+        fp32, int8 = entries["lid218e"], entries["lid218e-int8"]
+        # (474 + 1173665792 + 1370564 + 4578 + 123) / 1e6 = 1175.04
+        assert fp32["size_mb"] == 1175
+        assert fp32["extra_files"] == ["lid218e.onnx_data"]
+        # (293417764 + 1370564 + 4578 + 123) / 1e6 = 294.79
+        assert int8["size_mb"] == 295
+        assert "extra_files" not in int8
+
+
 class TestTransformerLidEntries:
     """`lid_entries` on a transformer sequence-classification export, offline."""
 
