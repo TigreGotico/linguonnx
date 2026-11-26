@@ -1481,6 +1481,27 @@ class TestARuleBasedEntrySurvivesAResync:
             {"chrf_vs_ref": 50.0}
 
 
+def test_fasttext_lid_counts_external_data_only_for_its_graph(monkeypatch):
+    sync = _load_sync_registry()
+    files = {
+        "lid218e.onnx": 474,
+        "lid218e.onnx_data": 1_173_665_792,
+        "lid218e.int8.onnx": 293_417_764,
+        "vocab.txt": 1_370_564,
+        "labels.json": 4578,
+        "config.json": 123,
+    }
+    monkeypatch.setattr(sync, "raw_file",
+                        lambda _repo, path: "{}" if path == "config.json" else '["eng"]')
+    detail = {"cardData": {"license": "cc-by-nc-4.0"},
+              "siblings": [{"rfilename": f, "size": n} for f, n in files.items()]}
+    entries = sync.lid_entries("TigreGotico/lid218e-onnx", detail, "")
+    assert entries["lid218e"]["size_mb"] == 1175
+    assert entries["lid218e"]["extra_files"] == ["lid218e.onnx_data"]
+    assert entries["lid218e-int8"]["size_mb"] == 295
+    assert not entries["lid218e-int8"].get("extra_files")
+
+
 class TestTransformerLidEntries:
     """`lid_entries` on a transformer sequence-classification export, offline."""
 
