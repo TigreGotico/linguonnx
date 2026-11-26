@@ -50,13 +50,10 @@ print(tx.can_translate("en", "sat"))    # True — with the indic extra installe
 ```
 
 Without the `indic` extra the answer is `False`. The pair is still covered by an
-entry, and the error says so. It does not say that the language is unknown:
-
-```
-no route from 'en' to 'sat' within 2 hop(s) -- ... -- model(s) cover this pair
-but cannot be run: indictrans2-en-indic-1B-int8, indictrans2-en-indic-dist-200M-int8
-(indic-nlp-library-itt not installed; install linguonnx[indic])
-```
+entry, and the `NoRouteError` message says so. It names the models that cover
+the pair and the extra to install, for example
+`indic-nlp-library-itt not installed; install linguonnx[indic]`. It does not
+say that the language is unknown.
 
 Runnability is registry data, not a list of architecture names in the router.
 `scripts/sync_registry.py` writes `"runnable": false` and an
@@ -277,13 +274,11 @@ field is deliberately populated from the upstream repo's `createdAt`, once,
 by hand, and the sync script documents exactly where each date came from
 (`PROVENANCE_BY_PREFIX` in `scripts/sync_registry.py`).
 
-Not every institution's date has been verified yet - Proxecto Nós's
-`proxectonos` org repos and TartuNLP's `smugri` model are undated as of this
-writing, rather than guessed. An undated model sorts as if it were
-infinitely old, so it never wins a recency comparison and never blocks a
-route for a reason it has no evidence for; it just stops competing on this
-one tier and falls through to licence and size, same as before this feature
-existed.
+Some dates are not verified: Proxecto Nós's `proxectonos` org repos and
+TartuNLP's `smugri` model have no date, rather than a guessed one. An undated
+model sorts as if it were infinitely old. It never wins a recency comparison,
+and it never blocks a route for a reason it has no evidence for. It stops
+competing on this one tier, and the router compares licence and size next.
 
 ## Hop cap
 
@@ -314,8 +309,8 @@ instead of failing.
 With no budget set, routing prefers models of 2048 MB or less
 (`linguonnx.limits.DEFAULT_MAX_MODEL_MB`). M2M100-418M and the aina models fit
 under that, and MADLAD does not. A pair that nothing under 2048 MB can serve
-falls back to the smallest larger model that covers it, so all 592 languages
-stay routable. `en -> tyv` goes to MADLAD and `pt -> ru` stays on M2M100.
+falls back to the smallest larger model that covers it, so each language stays
+routable: 592 on a base install, and 606 with every extra. `en -> tyv` goes to MADLAD and `pt -> ru` stays on M2M100.
 
 A budget that you set is a filter. It comes from `max_model_mb=` or from
 `LINGUONNX_MAX_MODEL_MB`, and no route goes past it unless you also pass
@@ -363,24 +358,24 @@ model already on disk costs quality and saves nothing.
 
 ### What a budget costs in coverage
 
-Over the default selection — int8 and rule-based models that are not
-non-commercial, 211 models —
-with an empty cache:
+Over the default selection (int8 and rule-based models that are not
+non-commercial, 211 models), with an empty cache. The figure is for a base
+install. The table also gives the languages with every extra installed:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="img/budgets-dark.svg">
-  <img alt="A 500 MB budget keeps 131 of 211 models but only 235 of 592 languages; 300 MB keeps 77 languages." src="img/budgets.svg">
+  <img alt="On a base install, a 500 MB budget keeps 131 of 211 models but only 235 of 592 languages; 300 MB keeps 77 languages." src="img/budgets.svg">
 </picture>
 
 `img/plot_budgets.py` makes this figure from `benchmarks/results.json`, which `scripts/benchmark.py` writes.
 
-| `max_model_mb` | models kept | languages routable |
-|---|---|---|
-| none | 211 | 592 |
-| 2000 | 191 | 289 |
-| 1000 | 157 | 238 |
-| 500 | 131 | 235 |
-| 300 | 120 | 77 |
+| `max_model_mb` | models kept | languages, base install | languages, every extra |
+|---|---|---|---|
+| none | 211 | 592 | 606 |
+| 2000 | 191 | 289 | 303 |
+| 1000 | 157 | 238 | 258 |
+| 500 | 131 | 235 | 255 |
+| 300 | 120 | 77 | 78 |
 
 The model column and the language column tell different stories, and the second
 one is the one to plan against. A 500 MB budget drops 80 of 211 models, but
@@ -390,8 +385,9 @@ long tail of languages lives. MADLAD is the only model in the registry with
 Tuvan at all; no chain of small models replaces it, because there is no small
 model on either side of it.
 
-What survives is what has bilingual models: the 235 languages opus-mt,
-mt-hitz, NLLB-200-distilled and the Iberian pairs cover between them.
+What survives is what has bilingual models: the 235 languages (255 with every
+extra) that opus-mt, mt-hitz, NLLB-200-distilled and the Iberian pairs cover
+between them.
 `pt -> ru`, `nl -> fi`, `pt -> eu` all still route under 500 MB, as chains.
 `en -> tyv` does not, because MADLAD is the only model with Tuvan.
 
@@ -401,7 +397,7 @@ which:
 
 ```python
 tx = load_translator(max_model_mb=500, count_cached_as_free=False)
-print(len(tx.available_languages))       # 255
+print(len(tx.available_languages))       # 255 — with every extra, 235 on a base install
 print(tx.can_translate("pt", "ru"))      # True — via a chain
 print(tx.can_translate("en", "tyv"))     # False — only MADLAD has Tuvan
 ```
@@ -429,7 +425,7 @@ tx = load_translator(max_model_mb=500, oversize_fallback=True)
 print(tx.route("en", "ca").model_ids)      # ('opus-mt-en-ca-int8',)   157 MB
 print(tx.route("en", "tyv").model_ids)     # ('madlad400-3b-mt-int8',) 4945 MB
 print(tx.route("en", "tyv").waived_size_cap)  # 500
-print(len(tx.available_languages))         # 592, not 235
+print(len(tx.available_languages))         # 606 with every extra (592 on a base install), not 255
 ```
 
 `en -> ca` stays on the small model, because one exists. Tuvan routes at

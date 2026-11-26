@@ -44,7 +44,7 @@ weights and no precision, so the precision filter never removes it.
 | `translate-eus-cat`, `translate-oci-cat` | Pegasus (fast) | `eu-ca`, `oc-ca` | 590 MB each | MIT |
 | `arat5-arabic-dialects-translation` | T5 (fast), AraT5 fine-tune | 12 Arabic varieties → Modern Standard Arabic (`ar`), **one-way**: acm, aeb, afb, apc, apd, arq, ars, ary, arz, ayl, ayn, ayp | 2.0 GB | Apache-2.0 |
 | `vinai-translate-vi2en-v2` | mBART fine-tune | Vietnamese → English, **one-way**; fp32 only, no int8 | 3.5 GB (fp32) | **AGPL-3.0** |
-| `opus-mt-*` (125) | Marian | one pair each | 78 MB – 2.34 GB | Apache-2.0 or CC-BY-4.0 |
+| `opus-mt-*` (124) | Marian | one pair each | 78 MB – 2.34 GB | Apache-2.0 or CC-BY-4.0 |
 | `afrigloss-opus-mt-*` (14) | Marian fine-tune | one pair each; en → {ee, ha, ig, sn, sw, tw, yo}, fr → {ee, ha, ig, sn, sw, tw, yo} | 216 MB – 904 MB | **CC-BY-NC-4.0**; fr-ee, fr-ha, fr-ig, fr-sn: Apache-2.0 |
 | `afrigloss-nllb-600m`, `-1.3b` | NLLB-200 fine-tune | {en, fr} → {ee, ha, ig, sn, sw, tw, yo}: 14 directions | 1.9 GB – 11.9 GB | **CC-BY-NC-4.0** |
 | `IbRo-nllb` | NLLB-1.3B fine-tune | es ↔ {an, ast, ca, gl, oc (Aranese)}, ca ↔ oc: 12 directions | 3.04 GB – 11.9 GB | Apache-2.0 |
@@ -75,7 +75,8 @@ tc-big-zle-en  th-en  tl-en  tn-en  tr-az  tr-en  ts-en  uk-en
 ur-en  vi-en  xh-en  zh-en
 ```
 
-Together they reach 606 languages over the default graph. MADLAD supplies most
+Together they reach 592 languages over the default graph on a base install,
+and 606 with every extra. MADLAD supplies most
 of the tail: nearly three hundred languages that no other model here has.
 
 Thirty-two entries are non-commercial and out of the default graph:
@@ -245,8 +246,8 @@ reference, which releases that model's three ONNX sessions once nothing else
 holds it, so a request still decoding through an evicted model keeps working,
 and its sessions go when it finishes.
 
-The bound matters because the whole default graph is 73 models and about
-25 GB. Without it, a long-lived server that routes over many language pairs
+The bound matters because the whole default graph is 211 models and about
+165 GB. Without it, a long-lived server that routes over many language pairs
 converges on loading all of them, gets OOM-killed, restarts cold, and pays
 every download again.
 

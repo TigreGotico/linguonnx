@@ -11,10 +11,12 @@ sys.path.insert(0, str(Path(__file__).parent))
 from plot_style import save  # noqa: E402
 
 
-def budgets():
+def budgets(condition="base"):
+    """The budget rows of one install: ``base`` (no extra) or ``all_extras``."""
     routing = json.loads((ROOT / "benchmarks" / "results.json").read_text(encoding="utf-8"))["routing"]
     return [{"budget": "none" if b["max_model_mb"] is None else f"{b['max_model_mb']} MB",
-             "models": b["models_kept"], "languages": b["languages_routable"]} for b in routing["budgets"]]
+             "models": b["models_kept"], "languages": b["languages_routable"]}
+            for b in routing[condition]["budgets"]]
 
 
 def draw(fig, theme, rows):
@@ -36,7 +38,7 @@ def draw(fig, theme, rows):
 def alt(rows):
     full = rows[0]
     at = {r["budget"]: r for r in rows}
-    return (f"A 500 MB budget keeps {at['500 MB']['models']} of {full['models']} models but only "
+    return (f"On a base install, a 500 MB budget keeps {at['500 MB']['models']} of {full['models']} models but only "
             f"{at['500 MB']['languages']} of {full['languages']} languages; 300 MB keeps {at['300 MB']['languages']} languages.")
 
 

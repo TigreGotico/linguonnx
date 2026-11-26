@@ -159,8 +159,8 @@ the work on the way in. Both live in `linguonnx/translate/preprocess.py`, one
 `Pipeline` subclass each, so that the two halves are written next to each other
 and cannot drift apart.
 
-Neither is installed by default. `linguonnx` itself stays on `onnxruntime`,
-`numpy` and `sentencepiece`. The extras add the tokenisation these two need.
+Neither is installed by default. The runtime dependencies of `linguonnx` are
+the ones that `pyproject.toml` lists, and they do not include these. The extras add the tokenisation these two need.
 When an extra is missing, its models are left out of routing, and a call
 pinned to one with `model=` raises `NoRouteError` naming the extra. It never
 falls back to a simpler tokenisation, because a wrong tokenisation does not

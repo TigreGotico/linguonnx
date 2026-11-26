@@ -7,8 +7,8 @@ pip install linguonnx[distance]   # adds orthography2ipa, for pivot ranking
 pip install linguonnx[rules]      # adds pt2barranquenho and pt2mirandese
 ```
 
-The runtime dependencies are `onnxruntime`, `numpy`, `sentencepiece`,
-`huggingface_hub` and `langcodes`. The library does not use torch. The
+The runtime dependencies are `onnxruntime`, `numpy`, `huggingface_hub`,
+`langcodes`, `language_data`, `linguatag` and `sentencepiece`. The library does not use torch. The
 encoder-decoder generation loop, with beam search and the KV cache, runs on the
 raw ONNX graphs.
 
@@ -87,7 +87,8 @@ real graphs, string for string. Those two packages are test dependencies only.
 `scripts/check_docs.py` runs the Python blocks of the README and of each docs
 page, in order. A `print(...)` line with a `# ` comment is a check: the printed
 value must equal the comment, and `...` in the comment matches any text. The
-`docs-examples` workflow runs it with a cached model directory.
+"Docs check" workflow (`.github/workflows/docs-check.yml`) runs it with a
+cached model directory.
 
 ---
 [← Prev](index.md) · [Home](index.md) · [Next →](detect.md)
