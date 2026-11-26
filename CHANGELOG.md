@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.2a4](https://github.com/TigreGotico/linguonnx/tree/0.26.2a4) (2026-11-26)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.2a3...0.26.2a4)
+
+**Merged pull requests:**
+
+- test: routing budgets, detect table and figure alt text checked against results.json [\#174](https://github.com/TigreGotico/linguonnx/pull/174) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.26.2a3](https://github.com/TigreGotico/linguonnx/tree/0.26.2a3) (2026-11-26)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.2a2...0.26.2a3)
@@ -389,7 +397,6 @@
 **Merged pull requests:**
 
 - fix: a registry re-sync no longer destroys hand-verified data [\#71](https://github.com/TigreGotico/linguonnx/pull/71) ([JarbasAl](https://github.com/JarbasAl))
-- Register the DSFSI Northern Sotho pair; record two arch gaps and two unengineable classifiers [\#70](https://github.com/TigreGotico/linguonnx/pull/70) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.9.3a1](https://github.com/TigreGotico/linguonnx/tree/0.9.3a1) (2026-08-04)
 
