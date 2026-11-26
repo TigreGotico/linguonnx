@@ -20,7 +20,7 @@ jobs:
           pip install uv
           UV_PRERELEASE=allow uv pip install --system -e ".[test]"
       - name: Cache the models that the docs examples load
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .linguonnx-cache
           key: linguonnx-docs-models-${{ hashFiles('linguonnx/model_index/*.json') }}
