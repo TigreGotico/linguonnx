@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.3a1](https://github.com/TigreGotico/linguonnx/tree/0.26.3a1) (2026-11-26)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.2a5...0.26.3a1)
+
+**Merged pull requests:**
+
+- fix: count external-data blobs in LID size\_mb \(lid218e\) [\#181](https://github.com/TigreGotico/linguonnx/pull/181) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.26.2a5](https://github.com/TigreGotico/linguonnx/tree/0.26.2a5) (2026-11-26)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.2a4...0.26.2a5)
@@ -393,10 +401,6 @@
 ## [0.9.4a1](https://github.com/TigreGotico/linguonnx/tree/0.9.4a1) (2026-08-04)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.9.3a2...0.9.4a1)
-
-**Merged pull requests:**
-
-- fix: derive and validate ONNX external-data from graphs, not extra\_files [\#73](https://github.com/TigreGotico/linguonnx/pull/73) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.9.3a2](https://github.com/TigreGotico/linguonnx/tree/0.9.3a2) (2026-08-04)
 
