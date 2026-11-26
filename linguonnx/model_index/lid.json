@@ -97,6 +97,9 @@
   },
   "lid218e": {
     "engine": "fasttext-onnx",
+    "extra_files": [
+      "lid218e.onnx_data"
+    ],
     "hf_repo": "TigreGotico/lid218e-onnx",
     "license": "CC-BY-NC-4.0",
     "loss": "softmax",
@@ -109,7 +112,7 @@
       "labels": "labels.json",
       "config": "config.json"
     },
-    "size_mb": 1
+    "size_mb": 1175
   },
   "lid218e-int8": {
     "engine": "fasttext-onnx",

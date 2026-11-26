@@ -114,7 +114,7 @@ claimed.
 |---|---|---|---|
 | `glotlid` / `glotlid-int8` | 2102 | 1.68 GB / 425 MB | Apache-2.0 |
 | `lid176` / `lid176-int8` | 176 | 131 MB / 33 MB | CC-BY-SA-3.0 |
-| `lid218e` / `lid218e-int8` | 218 | 1 MB / 295 MB | **CC-BY-NC-4.0** |
+| `lid218e` / `lid218e-int8` | 218 | 1175 MB / 295 MB | **CC-BY-NC-4.0** |
 | `openlid` / `openlid-int8` | 201 | 1.23 GB / 310 MB | GPL-3.0 |
 | `openlid-v2` / `openlid-v2-int8` | 200 | 1.22 GB / 305 MB | GPL-3.0 |
 | `afrolid_1.5` / `afrolid_1.5-int8` | 518 | 1.15 GB / 313 MB | Apache-2.0 |
