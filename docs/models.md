@@ -254,7 +254,7 @@ every download again.
 from linguonnx import load_translator
 
 tx = load_translator(model_cache_size=8)   # more RAM, fewer reloads
-# least recently used first
+# the model with the oldest use comes first
 print(tx.loaded_models)
 ```
 
