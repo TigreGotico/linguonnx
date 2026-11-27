@@ -593,18 +593,18 @@ def test_a_bare_language_with_a_route_keeps_it():
     assert uncapped.route("en", "es").model_ids == ("opus-en-es",)
 
 
-@pytest.mark.parametrize("region_node,bare", [
+def test_a_bare_language_whose_default_region_is_unusable_has_no_route():
     # `pt` defaults to `pt-PT`, which no model here names.
-    ("pt-BR", "pt"),
-    # `yue` defaults to `yue-CN`, Simplified where `yue` is Traditional.
-    ("yue-CN", "yue"),
-])
-def test_a_bare_language_whose_default_region_is_unusable_has_no_route(
-        region_node, bare):
-    graph = TranslationGraph([marian("en", region_node)])
-    assert graph._default_region_fallbacks("en", bare) == []
+    graph = TranslationGraph([marian("en", "pt-BR")])
+    assert graph._default_region_fallbacks("en", "pt") == []
     with pytest.raises(NoRouteError):
-        graph.route("en", bare)
+        graph.route("en", "pt")
+
+
+def test_bare_cantonese_falls_back_to_its_default_region():
+    # linguatag writes bare `yue` in Simplified script, as `yue-CN`.
+    graph = TranslationGraph([marian("en", "yue-CN")])
+    assert graph.route("en", "yue").hops[-1].tgt == "yue-CN"
 
 
 # --- separator/script normalisation (redundant-spelling collapse) ---------
@@ -1087,3 +1087,13 @@ def test_a_clique_entry_is_unaffected_by_the_directions_branch():
     capability = _akkadian_capability(entry)
     assert capability.directions is None
     assert capability.covers("akk-Latn", "akk")
+
+
+def test_bare_cantonese_does_not_route_to_traditional_script():
+    from linguonnx.model_manager import list_models
+    from linguonnx.translate.models import capability_from_entry
+    graph = TranslationGraph([capability_from_entry(entry)
+                              for entry in list_models("translate").values()])
+    with pytest.raises(NoRouteError):
+        graph.route("en", "yue")
+    assert graph.route("en", "yue-Hant").hops[-1].tgt == "yue-Hant"

@@ -211,8 +211,7 @@ from functools import lru_cache
 from typing import (Dict, FrozenSet, Iterable, List, Optional, Sequence,
                     Tuple, Union)
 
-import langcodes
-from linguatag import with_default_region
+from linguatag import LanguageTagError, likely_script, parse_tag, standardize_lang, with_default_region
 
 from linguonnx.limits import DEFAULT_MAX_MODEL_MB, MAX_MODEL_MB
 from linguonnx.translate import distance as _distance
@@ -409,15 +408,9 @@ def _recency_sort_value(release_date: Optional[str]) -> float:
         return float("inf")
 
 
-@lru_cache(maxsize=None)
-def _default_script(tag: str) -> Optional[str]:
-    """The script CLDR's likely-subtags data gives a tag: `az-RU` -> `Cyrl`."""
-    return langcodes.Language.get(tag).maximize().script
-
-
 def _same_script(tag: str, other: str) -> bool:
     """Whether two tags write in one script. An unknown script matches any."""
-    script, other_script = _default_script(tag), _default_script(other)
+    script, other_script = likely_script(tag), likely_script(other)
     return script is None or other_script is None or script == other_script
 
 
@@ -451,7 +444,7 @@ def normalize_tag(tag: str, strict: bool = False) -> str:
     # NLLB's own registry card and some hand-written registry entries spell
     # the identical shape with a hyphen ("ace-Arab"). Only `to_bcp47` (the
     # underscore path below) knows how to drop a redundant script subtag, so
-    # a hyphenated script suffix routed through bare `langcodes.standardize_tag`
+    # a hyphenated script suffix routed through bare `standardize_lang`
     # instead kept it forever - the same language landing on two permanent
     # graph nodes for no reason but which separator the source used. Unify
     # the separator *only* when the suffix has the shape of an ISO 15924
@@ -464,9 +457,11 @@ def normalize_tag(tag: str, strict: bool = False) -> str:
     try:
         if "_" in tag:
             return to_bcp47(tag)
-        return to_bcp47(tag) if len(tag) <= 3 and tag.isalpha() else \
-            langcodes.standardize_tag(tag)
-    except Exception as err:
+        if len(tag) <= 3 and tag.isalpha():
+            return to_bcp47(tag)
+        parse_tag(tag)
+        return standardize_lang(tag)
+    except (LanguageTagError, ValueError) as err:
         if strict:
             raise MalformedTagError(
                 f"{tag!r} is not a usable language tag: {err}") from err
@@ -1509,7 +1504,7 @@ class TranslationGraph:
         # `zh-TW` is `zh-Hant`, and `az-Cyrl` is not `az`.
         base = node.split("-")[0]
         target = base if _same_script(node, base) \
-            else f"{base}-{_default_script(node)}"
+            else f"{base}-{likely_script(node)}"
         if target in self._addressable:
             LOG.debug("%r is not a graph node; routing it as %r", node, target)
             return target
@@ -1566,7 +1561,7 @@ class TranslationGraph:
             default = with_default_region(node)
             match = self._REGION_TAG_RE.match(default)
             if match and match.group(1) == node and default in self._addressable \
-                    and _default_script(default) == _default_script(node):
+                    and likely_script(default) == likely_script(node):
                 return default
             return node
 

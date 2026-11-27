@@ -4,7 +4,7 @@ import pytest
 
 from linguonnx.limits import OutputTruncatedError
 from linguonnx.model_manager import list_models
-from linguonnx.translate.graph import _default_script
+from linguatag import likely_script
 from linguonnx.translate.models import TranslationModel
 from linguonnx.translate.segment import split_sentences
 
@@ -109,4 +109,4 @@ def test_every_registry_target_has_a_script_answer():
                for lang in entry.get("languages", [])}
     assert len(targets) > 300
     for tag in targets:
-        _default_script(tag)
+        likely_script(tag)

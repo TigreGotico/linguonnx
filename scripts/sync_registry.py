@@ -1346,9 +1346,9 @@ _REGION_ONLY_TOKEN_RE = re.compile(r"^[A-Z]{2}$")
 #: This is neural transliteration, and it is not a substitute for a
 #: deterministic sign mapping - which is scriptconv's job, not a registry
 #: entry's.
-#: `akk` is the cuneiform node - `langcodes` suppresses `Xsux` as Akkadian's
-#: default script, so `normalize_tag("akk_Xsux") == "akk"` - and `akk-Latn` is
-#: the Latin transliteration, which survives normalisation as its own node.
+#: `akk` is the cuneiform node - `Xsux` is Akkadian's likely script, so
+#: `normalize_tag("akk_Xsux") == "akk"` - and `akk-Latn` is the Latin
+#: transliteration, which survives normalisation as its own node.
 T5_PREFIX_MODELS: Dict[str, dict] = {
     "AKK-60m": {
         "languages": ["akk", "akk-Latn", "en"],
@@ -1368,14 +1368,13 @@ T5_PREFIX_MODELS: Dict[str, dict] = {
                   "registry nodes."),
     },
     "cuneiformBase-400m": {
-        # Two written forms per ancient language, and the spellings are not
-        # parallel: `langcodes` suppresses Xsux for Akkadian but Latn for
-        # Sumerian, Hittite and Linear B, so the cuneiform node is bare `akk`
-        # but `sux-Xsux`, and the transliteration node is `akk-Latn` but bare
-        # `sux`. Spelling them any other way either collapses two nodes into
-        # one or fails `test_every_code_is_already_normalised`.
-        "languages": ["akk", "akk-Latn", "sux", "sux-Xsux", "hit",
-                      "gmy", "gmy-Linb", "en", "de"],
+        # Two written forms per ancient language. The bare tag is the likely
+        # script that linguatag gives (Xsux for akk and hit, Linb for gmy), and
+        # `-Latn` is the transliteration. linguatag knows no script for
+        # Sumerian, so its bare tag is the transliteration and `sux-Xsux` the
+        # cuneiform.
+        "languages": ["akk", "akk-Latn", "sux", "sux-Xsux", "hit-Latn",
+                      "gmy-Latn", "gmy", "en", "de"],
         "prefix_templates": {
             "akk>en": "Translate Akkadian cuneiform to English",
             "akk-Latn>en": "Translate Akkadian transliteration to English",
@@ -1389,16 +1388,16 @@ T5_PREFIX_MODELS: Dict[str, dict] = {
             "en>sux": "Translate English to Sumerian transliteration",
             "sux-Xsux>sux": "Transliterate Sumerian cuneiform to Latin characters",
             "sux>sux-Xsux": "Convert transliterated Latin characters to Sumerian cuneiform",
-            "hit>en": "Translate Hittite transliteration to English",
-            "hit>de": "Translate Hittite transliteration to German",
-            "en>hit": "Translate English to Hittite transliteration",
-            "de>hit": "Translate German to Hittite transliteration",
-            "gmy-Linb>en": "Translate Linear B cuneiform to English",
-            "gmy>en": "Translate Linear B transliteration to English",
-            "en>gmy-Linb": "Translate English to Linear B cuneiform",
-            "en>gmy": "Translate English to Linear B transliteration",
-            "gmy-Linb>gmy": "Transliterate Linear B cuneiform to Latin characters",
-            "gmy>gmy-Linb": "Convert transliterated Latin characters to Linear B cuneiform",
+            "hit-Latn>en": "Translate Hittite transliteration to English",
+            "hit-Latn>de": "Translate Hittite transliteration to German",
+            "en>hit-Latn": "Translate English to Hittite transliteration",
+            "de>hit-Latn": "Translate German to Hittite transliteration",
+            "gmy>en": "Translate Linear B cuneiform to English",
+            "gmy-Latn>en": "Translate Linear B transliteration to English",
+            "en>gmy": "Translate English to Linear B cuneiform",
+            "en>gmy-Latn": "Translate English to Linear B transliteration",
+            "gmy>gmy-Latn": "Transliterate Linear B cuneiform to Latin characters",
+            "gmy-Latn>gmy": "Convert transliterated Latin characters to Linear B cuneiform",
         },
         "notes": ("Instruction-prefixed umt5-base finetune (Thalesian) over "
                   "CDLI, the Akkademia project, HPM and published Linear B "
@@ -1657,18 +1656,16 @@ def _pair_target_token(repo_id: str, files: Sequence[str], tgt: str
 
 
 def _without_default_script(raw: str) -> str:
-    """``raw`` as BCP-47, minus a script subtag that is the language's default."""
-    import langcodes
+    """``raw`` as BCP-47, minus a script subtag that is the language's likely
+    script, even for a language that ``to_bcp47`` keeps it for: ``cmn_Hans``
+    is ``zh``."""
+    from linguatag import likely_script
 
     from linguonnx.detect.labels import to_bcp47
 
-    try:
-        tag = langcodes.Language.get(to_bcp47(raw))
-    except Exception:
-        return raw
-    if tag.script and tag.script == langcodes.Language.get(tag.language).maximize().script:
-        tag = tag.update_dict({"script": None})
-    return tag.to_tag()
+    tag = to_bcp47(raw)
+    base, _, script = tag.partition("-")
+    return base if script and likely_script(base) == script else tag
 
 
 def _declared_languages(detail: dict) -> Optional[List[str]]:

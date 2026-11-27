@@ -13,7 +13,7 @@ det = load_detector()                 # glotlid-int8, the default
 print(det.detect("Egun on, zer moduz?"))          # 'eu' — best-guess BCP-47 tag
 print(det.detect_probs("Bon dia a tothom", 3))    # {'ca': 0.999, ...}
 print(det.detect_raw("Bon dia a tothom"))         # ('cat_Latn', 0.999)
-print(len(det.available_languages))               # 2099 — BCP-47 tags
+print(len(det.available_languages))               # 2097 — BCP-47 tags
 print(det.loss)                                   # 'softmax'
 ```
 
@@ -175,21 +175,18 @@ GlotLID, OpenLID and OpenLID-v2 emit `iso3_Script` labels (`eng_Latn`,
 `glg_Latn`, `zho_Hans`). lid.176 emits bare ISO codes with no script (`en`,
 `gl`, `pt`). `linguonnx.detect.labels` maps both shapes to BCP-47.
 
-Most of the work is `langcodes.standardize_tag`: ISO 639-3 to 639-1 where a
-two-letter code exists (`eng` → `en`), deprecated codes repaired (`iw` → `he`),
-canonical replacements applied (`tgl` → `fil`), and a redundant script subtag
-dropped (`eng-Latn` → `en`) while an informative one is kept (`srp-Cyrl` →
-`sr-Cyrl`).
+`linguatag.standardize_lang` does most of the work. It changes ISO 639-3 to
+639-1 where a two-letter code exists (`eng` → `en`) and repairs deprecated
+codes (`iw` → `he`). Two more steps belong to the module:
 
-Two things it does not do, which the module owns:
-
-- **Redundant scripts CLDR has no data about.** `standardize_tag` only drops a
-  script subtag for a language CLDR's likely-subtags table covers, and that is
-  a minority of GlotLID's labels — it leaves `ast-Latn`, `yo-Latn`, `ig-Latn`.
-  Correct, but noisy. So the script is dropped when `Language.maximize()`
-  guesses the same script anyway. `_ALWAYS_KEEP_SCRIPT` protects the languages
-  this must not happen to: readers of Serbian and Mandarin need Cyrl/Latn and
-  Hans/Hant kept apart even though CLDR calls one of each the likely default.
+- **Redundant scripts.** The module drops a script subtag when
+  `linguatag.likely_script` gives the same script for the language (`eng_Latn`
+  → `en`, `ast_Latn` → `ast`). It keeps one that is not the likely script
+  (`srp_Latn` → `sr-Latn`). For a language with no known script, it drops
+  `Latn` only. `_ALWAYS_KEEP_SCRIPT` holds the languages whose readers need
+  the script kept even when it is the likely one: Serbian and Chinese.
+  The likely script comes from CLDR, so a label in another script keeps it:
+  CLDR gives Devanagari for Fiji Hindi, so `hif_Latn` is `hif-Latn`.
 - **Macrolanguage varieties.** `arb`, `cmn` and `zho` always resolve to `ar`
   and `zh`, because GlotLID never emits a bare `ara` and downstream consumers
   expect the macrolanguage. Everything else is left alone unless you ask for
@@ -197,12 +194,12 @@ Two things it does not do, which the module owns:
 
 Because several raw labels can map onto the same BCP-47 tag,
 `available_languages` is smaller than the label count: GlotLID's 2102 labels
-yield 2100 distinct tags. `detect_probs` collapses duplicates the same way,
+yield 2097 distinct tags. `detect_probs` collapses duplicates the same way,
 keeping the highest probability for a tag.
 
-A handful of GlotLID labels are not valid language tags at all — `und_Kawi`,
-`und_Nagm`, `tok_Latn` (Toki Pona), `eml_Latn` — and are emitted as-is with a
-warning on the logger. Better a code you can look up than a silent guess.
+A label whose language subtag is not in the IANA registry, such as
+`xyz_Latn`, comes out as is (`xyz`), with a warning on the logger. A code
+that you can look up is better than a guess.
 
 ## Short text is unreliable
 

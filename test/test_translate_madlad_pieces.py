@@ -29,9 +29,9 @@ def _targets(model_id):
     return entry.get("languages") or entry.get("tgt_languages")
 
 
-#: The MADLAD entries that write `kmz`. The regional fine-tunes read it only
+#: The MADLAD entries that write `kmz-Latn`. The regional fine-tunes read it only
 #: as a source, and MADLAD sends no source piece.
-KMZ_WRITERS = [model_id for model_id in MADLAD if "kmz" in _targets(model_id)]
+KMZ_WRITERS = [model_id for model_id in MADLAD if "kmz-Latn" in _targets(model_id)]
 
 
 @pytest.mark.parametrize("model_id", MADLAD)
@@ -52,7 +52,7 @@ def test_every_base_target_tag_maps_back_from_its_piece(model_id):
 
 @pytest.mark.parametrize("tag,piece", [("fr-CA", "fr_CA"), ("sr-Latn", "sh"),
                                        ("fa-AF", "prs"), ("zh-Hant", "zh_Hant"),
-                                       ("kmz", "kmz_Latn"), ("crh", "crh"),
+                                       ("kmz-Latn", "kmz_Latn"), ("crh", "crh"),
                                        ("pt", "pt")])
 def test_the_base_model_sends_its_own_spelling(tag, piece):
     assert load_model("madlad400-3b-mt-int8").native_code(tag) == piece
@@ -64,7 +64,7 @@ def test_both_base_quantizations_write_kmz():
 
 @pytest.mark.parametrize("model_id", KMZ_WRITERS)
 def test_every_kmz_writer_sends_the_latin_piece(model_id):
-    assert load_model(model_id).native_code("kmz") == "kmz_Latn"
+    assert load_model(model_id).native_code("kmz-Latn") == "kmz_Latn"
 
 
 def test_the_tag_mapping_keeps_the_piece_spelled_as_the_tag():
@@ -72,8 +72,8 @@ def test_the_tag_mapping_keeps_the_piece_spelled_as_the_tag():
     sent. A renamed code records its piece, a family code is dropped."""
     tags, native = sync_registry._madlad_tags(
         ["crh_Latn", "crh", "fr_CA", "sh", "prs", "kmz_Latn", "pt", "ber"])
-    assert tags == ["crh", "fa-AF", "fr-CA", "kmz", "pt", "sr-Latn"]
-    assert native == {"fa-AF": "prs", "fr-CA": "fr_CA", "kmz": "kmz_Latn",
+    assert tags == ["crh", "fa-AF", "fr-CA", "kmz-Latn", "pt", "sr-Latn"]
+    assert native == {"fa-AF": "prs", "fr-CA": "fr_CA", "kmz-Latn": "kmz_Latn",
                       "sr-Latn": "sh"}
 
 

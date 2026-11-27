@@ -59,8 +59,9 @@ from linguonnx.model_manager import (ensure_model_files, list_models,
 from linguonnx.providers import ProviderSpec, make_session
 from linguonnx.translate.decode import (CausalLMDecoder, GenerationConfig,
                                         Seq2SeqDecoder)
+from linguatag import likely_script
 from linguonnx.translate.graph import (Capability, NoRouteError,
-                                       _default_script, entry_runnability,
+                                       entry_runnability,
                                        normalize_tag)
 from linguonnx.translate.preprocess import Pipeline, pipeline_for
 from linguonnx.translate.quality import (counterpart_model_id,
@@ -445,7 +446,7 @@ class TranslationModel:
         parts = split_sentences(line)
         if len(parts) == 1:
             return self._translate_sentence(line, src, tgt, config, target_token)
-        unspaced = _default_script(tgt) in UNSPACED_SCRIPTS
+        unspaced = likely_script(tgt) in UNSPACED_SCRIPTS
         pieces: List[str] = []
         for sentence, gap in parts:
             if has_visible_content(sentence):

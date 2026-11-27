@@ -235,7 +235,9 @@ def test_languages_stay_inside_the_card_s_claim():
         if declared is None or _card_bound_exempt(entry):
             continue
         claimed = {normalize_tag(code) for _, code in _codes(entry)}
-        extra = sorted(claimed - declared)
+        # A card names languages: a bare `hit` claims Hittite in any script.
+        bare = {tag for tag in declared if "-" not in tag}
+        extra = sorted(tag for tag in claimed - declared if tag.split("-")[0] not in bare)
         if extra:
             offenders.append(
                 f"{model_id}: card names {len(declared)} languages, the entry "

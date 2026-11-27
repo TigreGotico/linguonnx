@@ -8,7 +8,7 @@ pip install linguonnx[rules]      # adds pt2barranquenho and pt2mirandese
 ```
 
 The runtime dependencies are `onnxruntime`, `numpy`, `huggingface_hub`,
-`langcodes`, `language_data`, `linguatag` and `sentencepiece`. The library does not use torch. The
+`linguatag` and `sentencepiece`. The library does not use torch. The
 encoder-decoder generation loop, with beam search and the KV cache, runs on the
 raw ONNX graphs.
 
