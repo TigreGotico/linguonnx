@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.4a2](https://github.com/TigreGotico/linguonnx/tree/0.26.4a2) (2026-11-27)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.4a1...0.26.4a2)
+
+**Merged pull requests:**
+
+- refactor: declare the graph's hint attributes and the tokenizer's other specials [\#188](https://github.com/TigreGotico/linguonnx/pull/188) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.26.4a1](https://github.com/TigreGotico/linguonnx/tree/0.26.4a1) (2026-11-27)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.3a1...0.26.4a1)
@@ -393,10 +401,6 @@
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.10.0a1...0.11.0a1)
 
-**Merged pull requests:**
-
-- feat: per-language quality flags \(phase 1: schema, API, preservation\) [\#77](https://github.com/TigreGotico/linguonnx/pull/77) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [0.10.0a1](https://github.com/TigreGotico/linguonnx/tree/0.10.0a1) (2026-08-10)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.9.4a1...0.10.0a1)
@@ -503,15 +507,15 @@
 
 ## [0.5.1a1](https://github.com/TigreGotico/linguonnx/tree/0.5.1a1) (2026-08-02)
 
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0a1...0.5.1a1)
-
-## [0.5.0a1](https://github.com/TigreGotico/linguonnx/tree/0.5.0a1) (2026-08-02)
-
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0...0.5.0a1)
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0...0.5.1a1)
 
 ## [0.5.0](https://github.com/TigreGotico/linguonnx/tree/0.5.0) (2026-08-02)
 
-[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.4.0a1...0.5.0)
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.5.0a1...0.5.0)
+
+## [0.5.0a1](https://github.com/TigreGotico/linguonnx/tree/0.5.0a1) (2026-08-02)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.4.0a1...0.5.0a1)
 
 ## [0.4.0a1](https://github.com/TigreGotico/linguonnx/tree/0.4.0a1) (2026-08-02)
 
