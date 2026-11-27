@@ -146,6 +146,8 @@ input to `pt2barranquenho.translate` and keeps the line breaks. The rules keep
 The direction is one-way: no model translates out of Barranquenho. Any source
 that reaches Portuguese reaches Barranquenho in one more hop:
 
+This example needs the `rules` extra (`pip install linguonnx[rules]`):
+
 ```python
 from linguonnx.translate import load_translator
 
@@ -422,8 +424,8 @@ against a FLORES-200/MAFAND reference that no crawl can re-derive.
 Where the generator disagrees with a curated field, the curated value is kept
 — and the value the generator wanted is committed too, to
 `model_index/<kind>_overruled.json`. That file is what stops a curated field
-from freezing the entry: the registry text no longer moves when an upstream
-card is rewritten, so nothing else would report it, but `_overruled.json`
+from freezing the entry: the registry text does not move when an upstream
+card is rewritten, so nothing else reports it, but `_overruled.json`
 changes and `--check` fails on it like any other drift (`OVERRULED-DRIFT` on
 stderr). Clearing it is the normal loop: run the sync, read the diff, fold in
 anything real, commit. Failing on the disagreement itself would never clear: a
@@ -454,10 +456,10 @@ See [routing.md#measured-quality](routing.md#measured-quality) for what
 `quality` means and how it is used.
 
 Every repo the script refuses is written to `linguonnx/model_index/skipped.json`
-alongside the registries, with the reason. A skip used to reach stderr and
-nowhere else, which is how 43 published models stayed invisible: `--check`
-diffs the committed registry against a fresh one, and a repo that fails
-extraction on every run is missing from both sides of that diff every time.
+alongside the registries, with the reason. A skip must not go only to stderr:
+`--check` diffs the committed registry against a fresh one, and a repo that
+fails extraction on every run is missing from both sides of that diff every
+time, so only `skipped.json` shows it.
 
 ### What is derived from where
 
@@ -537,7 +539,7 @@ Valencian request uses the Catalan models, small ones included.
 
 **MADLAD fine-tunes.** Ugiat's MADLAD-400-3B fine-tunes keep every `<2xx>`
 piece of the base vocabulary. Registered by vocabulary, each would cover all
-447 MADLAD languages and, as the newer upload, win every tie against
+447 MADLAD languages and, as the more recent upload, win every tie against
 `madlad400-3b-mt`. `MADLAD_FINETUNES` in `scripts/sync_registry.py` holds the
 coverage each card states, and the crawler checks that every new piece it
 names is in the export's `spiece.model`. Aranese is `oc`, selected with
@@ -597,8 +599,8 @@ entry, not an ambiguity in this rule.
 
 A repo whose *name* is a family, `opus-mt-itc-itc`, `opus-mt-mul-en`, is not
 a pair at all and is not treated as one. `itc` is the Italic family, so no
-caller can ask for it. The entry that used to say `pair: ["itc", "itc"]` was an
-edge nobody could reach, and the mandatory prefix token was missing because the
+caller can ask for it. An entry with `pair: ["itc", "itc"]` is an edge
+that nobody can reach, and it gets no mandatory prefix token, because the
 "base target differs from repo target" test cannot fire when both sides say
 `itc`. These take the token path instead: the `>>xxx<<` keys in the export's own
 `vocab.json` are the coverage, because a language with no token cannot be

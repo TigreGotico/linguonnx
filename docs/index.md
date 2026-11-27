@@ -33,6 +33,7 @@ print(tx.translate("bom dia, como estás?", src="pt", tgt="en"))
 | [routing.md](routing.md) | understand how the router selects a model or a chain of models |
 | [models.md](models.md) | read the registry, and add a model to it |
 | [licences.md](licences.md) | understand the licence tiers, and use a non-commercial model |
+| [reference.md](reference.md) | find a public name, its module and its summary |
 
 ## What ships
 
