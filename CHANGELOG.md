@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.4a1](https://github.com/TigreGotico/linguonnx/tree/0.26.4a1) (2026-11-27)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.3a1...0.26.4a1)
+
+**Merged pull requests:**
+
+- fix\(registry\): sync the cached hub card languages [\#186](https://github.com/TigreGotico/linguonnx/pull/186) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.26.3a1](https://github.com/TigreGotico/linguonnx/tree/0.26.3a1) (2026-11-26)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.2a5...0.26.3a1)
@@ -356,7 +364,6 @@
 
 - feat: Akkadian, Sumerian, Hittite and Linear B, via a new instruction-prefixed T5/UMT5 architecture [\#88](https://github.com/TigreGotico/linguonnx/pull/88) ([JarbasAl](https://github.com/JarbasAl))
 - fix: flag opus-mt-en-jap, which answers in scripture instead of translating [\#86](https://github.com/TigreGotico/linguonnx/pull/86) ([JarbasAl](https://github.com/JarbasAl))
-- feat: fetch\_on\_demand makes request-path model downloads an operator policy [\#76](https://github.com/TigreGotico/linguonnx/pull/76) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.12.0a1](https://github.com/TigreGotico/linguonnx/tree/0.12.0a1) (2026-08-10)
 
@@ -393,10 +400,6 @@
 ## [0.10.0a1](https://github.com/TigreGotico/linguonnx/tree/0.10.0a1) (2026-08-10)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.9.4a1...0.10.0a1)
-
-**Merged pull requests:**
-
-- feat: max\_model\_mb deprioritises oversized models instead of deleting languages [\#75](https://github.com/TigreGotico/linguonnx/pull/75) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.9.4a1](https://github.com/TigreGotico/linguonnx/tree/0.9.4a1) (2026-08-04)
 
