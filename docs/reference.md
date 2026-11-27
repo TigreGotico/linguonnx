@@ -1,5 +1,5 @@
 # Reference
-<!-- agent-hint: every public name of linguonnx, from each module's __all__. Regenerate: `python scripts/docs_reference.py`. -->
+<!-- agent-hint: covers: every public name of linguonnx and its summary; source: scripts/docs_reference.py; generated: yes; verify: `python scripts/docs_reference.py --check`; see: index.md -->
 
 Each table lists the names in the `__all__` of one module, with the first line of the docstring. A name with no docstring shows its kind only. The task pages explain how to use the names: [detect.md](detect.md), [translate.md](translate.md), [routing.md](routing.md) and [models.md](models.md).
 
@@ -22,10 +22,10 @@ Each table lists the names in the `__all__` of one module, with the first line o
 | `Route` | An ordered chain of hops from ``src`` to ``tgt``, plus the policy that chose it. |
 | `Translator` | A routing graph plus the models it can route through. |
 | `is_language_flagged` | Whether ``model_id`` carries a language flag for ``lang``. |
-| `is_quality_flagged` | Whether ``model_id`` carries any :func:`quality_flag_reasons`. |
-| `language_flag_reason_for` | :func:`language_flag_reason` for a registry id, **including its |
-| `load_translator` | Build a :class:`Translator` over the registry. |
-| `quality_flag_reasons_for` | :func:`quality_flag_reasons` for a registry id, looking up its own |
+| `is_quality_flagged` | Whether ``model_id`` carries any ``quality_flag_reasons``. |
+| `language_flag_reason_for` | ``language_flag_reason`` for a registry id, **including its |
+| `load_translator` | Build a ``Translator`` over the registry. |
+| `quality_flag_reasons_for` | ``quality_flag_reasons`` for a registry id, looking up its own |
 
 ## `linguonnx.translate.graph`
 
@@ -34,7 +34,7 @@ Each table lists the names in the `__all__` of one module, with the first line o
 | `Capability` | What one model claims it can translate. |
 | `DEFAULT_PIVOT_PREFERENCE` | constant (`tuple`) |
 | `Hop` | One model doing one directed language pair. |
-| `InvalidRouteError` | A caller-supplied :class:`Route` is not executable as written. |
+| `InvalidRouteError` | A caller-supplied ``Route`` is not executable as written. |
 | `LICENSE_TIERS` | constant (`dict`) |
 | `MalformedTagError` | A caller passed something that is not a language tag at all. |
 | `NoRouteError` | No chain of models within ``max_hops`` connects the two languages. |
@@ -42,7 +42,7 @@ Each table lists the names in the `__all__` of one module, with the first line o
 | `REGIONAL_PIVOTS` | constant (`dict`) |
 | `Route` | An ordered chain of hops from ``src`` to ``tgt``, plus the policy that chose it. |
 | `SPECIALIST_MAP` | constant (`dict`) |
-| `TranslationGraph` | Resolve ``src -> tgt`` into a :class:`Route` over the registered models. |
+| `TranslationGraph` | Resolve ``src -> tgt`` into a ``Route`` over the registered models. |
 | `UNSET` | constant (`_Unset`) |
 | `entry_runnability` | ``(runnable, reason)`` for one ``translate.json`` entry. |
 | `is_specialist_for` | Whether an org is *the* named specialist for either side of a pair. |
@@ -53,7 +53,7 @@ Each table lists the names in the `__all__` of one module, with the first line o
 | Name | Summary |
 | :--- | :--- |
 | `TranslationModel` | A single loaded translation model. Graphs load lazily, on first use. |
-| `capability_from_entry` | Turn one ``translate.json`` entry into a graph :class:`Capability`. |
+| `capability_from_entry` | Turn one ``translate.json`` entry into a graph ``Capability``. |
 
 ## `linguonnx.translate.quality`
 
@@ -67,11 +67,11 @@ Each table lists the names in the `__all__` of one module, with the first line o
 | `flagged_languages` | Every language ``entry`` is flagged for in the direction ``side``. |
 | `flagged_target_languages` | ``lang -> reasons`` for every language ``entries`` covers as a target |
 | `is_language_flagged` | Whether ``model_id`` carries a language flag for ``lang``. |
-| `is_quality_flagged` | Whether ``model_id`` carries any :func:`quality_flag_reasons`. |
+| `is_quality_flagged` | Whether ``model_id`` carries any ``quality_flag_reasons``. |
 | `language_flag_reason` | Why ``entry`` is flagged for ``lang``, or ``None`` when it is not. |
-| `language_flag_reason_for` | :func:`language_flag_reason` for a registry id, **including its |
+| `language_flag_reason_for` | ``language_flag_reason`` for a registry id, **including its |
 | `quality_flag_reasons` | Why ``entry`` is quality-flagged, or ``()`` when it is not. |
-| `quality_flag_reasons_for` | :func:`quality_flag_reasons` for a registry id, looking up its own |
+| `quality_flag_reasons_for` | ``quality_flag_reasons`` for a registry id, looking up its own |
 
 ## `linguonnx.translate.distance`
 
@@ -87,7 +87,7 @@ Each table lists the names in the `__all__` of one module, with the first line o
 | :--- | :--- |
 | `Pipeline` | How one architecture turns text into ids and ids back into text. |
 | `pipeline_for` | function |
-| `register` | Class decorator: bind a :class:`Pipeline` to one or more ``arch`` names. |
+| `register` | Class decorator: bind a ``Pipeline`` to one or more ``arch`` names. |
 
 ## `linguonnx.translate.decode`
 
@@ -133,7 +133,7 @@ Each table lists the names in the `__all__` of one module, with the first line o
 | `MAX_MODEL_MB` | constant (`NoneType`) |
 | `MAX_NUM_BEAMS` | constant (`int`) |
 | `OutputTruncatedError` | Generation hit ``max_new_tokens`` before the model finished. |
-| `check_length` | Raise :class:`InputTooLongError` if ``size`` is over ``limit``. |
+| `check_length` | Raise ``InputTooLongError`` if ``size`` is over ``limit``. |
 | `has_visible_content` | True if ``text`` holds anything a reader would see. |
 
 ---

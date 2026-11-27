@@ -6,17 +6,18 @@
 """
 import importlib
 import inspect
+import re
 import sys
 from pathlib import Path
 
 PAGE = Path(__file__).resolve().parent.parent / "docs" / "reference.md"
-MODULES = ["linguonnx", "linguonnx.detect", "linguonnx.translate", "linguonnx.translate.graph",
+MODULES = ["linguonnx", "linguonnx.translate", "linguonnx.translate.graph",
            "linguonnx.translate.models", "linguonnx.translate.quality", "linguonnx.translate.distance",
            "linguonnx.translate.preprocess", "linguonnx.translate.decode",
-           "linguonnx.translate.tokenizers", "linguonnx.model_manager", "linguonnx.providers",
-           "linguonnx.limits"]
+           "linguonnx.translate.tokenizers", "linguonnx.limits"]
+ROLE = re.compile(r":(?:func|class|meth|attr|mod|data):`~?([^`]+)`")
 HEAD = """# Reference
-<!-- agent-hint: every public name of linguonnx, from each module's __all__. Regenerate: `python scripts/docs_reference.py`. -->
+<!-- agent-hint: covers: every public name of linguonnx and its summary; source: scripts/docs_reference.py; generated: yes; verify: `python scripts/docs_reference.py --check`; see: index.md -->
 
 Each table lists the names in the `__all__` of one module, with the first line of the docstring. A name with no docstring shows its kind only. The task pages explain how to use the names: [detect.md](detect.md), [translate.md](translate.md), [routing.md](routing.md) and [models.md](models.md).
 """
@@ -27,7 +28,7 @@ def summary(obj) -> str:
     if inspect.isclass(obj) or inspect.isroutine(obj):
         doc = inspect.getdoc(obj)
         kind = "class" if inspect.isclass(obj) else "function"
-        return doc.splitlines()[0].replace("|", "\\|") if doc else kind
+        return ROLE.sub(r"``\1``", doc.splitlines()[0]).replace("|", "\\|") if doc else kind
     return f"constant (`{type(obj).__name__}`)"
 
 
@@ -35,9 +36,7 @@ def render() -> str:
     parts = [HEAD]
     for name in MODULES:
         module = importlib.import_module(name)
-        names = sorted(getattr(module, "__all__", ()))
-        if not names:
-            continue
+        names = sorted(module.__all__)
         parts.append(f"\n## `{name}`\n\n| Name | Summary |\n| :--- | :--- |")
         parts += [f"| `{n}` | {summary(getattr(module, n))} |" for n in names]
     return "\n".join(parts) + "\n" + FOOT
