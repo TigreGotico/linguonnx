@@ -920,6 +920,10 @@ default script, and only when neither the bare pair nor any region-dropping
 pair has a route, with or without the cap waived. A bare language that has a
 route keeps it.
 
+The router never changes the script of the output. Bare `yue` is Cantonese in
+Simplified script (`yue-CN`), and the one Cantonese model writes Traditional
+script, so `route("en", "yue")` has no route. Ask for `yue-Hant`.
+
 Junk gets two different answers, because two callers with opposite needs share
 the function. Building the graph is lenient: an exotic registry code that no
 standard knows is lowercased, logged as a warning, and kept as a node, which

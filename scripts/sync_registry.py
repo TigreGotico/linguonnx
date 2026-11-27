@@ -1656,18 +1656,16 @@ def _pair_target_token(repo_id: str, files: Sequence[str], tgt: str
 
 
 def _without_default_script(raw: str) -> str:
-    """``raw`` as BCP-47, minus a script subtag that is the language's default."""
-    import langcodes
+    """``raw`` as BCP-47, minus a script subtag that is the language's likely
+    script, even for a language that ``to_bcp47`` keeps it for: ``cmn_Hans``
+    is ``zh``."""
+    from linguatag import likely_script
 
     from linguonnx.detect.labels import to_bcp47
 
-    try:
-        tag = langcodes.Language.get(to_bcp47(raw))
-    except Exception:
-        return raw
-    if tag.script and tag.script == langcodes.Language.get(tag.language).maximize().script:
-        tag = tag.update_dict({"script": None})
-    return tag.to_tag()
+    tag = to_bcp47(raw)
+    base, _, script = tag.partition("-")
+    return base if script and likely_script(base) == script else tag
 
 
 def _declared_languages(detail: dict) -> Optional[List[str]]:

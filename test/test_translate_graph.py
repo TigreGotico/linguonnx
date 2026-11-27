@@ -1087,3 +1087,13 @@ def test_a_clique_entry_is_unaffected_by_the_directions_branch():
     capability = _akkadian_capability(entry)
     assert capability.directions is None
     assert capability.covers("akk-Latn", "akk")
+
+
+def test_bare_cantonese_does_not_route_to_traditional_script():
+    from linguonnx.model_manager import list_models
+    from linguonnx.translate.models import capability_from_entry
+    graph = TranslationGraph([capability_from_entry(entry)
+                              for entry in list_models("translate").values()])
+    with pytest.raises(NoRouteError):
+        graph.route("en", "yue")
+    assert graph.route("en", "yue-Hant").hops[-1].tgt == "yue-Hant"

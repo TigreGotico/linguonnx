@@ -185,6 +185,8 @@ codes (`iw` → `he`). Two more steps belong to the module:
   (`srp_Latn` → `sr-Latn`). For a language with no known script, it drops
   `Latn` only. `_ALWAYS_KEEP_SCRIPT` holds the languages whose readers need
   the script kept even when it is the likely one: Serbian and Chinese.
+  The likely script comes from CLDR, so a label in another script keeps it:
+  CLDR gives Devanagari for Fiji Hindi, so `hif_Latn` is `hif-Latn`.
 - **Macrolanguage varieties.** `arb`, `cmn` and `zho` always resolve to `ar`
   and `zh`, because GlotLID never emits a bare `ara` and downstream consumers
   expect the macrolanguage. Everything else is left alone unless you ask for
