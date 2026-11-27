@@ -310,7 +310,7 @@ With no budget set, routing prefers models of 2048 MB or less
 (`linguonnx.limits.DEFAULT_MAX_MODEL_MB`). M2M100-418M and the aina models fit
 under that, and MADLAD does not. A pair that nothing under 2048 MB can serve
 falls back to the smallest larger model that covers it, so each language stays
-routable: 593 on a base install, and 607 with every extra. `en -> tyv` goes to MADLAD and `pt -> ru` stays on M2M100.
+routable: 592 on a base install, and 606 with every extra. `en -> tyv` goes to MADLAD and `pt -> ru` stays on M2M100.
 
 A budget that you set is a filter. It comes from `max_model_mb=` or from
 `LINGUONNX_MAX_MODEL_MB`, and no route goes past it unless you also pass
@@ -364,14 +364,14 @@ install. The table also gives the languages with every extra installed:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="img/budgets-dark.svg">
-  <img alt="On a base install, a 500 MB budget keeps 131 of 211 models but only 235 of 593 languages; 300 MB keeps 77 languages." src="img/budgets.svg">
+  <img alt="On a base install, a 500 MB budget keeps 131 of 211 models but only 235 of 592 languages; 300 MB keeps 77 languages." src="img/budgets.svg">
 </picture>
 
 `img/plot_budgets.py` makes this figure from `benchmarks/results.json`, which `scripts/benchmark.py` writes.
 
 | `max_model_mb` | models kept | languages, base install | languages, every extra |
 |---|---|---|---|
-| none | 211 | 593 | 607 |
+| none | 211 | 592 | 606 |
 | 2000 | 191 | 289 | 303 |
 | 1000 | 157 | 238 | 258 |
 | 500 | 131 | 235 | 255 |
@@ -425,7 +425,7 @@ tx = load_translator(max_model_mb=500, oversize_fallback=True)
 print(tx.route("en", "ca").model_ids)      # ('opus-mt-en-ca-int8',)   157 MB
 print(tx.route("en", "tyv").model_ids)     # ('madlad400-3b-mt-int8',) 4945 MB
 print(tx.route("en", "tyv").waived_size_cap)  # 500
-print(len(tx.available_languages))         # 607 with every extra (593 on a base install), not 255
+print(len(tx.available_languages))         # 606 with every extra (592 on a base install), not 255
 ```
 
 `en -> ca` stays on the small model, because one exists. Tuvan routes at

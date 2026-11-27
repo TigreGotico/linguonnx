@@ -75,8 +75,8 @@ tc-big-zle-en  th-en  tl-en  tn-en  tr-az  tr-en  ts-en  uk-en
 ur-en  vi-en  xh-en  zh-en
 ```
 
-Together they reach 593 languages over the default graph on a base install,
-and 607 with every extra. MADLAD supplies most
+Together they reach 592 languages over the default graph on a base install,
+and 606 with every extra. MADLAD supplies most
 of the tail: nearly three hundred languages that no other model here has.
 
 Thirty-two entries are non-commercial and out of the default graph:

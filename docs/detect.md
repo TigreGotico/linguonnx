@@ -13,7 +13,7 @@ det = load_detector()                 # glotlid-int8, the default
 print(det.detect("Egun on, zer moduz?"))          # 'eu' — best-guess BCP-47 tag
 print(det.detect_probs("Bon dia a tothom", 3))    # {'ca': 0.999, ...}
 print(det.detect_raw("Bon dia a tothom"))         # ('cat_Latn', 0.999)
-print(len(det.available_languages))               # 2099 — BCP-47 tags
+print(len(det.available_languages))               # 2097 — BCP-47 tags
 print(det.loss)                                   # 'softmax'
 ```
 
@@ -194,7 +194,7 @@ codes (`iw` → `he`). Two more steps belong to the module:
 
 Because several raw labels can map onto the same BCP-47 tag,
 `available_languages` is smaller than the label count: GlotLID's 2102 labels
-yield 2100 distinct tags. `detect_probs` collapses duplicates the same way,
+yield 2097 distinct tags. `detect_probs` collapses duplicates the same way,
 keeping the highest probability for a tag.
 
 A label whose language subtag is not in the IANA registry, such as

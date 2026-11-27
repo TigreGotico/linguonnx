@@ -6,7 +6,7 @@ ONNX Runtime and no torch.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="img/budgets-dark.svg">
-  <img alt="On a base install, a 500 MB budget keeps 131 of 211 models but only 235 of 593 languages; 300 MB keeps 77 languages." src="img/budgets.svg">
+  <img alt="On a base install, a 500 MB budget keeps 131 of 211 models but only 235 of 592 languages; 300 MB keeps 77 languages." src="img/budgets.svg">
 </picture>
 
 `img/plot_budgets.py` makes this figure from `benchmarks/results.json`, which
@@ -41,7 +41,7 @@ print(tx.translate("bom dia, como estás?", src="pt", tgt="en"))
 | --- | --- |
 | Translation registry | 453 entries: 225 int8 and 226 fp32, from 226 models, and 2 rule-based translators |
 | Language identification registry | 12 entries |
-| Reachable languages | 593 on a base install, 607 with every extra, over the default graph |
+| Reachable languages | 592 on a base install, 606 with every extra, over the default graph |
 | Default LID model | `glotlid-int8`: Apache-2.0, the widest coverage |
 | Default translation graph | each int8 or rule-based model that is not non-commercial, fewest hops, at most 2 hops |
 | Licences | Apache-2.0, MIT, AFL-3.0, CC-BY-4.0 and CC-BY-SA-4.0 in the default translation graph. CC-BY-NC-4.0 models need `include_noncommercial=True`. The one AGPL-3.0 model is fp32 only, so the default `precision="int8"` keeps it out. OpenLID (GPL-3.0) loads only by name |
