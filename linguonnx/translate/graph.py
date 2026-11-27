@@ -1134,6 +1134,12 @@ class TranslationGraph:
         #: Registered but not executable; named in :class:`NoRouteError`.
         self.unrunnable_capabilities: Tuple[Capability, ...] = tuple(
             cap for cap in self.capabilities if not cap.is_runnable)
+        #: ``(capability, hint)`` pairs a licence filter dropped, and the
+        #: capabilities that only a fetch would make routable. The
+        #: :class:`~linguonnx.translate.Translator` fills both; the error
+        #: messages name them.
+        self.excluded_capabilities: Sequence[Tuple[Capability, str]] = ()
+        self.uncached_capabilities: Sequence[Capability] = ()
 
         self._by_model: Dict[str, Capability] = {
             cap.model_id: cap for cap in self.capabilities}
@@ -1955,11 +1961,9 @@ class TranslationGraph:
         default, but silence is the wrong way to enforce it: a language only
         NLLB covers (Kabuverdianu, for one) would otherwise look simply
         unsupported. Name the models and the filter that dropped them.
-        :class:`~linguonnx.translate.Translator` fills
-        ``excluded_capabilities`` with ``(capability, hint)`` pairs.
         """
         covering: Dict[str, List[str]] = {}
-        for cap, hint in getattr(self, "excluded_capabilities", ()):
+        for cap, hint in self.excluded_capabilities:
             if cap.covers(src, tgt):
                 covering.setdefault(hint, []).append(cap.model_id)
         return "".join(f" -- {hint.format(', '.join(sorted(ids)))}"
@@ -1973,16 +1977,9 @@ class TranslationGraph:
         *constraint the operator set*, not a gap in the registry, and the two
         must never read the same: the operator's fix is a prefetch, and the
         message has to say which model to prefetch for that to be actionable.
-
-        :class:`~linguonnx.translate.Translator` fills
-        ``uncached_capabilities`` in; a graph built directly has no such
-        attribute and this hint stays empty, exactly like the licence one.
         """
-        uncached = getattr(self, "uncached_capabilities", None)
-        if not uncached:
-            return ""
         covering = sorted({f"{cap.model_id} ({cap.size_mb} MB)"
-                           for cap in uncached if cap.covers(src, tgt)})
+                           for cap in self.uncached_capabilities if cap.covers(src, tgt)})
         if not covering:
             return ""
         return (f" -- model(s) cover this pair but are not cached and "

@@ -36,7 +36,7 @@ import json
 import re
 import unicodedata
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 import sentencepiece as spm
 
@@ -361,6 +361,7 @@ class SpmSeq2SeqTokenizer:
         else:
             lang_block_start = self.sp.get_piece_size() + fairseq_offset
 
+        self._other_special_ids: Set[int] = set()
         if added_tokens_path is not None and Path(added_tokens_path).exists():
             # Authoritative, and used alone. See the class docstring.
             added = _load_json(added_tokens_path)
@@ -425,7 +426,7 @@ class SpmSeq2SeqTokenizer:
         # A bracketed special the export added - `<mask>` - is past the
         # SentencePiece table too, so letting one reach `id_to_piece()` is
         # the same `IndexError: OUT_OF_RANGE` the wrong language id caused.
-        self._specials |= getattr(self, "_other_special_ids", set())
+        self._specials |= self._other_special_ids
         if declared_codes:
             self._check_declared(declared_codes)
 
