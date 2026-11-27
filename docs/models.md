@@ -51,7 +51,7 @@ weights and no precision, so the precision filter never removes it.
 | `Plume32k`, `Plume128k` | Gemma decoder-only (`causal-lm`) | ca ↔ {de, en, es, eu, fr, gl, it, pt}: 16 directions | 2.76 GB – 10.0 GB | Apache-2.0 |
 | `madlad400-3b-mt-oc_aranes`, `-ast-an-oc_aranes` | MADLAD-400-3B fine-tune | {ca, en, es, fr} ↔ oc (Aranese): 8 directions; {ca, en, es, fr} ↔ {an, ast, oc}: 24 directions | 4.95 GB – 19.7 GB | Apache-2.0 |
 | `madlad400-3b-mt-es_ES`, `-es_419` | MADLAD-400-3B fine-tune | every MADLAD language → `es-ES`, or → `es-419` | 4.95 GB – 19.7 GB | Apache-2.0 |
-| `pt2barranquenho` | rules (Python package) | Portuguese → Barranquenho (`ext-PT-x-barrancos`), **one-way** | 0 MB, nothing to download | Apache-2.0 |
+| `pt2barranquenho` | rules (Python package) | Portuguese → Barranquenho (`ext-PT-x-barranco`), **one-way** | 0 MB, nothing to download | Apache-2.0 |
 | `pt2mirandese` | rules (Python package) | Portuguese → Mirandese (`mwl`), **one-way** | 0 MB, nothing to download | Apache-2.0 code, **CC-BY-SA-4.0 word lists** |
 
 The opus-mt pairs published as int8:
@@ -133,10 +133,10 @@ function, as `module:function`, and its `extra` names the linguonnx extra that
 installs the package.
 
 `pt2barranquenho` translates European Portuguese into Barranquenho, the
-language of Barrancos. The graph node is the locale key `ext-PT-x-barrancos`. The private-use subtag
-has nine letters, one over the BCP-47 limit, so `langcodes` cannot parse the
-tag. `linguonnx` accepts it in any case, gives it back as `ext-PT-x-barrancos`
-and never reads it as Extremaduran (`ext`).
+language of Barrancos. The graph node is the locale key `ext-PT-x-barranco`.
+`linguonnx` accepts it in any case, gives it back as `ext-PT-x-barranco` and
+never reads it as Extremaduran (`ext`). The input `ext-PT-x-barrancos` gives
+the same node.
 
 The rules translate one line at a time. `linguonnx` gives each line of the
 input to `pt2barranquenho.translate` and keeps the line breaks. The rules keep
@@ -152,7 +152,7 @@ This example needs the `rules` extra (`pip install linguonnx[rules]`):
 from linguonnx.translate import load_translator
 
 tx = load_translator()
-print(tx.route("en", "ext-PT-x-barrancos").model_ids)
+print(tx.route("en", "ext-PT-x-barranco").model_ids)
 # ('opus-mt-en-pt-int8', 'pt2barranquenho')
 ```
 

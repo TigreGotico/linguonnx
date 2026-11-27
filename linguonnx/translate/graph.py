@@ -297,14 +297,17 @@ REGIONAL_PIVOTS: Dict[str, Tuple[str, ...]] = {
 PIVOT_RANKINGS: Tuple[str, ...] = ("auto", "phonological", "table")
 
 
-#: Graph nodes that no standard parses, keyed by their lowercase form and kept
-#: in their canonical spelling, whatever case the caller writes. The
-#: Barranquenho locale key spells its private-use subtag with nine letters,
-#: one over the BCP-47 limit, so ``langcodes`` refuses it. Without this entry
-#: a caller's tag fails as malformed whenever the model that serves it cannot
-#: run, and the region fallback in :meth:`TranslationGraph._node` turns it
-#: into ``ext``, which is Extremaduran.
-NONSTANDARD_TAGS: Dict[str, str] = {"ext-pt-x-barrancos": "ext-PT-x-barrancos"}
+#: Graph nodes whose private-use subtag names the language, keyed by their
+#: lowercase spellings and kept in their canonical spelling, whatever case the
+#: caller writes. Without an entry, the region fallback in
+#: :meth:`TranslationGraph._node` turns the Barranquenho key into ``ext``,
+#: which is Extremaduran, whenever the model that serves it cannot run.
+#: ``ext-PT-x-barrancos``, whose nine-letter subtag is over the BCP-47 limit of
+#: eight, is accepted as input for the same node.
+NONSTANDARD_TAGS: Dict[str, str] = {
+    "ext-pt-x-barranco": "ext-PT-x-barranco",
+    "ext-pt-x-barrancos": "ext-PT-x-barranco",
+}
 
 
 #: Institution that owns a language, for the specialist-provenance tie-break.
@@ -1525,7 +1528,7 @@ class TranslationGraph:
         the region is a property of the output. A region whose default script
         differs from its language's (`az-RU` is Cyrillic, `az` Latin) is kept,
         and so is a script, variant or private-use subtag: `sr-Latn` as `sr`
-        would change the script and `ext-PT-x-barrancos` as `ext` the language.
+        would change the script and `ext-PT-x-barranco` as `ext` the language.
         """
         def base(node: str) -> str:
             match = self._REGION_TAG_RE.match(node)

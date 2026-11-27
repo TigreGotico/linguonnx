@@ -17,7 +17,7 @@ from linguonnx.translate.graph import (NoRouteError, _registry_runnability,
                                        entry_runnability, normalize_tag)
 from linguonnx.translate.models import TranslationModel, capability_from_entry
 
-BARRANQUENHO = "ext-PT-x-barrancos"
+BARRANQUENHO = "ext-PT-x-barranco"
 
 LINES = [
     "Eu gosto muito de ti.",
@@ -47,7 +47,12 @@ def without_package(monkeypatch):
 
 def test_the_barranquenho_tag_keeps_its_canonical_spelling_in_any_case():
     for spelling in (BARRANQUENHO, BARRANQUENHO.lower(), BARRANQUENHO.upper()):
-        assert normalize_tag(spelling, strict=True) == "ext-PT-x-barrancos"
+        assert normalize_tag(spelling, strict=True) == "ext-PT-x-barranco"
+
+
+def test_the_nine_letter_barranquenho_spelling_is_accepted_as_input():
+    for spelling in ("ext-PT-x-barrancos", "ext-pt-x-barrancos", "EXT-PT-X-BARRANCOS"):
+        assert normalize_tag(spelling, strict=True) == BARRANQUENHO
 
 
 def test_the_registry_declares_one_pt_to_barranquenho_edge():

@@ -24245,13 +24245,13 @@
     "license_tier": "permissive",
     "model_id": "pt2barranquenho",
     "native_codes": {
-      "ext-PT-x-barrancos": "ext-PT-x-barrancos",
+      "ext-PT-x-barranco": "ext-PT-x-barranco",
       "pt": "pt"
     },
     "notes": "Rule-based European Portuguese -> Barranquenho translator (TigreGotico/pt2barranquenho). It translates one line at a time and keeps {slots}. It has no reverse direction.",
     "pair": [
       "pt",
-      "ext-PT-x-barrancos"
+      "ext-PT-x-barranco"
     ],
     "size_mb": 0
   },
