@@ -1,6 +1,8 @@
 """The measured numbers in the docs equal benchmarks/results.json, which scripts/benchmark.py writes."""
 import json
+import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -115,3 +117,9 @@ def test_afl_model_count_in_licences_md_and_models_md():
     assert f"carried by {word} of the `m2m100_418M_*` African fine-tunes" in page("licences.md")
     assert f"African fine-tunes ({len(african)})" in page("models.md")
     assert f"AFL-3.0 for the other {word}." in page("models.md")
+
+
+def test_the_reference_page_is_fresh():
+    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "docs_reference.py"), "--check"],
+                            cwd=ROOT, env={**os.environ, "PYTHONPATH": str(ROOT)})
+    assert result.returncode == 0, "run python scripts/docs_reference.py"
