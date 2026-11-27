@@ -55,10 +55,16 @@ Oversize fallback
 model, and a pair *nothing* under the cap can serve falls back to the
 smallest oversized model that does, rather than failing.
 
+Left unset, the fallback follows who chose the cap. The library's own
+:data:`~linguonnx.limits.DEFAULT_MAX_MODEL_MB` is a preference, so it is on. A
+cap from ``max_model_mb=`` or ``LINGUONNX_MAX_MODEL_MB`` is a filter, so it is
+off: a budget set for a metered link or a small disk outranks anything the
+library infers.
+
 The filter semantics alone force a choice nobody wants to make. The long tail
 of languages exists only inside a few very large multilingual models - MADLAD
 (4945 MB), NLLB (1866 MB), M2M100-418M (1207 MB) - so a 500 MB cap that
-excludes them outright drops routable languages from 596 to 255 on the
+excludes them outright drops routable languages from 606 to 255 on the
 default registry with an empty cache (``test_translate_registry_numbers.py``
 pins both numbers). Lifting the cap instead lets those same models win pairs
 that a 157 MB ``opus-mt`` pair already served, because "one multilingual hop"
@@ -208,7 +214,7 @@ from typing import (Dict, FrozenSet, Iterable, List, Optional, Sequence,
 import langcodes
 from linguatag import with_default_region
 
-from linguonnx.limits import MAX_MODEL_MB
+from linguonnx.limits import DEFAULT_MAX_MODEL_MB, MAX_MODEL_MB
 from linguonnx.translate import distance as _distance
 
 LOG = logging.getLogger(__name__)
@@ -291,21 +297,6 @@ REGIONAL_PIVOTS: Dict[str, Tuple[str, ...]] = {
 PIVOT_RANKINGS: Tuple[str, ...] = ("auto", "phonological", "table")
 
 
-#: Model codes that are not valid language tags in any standard. M2M100 calls
-#: Northern Sotho ``ns``, which is a two-letter code ISO never assigned.
-MODEL_CODE_ALIASES: Dict[str, str] = {
-    "ns": "nso",
-    # Projecte Aina added a token for Aranese to NLLB and called it
-    # "arn_Latn" - which ISO already assigns to Mapudungun. Mapped here so the
-    # routing graph sees Occitan and never offers the model for Mapudungun.
-    "arn_Latn": "oc",
-    # Helsinki-NLP's own pair naming for this one repo spells Japanese "jap"
-    # (not a valid tag in any standard - every other opus-mt Japanese model
-    # spells it "ja") so it lands on its own dead-end graph node instead of
-    # the "ja" every other Japanese-capable model routes through.
-    "jap": "ja",
-}
-
 #: Graph nodes whose private-use subtag names the language, keyed by their
 #: lowercase spellings and kept in their canonical spelling, whatever case the
 #: caller writes. Without an entry, the region fallback in
@@ -352,8 +343,7 @@ SPECIALIST_MAP: Dict[str, str] = {
     "gl": "Proxecto Nós",
     "ast": "Proxecto Nós",
     # Catalan + its transitional neighbours: Aragonese and Occitan/Aranese by
-    # proximity, see above. Occitan and Aranese are the same graph node
-    # (`MODEL_CODE_ALIASES` maps `arn_Latn` -> `oc`).
+    # proximity, see above. Occitan and Aranese are the same graph node.
     "ca": "Projecte AINA",
     "an": "Projecte AINA",
     "oc": "Projecte AINA",
@@ -425,6 +415,12 @@ def _default_script(tag: str) -> Optional[str]:
     return langcodes.Language.get(tag).maximize().script
 
 
+def _same_script(tag: str, other: str) -> bool:
+    """Whether two tags write in one script. An unknown script matches any."""
+    script, other_script = _default_script(tag), _default_script(other)
+    return script is None or other_script is None or script == other_script
+
+
 def normalize_tag(tag: str, strict: bool = False) -> str:
     """Normalise any language tag shape to the graph's BCP-47 node name.
 
@@ -451,7 +447,6 @@ def normalize_tag(tag: str, strict: bool = False) -> str:
         raise MalformedTagError("empty language tag")
     if tag.lower() in NONSTANDARD_TAGS:
         return NONSTANDARD_TAGS[tag.lower()]
-    tag = MODEL_CODE_ALIASES.get(tag, tag)
     # FLORES/GlotLID spell a script suffix with an underscore ("ace_Arab");
     # NLLB's own registry card and some hand-written registry entries spell
     # the identical shape with a hyphen ("ace-Arab"). Only `to_bcp47` (the
@@ -679,6 +674,13 @@ class Capability:
     #: registry entries directly, not capabilities, so this exists for
     #: introspection (``Capability.quality``) rather than routing logic.
     quality: Optional[Dict] = None
+    #: True when the registry's quality data flags this model. A flagged model
+    #: serves a pair only when nothing else does.
+    flagged: bool = False
+    #: ``lang -> reason`` for the languages this model must not write or
+    #: read. Its answers there are in another language, so the edge is gone.
+    barred_targets: Dict[str, str] = field(default_factory=dict)
+    barred_sources: Dict[str, str] = field(default_factory=dict)
 
     @property
     def is_specialist(self) -> bool:
@@ -755,7 +757,8 @@ class Capability:
         # "itc"]` for the Italic family model), and without this guard it
         # became a real one-hop edge that answered in whichever family member
         # the decoder preferred.
-        if src == tgt:
+        if src == tgt or tgt in self.barred_targets \
+                or src in self.barred_sources:
             return False
         if self.directions is not None:
             return (src, tgt) in self.directions
@@ -766,20 +769,22 @@ class Capability:
         return src in self.languages and tgt in self.languages
 
     def endpoints(self) -> FrozenSet[str]:
+        barred = self.barred_targets.keys() & self.barred_sources.keys()
         if self.directions is not None:
             # Both sides of every declared edge, so `available_languages`
             # cannot disagree with `route` - the same reason the directional
             # branch below unions its two sets.
-            return frozenset(lang for edge in self.directions for lang in edge)
+            return frozenset(lang for edge in self.directions
+                             for lang in edge) - barred
         if self.pair is not None:
-            return frozenset(self.pair)
+            return frozenset(self.pair) - barred
         if self.directional:
             # The same fallback :meth:`covers` uses: a capability that declares
             # one side only takes the other from ``languages``. Without the
             # fallback here the graph would serve a hop into a language it does
             # not list, and `available_languages` would disagree with `route`.
-            return self._sources | self._targets
-        return self.languages
+            return (self._sources | self._targets) - barred
+        return self.languages - barred
 
     @property
     def _sources(self) -> FrozenSet[str]:
@@ -814,12 +819,16 @@ class Hop:
     provenance_org: Optional[str] = None
     #: The upstream release date behind the recency tie-break, or ``None``.
     release_date: Optional[str] = None
+    #: True when the registry's quality data flags this hop's model.
+    flagged: bool = False
 
     def __str__(self) -> str:
         kind = "dedicated" if self.dedicated else "multilingual"
         tags = [kind, self.license]
         if self.specialist:
             tags.append(f"specialist:{self.provenance_org}")
+        if self.flagged:
+            tags.append("flagged")
         return f"{self.src}->{self.tgt} via {self.model_id} ({', '.join(tags)})"
 
 
@@ -936,6 +945,11 @@ class Route:
         return sum(0 if hop.dedicated else 1 for hop in self.hops)
 
     @property
+    def n_flagged_hops(self) -> int:
+        """How many hops run a quality-flagged model."""
+        return sum(1 for hop in self.hops if hop.flagged)
+
+    @property
     def n_non_specialist_hops(self) -> int:
         """How many hops were *not* served by the pair's named specialist.
 
@@ -961,10 +975,16 @@ class Route:
                 f"prefer={self.prefer}{waived}] {chain}")
 
 
+def _has_clean_route(routes: Sequence[Route]) -> bool:
+    """Whether any of ``routes`` runs on unflagged models alone."""
+    return any(not route.n_flagged_hops for route in routes)
+
+
 def _route_key(route: Route, prefer: str) -> tuple:
     """Score a route. Lower sorts first. The policy reorders the tuple only.
 
-    ``non_specialist`` and ``recency`` sit between the hop-count/dedicated
+    Flagged hops come first under every policy, so a flagged model serves a
+    pair only when nothing else does. ``non_specialist`` and ``recency`` sit between the hop-count/dedicated
     tiers and the pre-existing licence/size tie-breaks - see the module
     docstring's "Specialist provenance and recency" section for why they are
     there and not earlier or later. ``recency`` takes the *worst* (oldest, or
@@ -981,9 +1001,9 @@ def _route_key(route: Route, prefer: str) -> tuple:
     tail = (non_specialist, recency, tier, route.pivot_rank, size,
             route.model_ids)
     if prefer == "dedicated":
-        return (multi, hops) + tail
+        return (route.n_flagged_hops, multi, hops) + tail
     if prefer == "fewest_hops":
-        return (hops, multi) + tail
+        return (route.n_flagged_hops, hops, multi) + tail
     raise ValueError(
         f"unknown routing policy {prefer!r}; use 'fewest_hops' or 'dedicated'")
 
@@ -1082,7 +1102,7 @@ class TranslationGraph:
         pivot_ranking: str = "auto",
         max_model_mb: Union[int, None, "_Unset"] = UNSET,
         count_cached_as_free: Union[bool, "_Unset"] = UNSET,
-        oversize_fallback: bool = False,
+        oversize_fallback: Union[bool, "_Unset"] = UNSET,
     ):
         if max_hops < 1:
             raise ValueError("max_hops must be at least 1")
@@ -1117,13 +1137,22 @@ class TranslationGraph:
         #: Registered but not executable; named in :class:`NoRouteError`.
         self.unrunnable_capabilities: Tuple[Capability, ...] = tuple(
             cap for cap in self.capabilities if not cap.is_runnable)
+        #: ``(capability, hint)`` pairs a licence filter dropped, and the
+        #: capabilities that only a fetch would make routable. The
+        #: :class:`~linguonnx.translate.Translator` fills both; the error
+        #: messages name them.
+        self.excluded_capabilities: Sequence[Tuple[Capability, str]] = ()
+        self.uncached_capabilities: Sequence[Capability] = ()
 
         self._by_model: Dict[str, Capability] = {
             cap.model_id: cap for cap in self.capabilities}
         self.max_model_mb = self._check_max_model_mb(max_model_mb)
         #: Whether a pair no model under the cap covers may fall back to the
         #: smallest oversized model that does. See the module docstring.
-        self.oversize_fallback = bool(oversize_fallback)
+        self._fallback_follows_cap = isinstance(oversize_fallback, _Unset)
+        self.oversize_fallback = (isinstance(max_model_mb, _Unset)
+                                  and MAX_MODEL_MB is None) \
+            if self._fallback_follows_cap else bool(oversize_fallback)
         # The cached-is-free exemption is about a *download* budget. With a
         # fallback in play the cap is a load-latency budget instead, and on a
         # warm cache the exemption would waive it for every model there is.
@@ -1142,8 +1171,9 @@ class TranslationGraph:
     def _check_max_model_mb(value: Union[int, None, "_Unset"]) -> Optional[int]:
         """Resolve the size cap, with the environment as the default.
 
-        ``UNSET`` (the default) reads ``LINGUONNX_MAX_MODEL_MB``, and falls
-        back to the **download budget** when that is not set. Routing has to
+        ``UNSET`` (the default) reads ``LINGUONNX_MAX_MODEL_MB``. When that
+        is not set it is :data:`~linguonnx.limits.DEFAULT_MAX_MODEL_MB`, or
+        the **download budget** when the budget is lower. Routing has to
         agree with what ``ensure_model_files`` will actually fetch: a model
         over ``LINGUONNX_MAX_DOWNLOAD_MB`` cannot be downloaded, so planning a
         route through it makes ``can_translate`` answer True for a pair that
@@ -1163,7 +1193,9 @@ class TranslationGraph:
             if value is None:
                 from linguonnx.model_manager import download_budget_mb
 
-                value = download_budget_mb()
+                budget = download_budget_mb()
+                value = DEFAULT_MAX_MODEL_MB if budget is None \
+                    else min(budget, DEFAULT_MAX_MODEL_MB)
         if value is None:
             return None
         value = int(value)
@@ -1284,7 +1316,7 @@ class TranslationGraph:
         oversized model can never outrank a small model that already works.
 
         The escalation is bounded twice over. It is bounded *by construction*
-        at one search per distinct oversized model size - 36 of them on the
+        at one search per distinct oversized model size - 42 of them on the
         default registry under a 500 MB cap, and fewer once the pair's own
         endpoint filter applies - never more than the model count. It is
         bounded again, and much more tightly, by probing the **widest** step
@@ -1302,9 +1334,14 @@ class TranslationGraph:
         return self._escalate(src, tgt, max_hops, prefer, short_circuit, index)
 
     def _escalate(self, src: str, tgt: str, max_hops: int, prefer: str,
-                  short_circuit: bool, index: _Index
+                  short_circuit: bool, index: _Index, clean_only: bool = False
                   ) -> Tuple[List[Route], Optional[int]]:
-        """The oversized half of :meth:`_search`, for a pair the cap cannot serve."""
+        """The oversized half of :meth:`_search`, for a pair the cap cannot serve.
+
+        ``clean_only`` is for a pair the cap serves only through flagged
+        models: a step counts only if it adds a route with no flagged hop.
+        """
+        accepted = _has_clean_route if clean_only else bool
         steps = self._fallback_steps(index, src, tgt, max_hops)
         if not steps:
             return [], None
@@ -1313,13 +1350,13 @@ class TranslationGraph:
                                  ceiling)
         at_widest = self._enumerate(src, tgt, max_hops, prefer, short_circuit,
                                     widest)
-        if not at_widest:
+        if not accepted(at_widest):
             return [], None
         for step in steps[:-1]:
             wider = self._index_for(step, index.count_cached_as_free, ceiling)
             found = self._enumerate(src, tgt, max_hops, prefer, short_circuit,
                                     wider)
-            if found:
+            if accepted(found):
                 return found, index.max_model_mb
         return at_widest, index.max_model_mb
 
@@ -1340,20 +1377,28 @@ class TranslationGraph:
         says which endpoints the caller sent with no subtag after the
         language: only those get a default region, so `es-MX`, routed as `es`,
         never becomes `es-ES`.
+
+        A flagged model serves a pair only when nothing else does, and that
+        includes a larger model the fallback may reach. Routes through flagged
+        models under the cap are held back while the escalation looks for a
+        clean one, and they answer only if it finds none.
         """
         for pairs in ([(src, tgt)] + self._regional_fallbacks(src, tgt),
                       self._default_region_fallbacks(src, tgt, *bare)):
+            held: List[Route] = []
             for pair_src, pair_tgt in pairs:
                 found = self._enumerate(pair_src, pair_tgt, max_hops, prefer,
                                         short_circuit, index)
-                if found:
+                if found and (not fallback or _has_clean_route(found)):
                     return found, None
+                held = held or found
             if not fallback:
                 continue
             escalated = []
             for pair_src, pair_tgt in pairs:
                 found, waived = self._escalate(pair_src, pair_tgt, max_hops,
-                                               prefer, short_circuit, index)
+                                               prefer, short_circuit, index,
+                                               clean_only=bool(held))
                 if found:
                     largest = min(max(hop.size_mb for hop in route.hops)
                                   for route in found)
@@ -1361,11 +1406,22 @@ class TranslationGraph:
             if escalated:
                 _, _, found, waived = min(escalated, key=lambda item: item[:2])
                 return found, waived
+            if held:
+                return held, None
         return [], None
 
-    def _fallback_on(self, oversize_fallback: Optional[bool]) -> bool:
-        return self.oversize_fallback if oversize_fallback is None \
-            else bool(oversize_fallback)
+    def _fallback_on(self, oversize_fallback: Optional[bool],
+                     max_model_mb: Union[int, None, "_Unset"] = UNSET) -> bool:
+        """Whether a call may escalate, after its per-call overrides.
+
+        A cap somebody set is a filter unless they also asked for the
+        fallback, on a single call as much as on the constructor.
+        """
+        if oversize_fallback is not None:
+            return bool(oversize_fallback)
+        if self._fallback_follows_cap and not isinstance(max_model_mb, _Unset):
+            return False
+        return self.oversize_fallback
 
     # -- introspection ----------------------------------------------------
 
@@ -1395,7 +1451,8 @@ class TranslationGraph:
         still ask what that budget covers.
         """
         index = self._resolve(max_model_mb, count_cached_as_free)
-        return self._languages_for(index, self._fallback_on(oversize_fallback))
+        return self._languages_for(
+            index, self._fallback_on(oversize_fallback, max_model_mb))
 
     def _languages_for(self, index: _Index, fallback: bool) -> FrozenSet[str]:
         """The languages :meth:`route` can reach against ``index``.
@@ -1447,11 +1504,15 @@ class TranslationGraph:
             return node
         # `pt-BR` is well-formed and unsupported as written, but the graph is
         # keyed on the language subtag, and refusing a region the models simply
-        # do not distinguish would be a worse answer than serving `pt`.
+        # do not distinguish would be a worse answer than serving `pt`. A
+        # script is what the reader must be able to read, so it never goes:
+        # `zh-TW` is `zh-Hant`, and `az-Cyrl` is not `az`.
         base = node.split("-")[0]
-        if base in self._addressable:
-            LOG.debug("%r is not a graph node; routing it as %r", node, base)
-            return base
+        target = base if _same_script(node, base) \
+            else f"{base}-{_default_script(node)}"
+        if target in self._addressable:
+            LOG.debug("%r is not a graph node; routing it as %r", node, target)
+            return target
         return node
 
     #: A language subtag followed by a region alone: `es-ES`, `es-419`.
@@ -1472,7 +1533,7 @@ class TranslationGraph:
         def base(node: str) -> str:
             match = self._REGION_TAG_RE.match(node)
             if match and match.group(1) in self._addressable \
-                    and _default_script(node) == _default_script(match.group(1)):
+                    and _same_script(node, match.group(1)):
                 return match.group(1)
             return node
 
@@ -1526,12 +1587,12 @@ class TranslationGraph:
 
     @staticmethod
     def _cap_key(cap: Capability, src: str, tgt: str) -> tuple:
-        # Within one leg: dedicated first, then the named specialist for this
-        # pair, then the more recently published upstream model, then
-        # permissive, then small. `src`/`tgt` matter here (unlike the other
-        # fields) because "specialist" is a claim about a specific pair, not
-        # a property of the model in isolation.
-        return (0 if cap.dedicated else 1,
+        # Within one leg: unflagged first, then dedicated, then the named
+        # specialist for this pair, then the more recently published upstream
+        # model, then permissive, then small. `src`/`tgt` matter here (unlike
+        # the other fields) because "specialist" is a claim about a specific
+        # pair, not a property of the model in isolation.
+        return (cap.flagged, 0 if cap.dedicated else 1,
                 0 if is_specialist_for(cap.provenance_org, src, tgt) else 1,
                 _recency_sort_value(cap.release_date),
                 cap.tier_rank, cap.size_mb, cap.model_id)
@@ -1620,7 +1681,7 @@ class TranslationGraph:
                    size_mb=cap.size_mb, dedicated=cap.dedicated,
                    specialist=is_specialist_for(cap.provenance_org, src, tgt),
                    provenance_org=cap.provenance_org,
-                   release_date=cap.release_date)
+                   release_date=cap.release_date, flagged=cap.flagged)
 
     def _enumerate(self, src: str, tgt: str, max_hops: int, prefer: str,
                    short_circuit: bool, index: _Index) -> List[Route]:
@@ -1631,9 +1692,10 @@ class TranslationGraph:
                                 prefer=prefer, max_hops=max_hops,
                                 pivot_basis=self.pivot_ranking))
 
-        # Under fewest_hops a direct route can never be beaten by a longer one,
-        # so enumerating pivots would be pure waste on the hot path.
-        if routes and short_circuit and prefer == "fewest_hops":
+        # Under fewest_hops an unflagged direct route can never be beaten by a
+        # longer one, so enumerating pivots would be pure waste on the hot path.
+        if short_circuit and prefer == "fewest_hops" \
+                and _has_clean_route(routes):
             return routes
         if max_hops < 2:
             return routes
@@ -1695,7 +1757,7 @@ class TranslationGraph:
         index = self._resolve(max_model_mb, count_cached_as_free)
         if src == tgt:
             return []
-        fallback = self._fallback_on(oversize_fallback)
+        fallback = self._fallback_on(oversize_fallback, max_model_mb)
         found, waived = self._search_endpoints(src, tgt, max_hops, prefer,
                                                short_circuit=False, index=index,
                                                fallback=fallback, bare=bare)
@@ -1737,7 +1799,7 @@ class TranslationGraph:
             raise NoRouteError(
                 f"source and target are the same language ({src!r}); nothing to translate")
         index = self._resolve(max_model_mb, count_cached_as_free)
-        fallback = self._fallback_on(oversize_fallback)
+        fallback = self._fallback_on(oversize_fallback, max_model_mb)
         found, waived = self._search_endpoints(src, tgt, max_hops, prefer,
                                                short_circuit=True, index=index,
                                                fallback=fallback, bare=bare)
@@ -1745,7 +1807,8 @@ class TranslationGraph:
             raise NoRouteError(
                 f"no route from {raw_src!r} to {raw_tgt!r} within "
                 f"{max_hops} hop(s)"
-                f"{self._why_not(src, tgt, max_hops, prefer, index, fallback=self._fallback_on(oversize_fallback))}")
+                f"{self._why_not(src, tgt, max_hops, prefer, index, fallback=fallback)}"
+                f"{self._barred_hint(src, tgt)}")
         best = min(found, key=lambda r: _route_key(r, prefer))
         if waived is not None:
             best = replace(best, waived_size_cap=waived)
@@ -1797,7 +1860,8 @@ class TranslationGraph:
                 return hint + ceiling
             if hint:
                 return hint
-            return (self._excluded_licence_hint(src, tgt)
+            return (self._excluded_hint(src, tgt)
+                    + self._uncached_hint(src, tgt)
                     + self._unrunnable_hint(src, tgt))
         if index.oversized:
             uncapped = self._index_for(None, True)
@@ -1815,7 +1879,7 @@ class TranslationGraph:
                     f"the download is already paid for")
         if hint:
             return hint
-        return (self._excluded_licence_hint(src, tgt)
+        return (self._excluded_hint(src, tgt)
                 + self._uncached_hint(src, tgt)
                 + self._unrunnable_hint(src, tgt))
 
@@ -1882,26 +1946,31 @@ class TranslationGraph:
                                 short_circuit=False, index=uncapped)
         return any(cap.model_id in route.model_ids for route in found)
 
-    def _excluded_licence_hint(self, src: str, tgt: str) -> str:
-        """Say so when the only thing blocking a route is the licence filter.
+    def _barred_hint(self, src: str, tgt: str) -> str:
+        """Quote the language flags that removed this pair's edges."""
+        flags = sorted(
+            {f"{cap.model_id} covers {lang} but is flagged: {barred[lang]}"
+             for cap in self.capabilities
+             for lang, barred in ((src, cap.barred_sources),
+                                  (tgt, cap.barred_targets))
+             if lang in barred})
+        return f" -- {'; '.join(flags)}" if flags else ""
+
+    def _excluded_hint(self, src: str, tgt: str) -> str:
+        """Say so when the only thing blocking a route is a selection filter.
 
         Non-commercial models are left out of the default graph so nobody
         inherits CC-BY-NC output without asking for it. That is the right
         default, but silence is the wrong way to enforce it: a language only
         NLLB covers (Kabuverdianu, for one) would otherwise look simply
-        unsupported. Name the models and the flag instead.
+        unsupported. Name the models and the filter that dropped them.
         """
-        excluded = getattr(self, "excluded_capabilities", None)
-        if not excluded:
-            return ""
-        covering = sorted({
-            cap.model_id for cap in excluded
-            if cap.covers(src, tgt)
-        })
-        if not covering:
-            return ""
-        return (f" -- excluded non-commercial model(s) cover this pair: "
-                f"{', '.join(covering)}; pass include_noncommercial=True to use them")
+        covering: Dict[str, List[str]] = {}
+        for cap, hint in self.excluded_capabilities:
+            if cap.covers(src, tgt):
+                covering.setdefault(hint, []).append(cap.model_id)
+        return "".join(f" -- {hint.format(', '.join(sorted(ids)))}"
+                       for hint, ids in sorted(covering.items()))
 
     def _uncached_hint(self, src: str, tgt: str) -> str:
         """Say when the only thing blocking a route is that nothing is cached.
@@ -1911,16 +1980,9 @@ class TranslationGraph:
         *constraint the operator set*, not a gap in the registry, and the two
         must never read the same: the operator's fix is a prefetch, and the
         message has to say which model to prefetch for that to be actionable.
-
-        :class:`~linguonnx.translate.Translator` fills
-        ``uncached_capabilities`` in; a graph built directly has no such
-        attribute and this hint stays empty, exactly like the licence one.
         """
-        uncached = getattr(self, "uncached_capabilities", None)
-        if not uncached:
-            return ""
         covering = sorted({f"{cap.model_id} ({cap.size_mb} MB)"
-                           for cap in uncached if cap.covers(src, tgt)})
+                           for cap in self.uncached_capabilities if cap.covers(src, tgt)})
         if not covering:
             return ""
         return (f" -- model(s) cover this pair but are not cached and "

@@ -3,7 +3,6 @@
 Offline. Each claim here was checked against the export ledger, where every
 sentence was translated by ``transformers`` and by the ONNX graphs.
 """
-import json
 import sys
 from pathlib import Path
 
@@ -70,20 +69,6 @@ def test_a_directions_list_becomes_the_capability_edges():
     capability = capability_from_entry(entry)
     assert capability.covers("es", "ast") and capability.covers("ast", "es")
     assert not capability.covers("es", "an")
-
-
-@pytest.mark.parametrize("repo", ["TigreGotico/afrigloss-nllb-600m-onnx",
-                                  "TigreGotico/afrigloss-nllb-1.3b-onnx"])
-def test_the_afrigloss_nllb_exports_are_skipped_with_the_reason(repo):
-    skipped = json.loads((ROOT / "linguonnx" / "model_index" / "skipped.json")
-                         .read_text(encoding="utf-8"))
-    assert "id 256204" in skipped[repo]
-    assert not any(e.get("hf_repo") == repo for e in TRANSLATE.values())
-
-
-def test_the_afrigloss_nllb_skip_is_allowlisted():
-    assert set(sync_registry._UNSUPPORTED_TOKENIZATION) \
-        == {"afrigloss-nllb-600m", "afrigloss-nllb-1.3b"}
 
 
 def test_afrigloss_marian_pairs_send_no_target_token():

@@ -18,7 +18,7 @@ what this host happens to have on disk.
 
 That dependence is real, not an artifact of the test. Whenever the download
 budget is below the largest runnable model, routing genuinely differs between a
-warm box and a cold one - the same registry and the same config give `en->cv` a
+warm box and a cold one - the same registry and the same config give `en->tyv` a
 `NoRouteError` cold and `madlad400-3b-mt-int8` warm, because a cached model
 costs no download and the budget never sees it. `docs/routing.md` documents
 that behaviour under "Routing is cache-dependent".
@@ -40,9 +40,9 @@ from linguonnx.translate import load_translator
 
 # Recount with:
 #   load_translator(max_model_mb=CAP, count_cached_as_free=False)
-LANGUAGES_UNCAPPED = 596
+LANGUAGES_UNCAPPED = 606
 LANGUAGES_UNDER_500 = 255
-FALLBACK_STEPS_UNDER_500 = 38
+FALLBACK_STEPS_UNDER_500 = 42
 
 # README.md's "What ships" table and docs/models.md's opening paragraph quote
 # these directly off `linguonnx/model_index/translate.json` and `lid.json`.
@@ -51,13 +51,13 @@ FALLBACK_STEPS_UNDER_500 = 38
 #   {v["hf_repo"] for v in translate.json.values() if "hf_repo" in v}  -> models
 #   Counter(v.get("precision") for v in translate.json.values())
 #                                               -> int8/fp32/rule-based split
-TRANSLATE_ENTRIES = 417
-TRANSLATE_INT8_ENTRIES = 207
-TRANSLATE_FP32_ENTRIES = 208
+TRANSLATE_ENTRIES = 453
+TRANSLATE_INT8_ENTRIES = 225
+TRANSLATE_FP32_ENTRIES = 226
 TRANSLATE_RULE_ENTRIES = 2
-TRANSLATE_MODELS = 208
-LID_ENTRIES = 10
-LID_MODELS = 5
+TRANSLATE_MODELS = 226
+LID_ENTRIES = 12
+LID_MODELS = 6
 
 
 @pytest.fixture(autouse=True)
@@ -133,14 +133,14 @@ class TestTheWorkedExamplesInTheDocs:
         tx = capped(500, oversize_fallback=True)
         assert tx.route("en", "ca").model_ids == ("opus-mt-en-ca-int8",)
 
-    def test_chuvash_falls_back_to_madlad(self):
+    def test_tuvan_falls_back_to_madlad(self):
         tx = capped(500, oversize_fallback=True)
-        route = tx.route("en", "cv")
+        route = tx.route("en", "tyv")
         assert route.model_ids == ("madlad400-3b-mt-int8",)
         assert route.waived_size_cap == 500
 
-    def test_chuvash_is_unroutable_without_the_fallback(self):
-        assert not capped(500).can_translate("en", "cv")
+    def test_tuvan_is_unroutable_without_the_fallback(self):
+        assert not capped(500).can_translate("en", "tyv")
 
     @pytest.mark.parametrize("src,tgt", [("pt", "ru"), ("nl", "fi"),
                                          ("pt", "eu")])
@@ -250,11 +250,16 @@ DOCUMENTED_TRANSLATE_FAMILIES = [
     r"^TigreGotico/nos-mt-.+-onnx$",
     r"^TigreGotico/mt-hitz-.+-onnx$",
     r"^TigreGotico/m2m100_418[Mm][-_].+-onnx$",  # African fine-tunes
+    r"^TigreGotico/nllb_200_distilled_600m-[a-z]{3}-[a-z]{3}-onnx$",  # DSFSI fine-tunes
     r"^TigreGotico/translate-eus-cat-onnx$",
     r"^TigreGotico/translate-oci-cat-onnx$",
+    r"^TigreGotico/arat5-arabic-dialects-translation-onnx$",
+    r"^TigreGotico/vinai-translate-vi2en-v2-onnx$",
     r"^TigreGotico/opus-mt-.+-onnx$",
     r"^TigreGotico/afrigloss-opus-mt-.+-onnx$",
     r"^TigreGotico/IbRo-nllb-onnx$",
+    r"^TigreGotico/afrigloss-nllb-(600m|1\.3b)-onnx$",
+    r"^TigreGotico/Plume(32|128)k-onnx$",
     r"^TigreGotico/madlad400-3b-mt-(oc_aranes|ast-an-oc_aranes|es_ES|es_419)-onnx$",
 ]
 

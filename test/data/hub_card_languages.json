@@ -120,6 +120,7 @@
     "fr",
     "yo"
   ],
+  "TigreGotico/afrolid_1.5-onnx": null,
   "TigreGotico/aina-translator-ca-de-onnx": [
     "ca",
     "de"
@@ -196,6 +197,9 @@
     "zh",
     "ca"
   ],
+  "TigreGotico/allosaurus-onnx": null,
+  "TigreGotico/arabic-MARBERT-dialect-identification-city-onnx": null,
+  "TigreGotico/arat5-arabic-dialects-translation-onnx": null,
   "TigreGotico/audiosronnx-apbwe": null,
   "TigreGotico/audiosronnx-callenhancer": null,
   "TigreGotico/audiosronnx-cmgan": null,
@@ -214,6 +218,7 @@
   "TigreGotico/audiosronnx-sidon": null,
   "TigreGotico/audiosronnx-unipase": null,
   "TigreGotico/audiosronnx-voicefixer": null,
+  "TigreGotico/audiosronnx-voiceisolator": null,
   "TigreGotico/bilstm-diacritizer": [
     "ar"
   ],
@@ -357,6 +362,27 @@
     "te",
     "ur"
   ],
+  "TigreGotico/jevasio-0.8b": [
+    "pt"
+  ],
+  "TigreGotico/jevasio-0.8b-v2": [
+    "pt"
+  ],
+  "TigreGotico/jevasio-4b": [
+    "pt"
+  ],
+  "TigreGotico/jevasio-4b-v2": [
+    "pt"
+  ],
+  "TigreGotico/jevhakim-0.8b": [
+    "ar"
+  ],
+  "TigreGotico/jevhakim-4b": [
+    "ar"
+  ],
+  "TigreGotico/kolokwa-g2p-onnx": [
+    "lir"
+  ],
   "TigreGotico/libtashkeel-diacritizer": [
     "ar"
   ],
@@ -400,6 +426,10 @@
     "en",
     "ig"
   ],
+  "TigreGotico/m2m100_418M_en_lug_rel_news_ft-onnx": [
+    "en",
+    "lg"
+  ],
   "TigreGotico/m2m100_418M_ewe_fr_rel_news_ft-onnx": [
     "ewe",
     "fr"
@@ -430,6 +460,14 @@
   ],
   "TigreGotico/m2m100_418M_hau_en_rel_news_ft-onnx": [
     "ha",
+    "en"
+  ],
+  "TigreGotico/m2m100_418M_ibo_en_rel_news_ft-onnx": [
+    "ig",
+    "en"
+  ],
+  "TigreGotico/m2m100_418M_lug_en_rel_news_ft-onnx": [
+    "lg",
     "en"
   ],
   "TigreGotico/m2m100_418M_mos_fr_rel_news_ft-onnx": [
@@ -519,6 +557,30 @@
   "TigreGotico/nisqa-onnx": null,
   "TigreGotico/nllb-200-distilled-600M-onnx": [
     "multilingual"
+  ],
+  "TigreGotico/nllb_200_distilled_600m-amh-eng-onnx": [
+    "am",
+    "en"
+  ],
+  "TigreGotico/nllb_200_distilled_600m-eng-amh-onnx": [
+    "en",
+    "am"
+  ],
+  "TigreGotico/nllb_200_distilled_600m-eng-yor-onnx": [
+    "en",
+    "yo"
+  ],
+  "TigreGotico/nllb_200_distilled_600m-eng-zul-onnx": [
+    "en",
+    "zu"
+  ],
+  "TigreGotico/nllb_200_distilled_600m-yor-eng-onnx": [
+    "yo",
+    "en"
+  ],
+  "TigreGotico/nllb_200_distilled_600m-zul-eng-onnx": [
+    "zu",
+    "en"
   ],
   "TigreGotico/nos-coda_iacobus-en-es-onnx": [
     "en",
@@ -1156,6 +1218,10 @@
     "ca"
   ],
   "TigreGotico/utmos-onnx": null,
+  "TigreGotico/vinai-translate-vi2en-v2-onnx": [
+    "vi",
+    "en"
+  ],
   "TigreGotico/voiceclonnx-bicodec": [
     "en"
   ],
@@ -1174,6 +1240,114 @@
   "TigreGotico/voiceclonnx-triaan-vc": [
     "en"
   ],
+  "TigreGotico/wakehubert-mel-attn": [
+    "en",
+    "de",
+    "nl",
+    "fr",
+    "es",
+    "it",
+    "pt",
+    "pl",
+    "multilingual"
+  ],
+  "TigreGotico/wakehubert-mel-bigru": [
+    "en",
+    "multilingual"
+  ],
+  "TigreGotico/wakehubert-mel-gru": [
+    "en",
+    "multilingual"
+  ],
+  "TigreGotico/wakehubert-mel-tcn-deep": [
+    "en",
+    "multilingual"
+  ],
+  "TigreGotico/wakehubert-mel-tcn-wide": [
+    "en",
+    "multilingual"
+  ],
+  "TigreGotico/wakehubert-mixconv": [
+    "en",
+    "de",
+    "nl",
+    "fr",
+    "es",
+    "it",
+    "pt",
+    "pl",
+    "multilingual"
+  ],
+  "TigreGotico/wakehubert-tiny": [
+    "en",
+    "de",
+    "nl",
+    "fr",
+    "es",
+    "it",
+    "pt",
+    "pl",
+    "multilingual"
+  ],
+  "TigreGotico/wakephonehubert": [
+    "en",
+    "nl",
+    "fr",
+    "de",
+    "it",
+    "pl",
+    "pt",
+    "es",
+    "ca",
+    "cy",
+    "ru",
+    "fa",
+    "tr",
+    "uk",
+    "ar",
+    "cs",
+    "el",
+    "et",
+    "id",
+    "ky",
+    "mn",
+    "ro",
+    "sv",
+    "lv"
+  ],
+  "TigreGotico/wakewav-mel-bigru": [
+    "en",
+    "multilingual"
+  ],
+  "TigreGotico/wakewav-mel-gru": [
+    "en",
+    "multilingual"
+  ],
+  "TigreGotico/wakewav-mel-tcn": [
+    "en",
+    "multilingual"
+  ],
+  "TigreGotico/wakewav-mel-tcn-wide": [
+    "en",
+    "multilingual"
+  ],
+  "TigreGotico/wakexeus-mel-bigru": [
+    "en",
+    "multilingual"
+  ],
+  "TigreGotico/wakexeus-mel-gru": [
+    "en",
+    "multilingual"
+  ],
+  "TigreGotico/wakexeus-mel-tcn": [
+    "en",
+    "multilingual"
+  ],
+  "TigreGotico/wakexeus-mel-tcn-wide": [
+    "en",
+    "multilingual"
+  ],
+  "TigreGotico/wav2vec2-xlsr-53-espeak-cv-ft-onnx": null,
   "TigreGotico/yes-no-classifiers": [
     "multilingual"
   ]

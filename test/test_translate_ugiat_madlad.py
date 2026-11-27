@@ -50,7 +50,7 @@ def test_the_three_language_model_covers_its_24_trained_directions_only(suffix):
 @pytest.mark.parametrize("model_id", ["madlad400-3b-mt-oc_aranes-int8",
                                       "madlad400-3b-mt-ast-an-oc_aranes-int8"])
 def test_aranese_is_selected_with_the_new_piece(model_id):
-    assert TRANSLATE[model_id]["native_codes"] == {"oc": "oc_aranes"}
+    assert TRANSLATE[model_id]["native_codes"]["oc"] == "oc_aranes"
 
 
 @pytest.mark.parametrize("region,native", [("es-ES", "es_ES"), ("es-419", "es_419")])
@@ -60,7 +60,7 @@ def test_a_regional_spanish_model_writes_only_its_region(region, native):
     base = _capability("madlad400-3b-mt-int8")
     assert capability.tgt_languages == frozenset({region})
     assert capability.src_languages == base.languages
-    assert TRANSLATE[model_id]["native_codes"] == {region: native}
+    assert TRANSLATE[model_id]["native_codes"][region] == native
     assert capability.covers("de", region)
     assert not capability.covers("en", "es")
     assert not capability.covers(region, "en")

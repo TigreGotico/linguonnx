@@ -33,6 +33,8 @@ that always agrees with the code under test would not catch a regression that
 changes both together.
 """
 
+import threading
+
 import pytest
 
 pytest.importorskip("regex")
@@ -96,10 +98,10 @@ def test_two_indictrans2_models_do_not_share_an_entity_map():
 
     model_a encodes a sentence with an email in it; model_b encodes a
     different sentence with a phone number in it, *before* model_a is
-    decoded. If the map were parked anywhere but the model object itself,
-    model_b's encode would have already overwritten it by the time model_a
-    decodes, and model_a's output would come back with the email's
-    placeholder token still in it instead of the address.
+    decoded. If one map served both models, model_b's encode would have
+    already overwritten it by the time model_a decodes, and model_a's output
+    would come back with the email's placeholder token still in it instead of
+    the address.
     """
     pipeline = pipeline_for("indictrans2")
     model_a = _FakeIndicTrans2Model("indictrans2-a")
@@ -110,11 +112,6 @@ def test_two_indictrans2_models_do_not_share_an_entity_map():
     ids_b = pipeline.encode(model_b, "call on 12/03/2024 please",
                             "eng_Latn", "hin_Deva")
 
-    # model_a's own map must have survived model_b's encode call untouched.
-    assert model_a._indic_entity_map != model_b._indic_entity_map
-    assert any("example.com" in v for v in model_a._indic_entity_map.values())
-    assert any("12/03/2024" in v for v in model_b._indic_entity_map.values())
-
     out_a = pipeline.decode(model_a, ids_a, "eng_Latn", "hin_Deva")
     out_b = pipeline.decode(model_b, ids_b, "eng_Latn", "hin_Deva")
 
@@ -123,6 +120,38 @@ def test_two_indictrans2_models_do_not_share_an_entity_map():
     # Cross-contamination would show up as the other call's original text.
     assert "12/03/2024" not in out_a
     assert "jane@example.com" not in out_b
+
+
+def test_two_threads_on_one_model_keep_their_own_entities():
+    """One model object, as a ``Translator`` shares it between threads.
+
+    Each thread encodes, waits until both have encoded, then decodes. A map
+    kept on the model holds only the last encode, so one request would return
+    the other request's address.
+    """
+    pipeline = pipeline_for("indictrans2")
+    model = _FakeIndicTrans2Model("indictrans2-shared")
+    both_encoded = threading.Barrier(2, timeout=30)
+    out = {}
+
+    def request(address):
+        ids = pipeline.encode(model, f"write to {address} please",
+                              "eng_Latn", "hin_Deva")
+        both_encoded.wait()
+        out[address] = pipeline.decode(model, ids, "eng_Latn", "hin_Deva")
+
+    addresses = ("ana@example.com", "rui@example.org")
+    threads = [threading.Thread(target=request, args=(address,))
+               for address in addresses]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+
+    assert sorted(out) == sorted(addresses)
+    for address, text in out.items():
+        assert text.count("@") == 1, text
+        assert address in text, text
 
 
 def test_a_spm_architecture_between_two_indictrans2_calls_does_not_corrupt_them():

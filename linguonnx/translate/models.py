@@ -13,6 +13,10 @@ fluent text in the wrong language and nothing raises. So it is concentrated in
 ``nllb``
     Same mechanism, but the codes are FLORES-200 (``por_Latn``), so the
     language *and* the script are selected together.
+``mbart``
+    Source language goes on the *input* after ``</s>``; target language is
+    the decoder's start token (``decoder_start_token_id = lang_id(tgt)``),
+    not a generated one. The codes are mBART's own (``vi_VN``, ``en_XX``).
 ``marian``
     Nothing to select. The model is the pair. A target token is only used by
     the multi-target ``tc-big``/``ROMANCE`` models, and only on request.
@@ -25,6 +29,9 @@ fluent text in the wrong language and nothing raises. So it is concentrated in
 ``opennmt-bpe``
     Nothing to select; the model is the pair. The work is Moses tokenisation
     and BPE, on both ends.
+``causal-lm``
+    A decoder-only model prompted with both language tags. The entry's
+    ``prompt_template`` is the prompt from the model card.
 ``rules``
     No ONNX graph and no download. The entry's ``callable`` names a Python
     function, ``module:function``, that translates one line, and the model is
@@ -41,17 +48,26 @@ from __future__ import annotations
 import importlib
 import json
 import logging
+import threading
 from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 from linguonnx.limits import MAX_ENCODER_TOKENS, DecodeError, has_visible_content
-from linguonnx.model_manager import ensure_model_files, registry_entry
+from linguonnx.model_manager import (ensure_model_files, list_models,
+                                      registry_entry)
 from linguonnx.providers import ProviderSpec, make_session
-from linguonnx.translate.decode import GenerationConfig, Seq2SeqDecoder
+from linguonnx.translate.decode import (CausalLMDecoder, GenerationConfig,
+                                        Seq2SeqDecoder)
 from linguonnx.translate.graph import (Capability, NoRouteError,
-                                       entry_runnability, normalize_tag)
+                                       _default_script, entry_runnability,
+                                       normalize_tag)
 from linguonnx.translate.preprocess import Pipeline, pipeline_for
+from linguonnx.translate.quality import (counterpart_model_id,
+                                         flagged_languages,
+                                         language_flag_reason,
+                                         quality_flag_reasons)
+from linguonnx.translate.segment import UNSPACED_SCRIPTS, split_sentences
 from linguonnx.translate.tokenizers import load_tokenizer
 
 LOG = logging.getLogger(__name__)
@@ -67,13 +83,19 @@ def _session(path: Path, providers: Optional[Sequence[ProviderSpec]] = None):
     return make_session(path, providers=providers, sess_options=options)
 
 
-def capability_from_entry(entry: Dict) -> Capability:
+def capability_from_entry(entry: Dict,
+                          registry: Optional[Dict[str, Dict]] = None) -> Capability:
     """Turn one ``translate.json`` entry into a graph :class:`Capability`.
 
     Bilingual entries carry ``pair``; multilingual entries carry ``languages``.
-    Both are stored in the model's *own* codes and normalised to BCP-47 here,
-    so the graph never sees ``por_Latn`` and the model never sees ``pt``.
+    Both are stored in BCP-47 and normalised again here, so a hand-built
+    entry gets the same nodes. The model's own codes are in ``native_codes``.
+
+    A quality flag and a language flag hold for both precisions of an export,
+    so ``registry`` supplies the other precision's entry.
     """
+    counterpart = (registry or {}).get(counterpart_model_id(entry["model_id"]))
+    flag_sources = [e for e in (entry, counterpart) if e]
     langs = frozenset(normalize_tag(code) for code in entry.get("languages", ()))
     # An instruction-prefixed model can only do what it has an instruction
     # for, so its registered prefixes *are* its coverage. Deriving the edges
@@ -112,6 +134,13 @@ def capability_from_entry(entry: Dict) -> Capability:
         release_date=entry.get("release_date"),
         precision=entry.get("precision"),
         quality=entry.get("quality"),
+        flagged=bool(quality_flag_reasons(entry, counterpart)),
+        barred_targets={normalize_tag(lang): language_flag_reason(e, lang, "target")
+                        for e in flag_sources
+                        for lang in flagged_languages(e, "target")},
+        barred_sources={normalize_tag(lang): language_flag_reason(e, lang, "source")
+                        for e in flag_sources
+                        for lang in flagged_languages(e, "source")},
     )
 
 
@@ -137,39 +166,37 @@ class TranslationModel:
         self._providers = providers
         self.entry = entry or registry_entry(model_id, kind="translate")
         self.arch = self.entry["arch"]
-        self.capability = capability_from_entry(self.entry)
+        self.capability = capability_from_entry(
+            self.entry, list_models(kind="translate"))
         self._files: Optional[Dict[str, Path]] = None
         self._decoder: Optional[Seq2SeqDecoder] = None
         self._tokenizer = None
         self._config: Optional[Dict] = None
         self._banned_token_ids: Optional[FrozenSet[int]] = None
         self._rules: Optional[Callable[[str], str]] = None
-        # model code <-> BCP-47, both ways, built from the registry's own list.
-        self._to_native: Dict[str, str] = {}
-        for code in self.entry.get("languages", ()):
-            self._to_native.setdefault(normalize_tag(code), code)
-        for code in (self.entry.get("src_languages") or ()):
-            self._to_native.setdefault(normalize_tag(code), code)
-        for code in (self.entry.get("tgt_languages") or ()):
-            self._to_native.setdefault(normalize_tag(code), code)
-        if self.capability.pair:
-            for native, tag in zip(self.entry["pair"], self.capability.pair):
-                self._to_native.setdefault(tag, native)
-        # A hand-verified fix-up for a model whose own code collides with a
-        # different language's ISO tag (liv4ever-mt's `<2li>` means Livonian,
-        # not Limburgish - see MARIAN_MULTILINGUAL_OVERRIDES in
-        # scripts/sync_registry.py). Applied last, so it always wins.
-        for tag, native in (self.entry.get("native_codes") or {}).items():
-            self._to_native[tag] = native
+        # Threads share this object, so the lazy builds below take this lock:
+        # a cold model is downloaded and its sessions built once. Reentrant
+        # because the decoder build reads `files`.
+        self._build_lock = threading.RLock()
+        # BCP-47 -> the model's own code, one row per language the entry
+        # routes. `scripts/sync_registry.py` writes the full table; nothing
+        # here derives a code from a tag.
+        if "native_codes" not in self.entry:
+            raise ValueError(
+                f"{model_id}: the registry entry has no `native_codes`; run "
+                f"scripts/sync_registry.py to write the table")
+        self._to_native: Dict[str, str] = dict(self.entry["native_codes"])
 
     # -- lazy loading -----------------------------------------------------
 
     @property
     def files(self) -> Dict[str, Path]:
         if self._files is None:
-            self._files = ensure_model_files(
-                self.model_id, kind="translate",
-                enforce_budget=self._enforce_download_budget)
+            with self._build_lock:
+                if self._files is None:
+                    self._files = ensure_model_files(
+                        self.model_id, kind="translate",
+                        enforce_budget=self._enforce_download_budget)
         return self._files
 
     @property
@@ -239,29 +266,34 @@ class TranslationModel:
     @property
     def tokenizer(self):
         if self._tokenizer is None:
-            # An entry that declares languages states them in the *routing*
-            # spelling, so they are translated back into the model's own
-            # before the tokenizer sees them. An entry that declares none
-            # (a bilingual `pair`) passes an empty sequence on purpose:
-            # `load_tokenizer` then reads the codes out of the export itself,
-            # which is the only source NLLB's positional block has.
-            #
-            # A *directional* entry states its languages in
-            # `src_languages`/`tgt_languages` and carries no flat `languages`
-            # list. Reading only `languages` would hand such an entry the
-            # empty sequence and fall back to the export's own order - which
-            # for M2M100/NLLB is the positional block that misrouted 64 of
-            # M2M100's 100 languages. Harmless for the Marian group models
-            # this shape currently describes (their tokenizer ignores the
-            # argument), and that is exactly why it must not be left to be
-            # discovered by the first non-Marian entry reshaped this way.
-            declared = (self.entry.get("languages")
-                        or self.entry.get("src_languages")
-                        or self.entry.get("tgt_languages"))
-            codes = self.native_codes if declared else ()
-            self._tokenizer = load_tokenizer(
-                self.arch, self.files, codes, pair=self.entry.get("pair"))
+            with self._build_lock:
+                if self._tokenizer is None:
+                    self._tokenizer = self._build_tokenizer()
         return self._tokenizer
+
+    def _build_tokenizer(self):
+        # An entry that declares languages states them in the *routing*
+        # spelling, so they are translated back into the model's own
+        # before the tokenizer sees them. An entry that declares none
+        # (a bilingual `pair`) passes an empty sequence on purpose:
+        # `load_tokenizer` then reads the codes out of the export itself,
+        # which is the only source NLLB's positional block has.
+        #
+        # A *directional* entry states its languages in
+        # `src_languages`/`tgt_languages` and carries no flat `languages`
+        # list. Reading only `languages` would hand such an entry the
+        # empty sequence and fall back to the export's own order - which
+        # for M2M100/NLLB is the positional block that misrouted 64 of
+        # M2M100's 100 languages. Harmless for the Marian group models
+        # this shape currently describes (their tokenizer ignores the
+        # argument), and that is exactly why it must not be left to be
+        # discovered by the first non-Marian entry reshaped this way.
+        declared = (self.entry.get("languages")
+                    or self.entry.get("src_languages")
+                    or self.entry.get("tgt_languages"))
+        codes = self.native_codes if declared else ()
+        return load_tokenizer(
+            self.arch, self.files, codes, pair=self.entry.get("pair"))
 
     @property
     def rules(self) -> Callable[[str], str]:
@@ -289,17 +321,32 @@ class TranslationModel:
     @property
     def decoder(self) -> Seq2SeqDecoder:
         if self._decoder is None:
-            config = self.config
-            self._decoder = Seq2SeqDecoder(
-                _session(self.files["encoder"], self._providers),
-                _session(self.files["decoder"], self._providers),
-                _session(self.files["decoder_with_past"], self._providers),
-                eos_id=int(config["eos_token_id"]),
-                pad_id=int(config["pad_token_id"]),
-                decoder_start_id=int(config["decoder_start_token_id"]),
+            with self._build_lock:
+                if self._decoder is None:
+                    self._decoder = self._build_decoder()
+        return self._decoder
+
+    def _build_decoder(self) -> Seq2SeqDecoder:
+        if self.arch == "causal-lm":
+            return CausalLMDecoder(
+                _session(self.files["model"], self._providers),
+                eos_id=int(self.config["eos_token_id"]),
+                pad_id=int(self.config["pad_token_id"]),
                 max_input_tokens=self._max_input_tokens(),
             )
-        return self._decoder
+        config = self.config
+        # mBART's config names no start token: the pipeline supplies the
+        # target language's tag per call instead.
+        start = config.get("decoder_start_token_id")
+        return Seq2SeqDecoder(
+            _session(self.files["encoder"], self._providers),
+            _session(self.files["decoder"], self._providers),
+            _session(self.files["decoder_with_past"], self._providers),
+            eos_id=int(config["eos_token_id"]),
+            pad_id=int(config["pad_token_id"]),
+            decoder_start_id=None if start is None else int(start),
+            max_input_tokens=self._max_input_tokens(),
+        )
 
     def _max_input_tokens(self) -> int:
         """The tightest encoder bound that applies to this model.
@@ -338,9 +385,9 @@ class TranslationModel:
         M2M100-418M's 100 languages; see
         :class:`~linguonnx.translate.tokenizers.SpmSeq2SeqTokenizer`.
 
-        ``_to_native`` already holds that translation, ``native_codes``
-        overrides included. The declared order is preserved because NLLB's
-        language block is still positional.
+        The entry's ``native_codes`` table holds that translation. The
+        declared order is preserved because NLLB's language block is still
+        positional.
         """
         declared: List[str] = list(self.entry.get("languages") or ())
         if not declared:
@@ -351,7 +398,7 @@ class TranslationModel:
             declared = list(self.capability.pair or ())
         out: List[str] = []
         for tag in declared:
-            native = self._to_native.get(normalize_tag(tag), tag)
+            native = self.native_code(tag)
             if native not in out:
                 out.append(native)
         return tuple(out)
@@ -370,7 +417,7 @@ class TranslationModel:
     def translate(self, text: str, src: str, tgt: str,
                   config: Optional[GenerationConfig] = None,
                   target_token: Optional[str] = None) -> str:
-        if not text.strip():
+        if not has_visible_content(text):
             return ""
         if self.entry.get("extra") and self.arch != "rules":
             # A pinned `model=` skips the router. Refuse before the files
@@ -385,6 +432,31 @@ class TranslationModel:
             # is translated alone and the line breaks are kept.
             return "\n".join(self.rules(line) if line.strip() else line
                              for line in text.split("\n"))
+        # These models translate one sentence at a time. Given more, they end
+        # the sequence early and the rest of the text is lost.
+        return "\n".join(
+            self._translate_line(line, src, tgt, config, target_token)
+            if has_visible_content(line) else line
+            for line in text.split("\n"))
+
+    def _translate_line(self, line: str, src: str, tgt: str,
+                        config: Optional[GenerationConfig],
+                        target_token: Optional[str]) -> str:
+        parts = split_sentences(line)
+        if len(parts) == 1:
+            return self._translate_sentence(line, src, tgt, config, target_token)
+        unspaced = _default_script(tgt) in UNSPACED_SCRIPTS
+        pieces: List[str] = []
+        for sentence, gap in parts:
+            if has_visible_content(sentence):
+                pieces.append(self._translate_sentence(sentence, src, tgt,
+                                                       config, target_token))
+            pieces.append("" if unspaced else gap or " ")
+        return "".join(pieces).rstrip()
+
+    def _translate_sentence(self, text: str, src: str, tgt: str,
+                            config: Optional[GenerationConfig],
+                            target_token: Optional[str]) -> str:
         config = config or GenerationConfig()
         # A multi-target Marian group model (opus-mt-en-sla and friends) picks
         # its target language from a prefix token, and picks it *wrong* when
@@ -422,6 +494,7 @@ class TranslationModel:
                                     target_token=target_token)
         output_ids = self.decoder.generate(
             input_ids, forced_bos_token_id=pipeline.forced_bos(self, tgt),
+            decoder_start_token_id=pipeline.decoder_start(self, tgt),
             config=config)
         result = pipeline.decode(self, output_ids, src, tgt)
         if not has_visible_content(result):

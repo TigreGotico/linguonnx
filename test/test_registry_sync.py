@@ -76,7 +76,7 @@ def test_translate_entry_is_complete(model_id):
     assert entry["arch"] in (
         "marian", "m2m100", "nllb", "madlad", "t5-prefix", "indictrans2",
         "opennmt-bpe",
-        "pegasus-fast")
+        "pegasus-fast", "t5-fast", "mbart", "causal-lm")
     assert entry["precision"] in ("fp32", "int8")
     assert entry["size_mb"] > 0
 
@@ -115,7 +115,9 @@ def test_translate_entry_declares_a_licence(model_id):
 @pytest.mark.parametrize("model_id", ONNX_TRANSLATE)
 def test_translate_entry_references_plausible_files(model_id):
     entry = TRANSLATE[model_id]
-    assert set(entry["graphs"]) == {"encoder", "decoder", "decoder_with_past"}
+    expected = ({"model"} if entry["arch"] == "causal-lm"
+                else {"encoder", "decoder", "decoder_with_past"})
+    assert set(entry["graphs"]) == expected
     for name in entry["graphs"].values():
         assert name.endswith(".onnx"), f"{model_id}: {name} is not a graph"
     for name in entry["extra_files"]:
@@ -141,6 +143,9 @@ def test_translate_entry_carries_side_files_its_tokenizer_needs(model_id):
         "indictrans2": {"spm_src", "spm_tgt", "dict_src", "dict_tgt", "config"},
         "opennmt-bpe": {"vocab", "config", "bpe_code"},
         "pegasus-fast": {"tokenizer_json", "config"},
+        "t5-fast": {"tokenizer_json", "config", "tokenizer_config"},
+        "mbart": {"spm", "config", "special_tokens_map"},
+        "causal-lm": {"tokenizer_json", "config", "tokenizer_config"},
     }[entry["arch"]]
     assert required <= set(side), \
         f"{model_id} ({entry['arch']}) is missing {required - set(side)}"
@@ -160,13 +165,19 @@ def test_translate_entry_carries_side_files_its_tokenizer_needs(model_id):
 def test_lid_entry_is_complete(model_id):
     entry = LID[model_id]
     for key in ("model_id", "hf_repo", "onnx_file", "side_files", "license",
-                "engine", "loss", "num_labels", "size_mb", "precision"):
+                "engine", "num_labels", "size_mb", "precision"):
         assert key in entry, f"{model_id} is missing {key!r}"
     assert entry["license"].strip()
     assert entry["onnx_file"].endswith(".onnx")
     assert entry["num_labels"] > 0
     assert entry["size_mb"] > 0
-    assert {"vocab", "labels", "config"} <= set(entry["side_files"])
+    required = {
+        "fasttext-onnx": {"vocab", "labels", "config"},
+        "transformer-onnx": {"tokenizer_json", "config"},
+    }[entry["engine"]]
+    assert required <= set(entry["side_files"])
+    if entry["engine"] == "fasttext-onnx":
+        assert entry["loss"] in ("softmax", "hs")
 
 
 def test_every_entry_declares_exactly_one_kind_of_coverage():
@@ -218,7 +229,8 @@ def test_basque_is_served_only_by_models_that_actually_have_it():
         endpoints = {normalize_tag(c) for c in entry.get("pair", ())}
         endpoints |= {normalize_tag(c) for c in entry.get("languages", ())}
         if "eu" in endpoints:
-            assert entry["arch"] in ("marian", "nllb", "madlad", "pegasus-fast"), \
+            assert entry["arch"] in ("marian", "nllb", "madlad", "pegasus-fast",
+                                     "causal-lm"), \
                 f"{model_id} claims Basque with arch {entry['arch']}"
 
 
@@ -245,7 +257,7 @@ def test_multi_target_group_models_record_their_target_token():
         if len(parts) != 2:
             continue
         _, base_tgt = parts
-        if base_tgt != entry["pair"][1]:
+        if base_tgt != entry["native_codes"][entry["pair"][1]]:
             token = entry.get("target_token", "")
             assert token.startswith(">>") and token.endswith("<<"), (
                 f"{model_id} exports {base} but targets {entry['pair'][1]}; "
@@ -284,7 +296,7 @@ def test_group_models_carry_a_target_token_template():
         # targets in `tgt_languages`; an any-to-any one states them in
         # `languages`. Either way, every target has to build a token.
         for tag in targets:
-            native = (entry.get("native_codes") or {}).get(tag, tag)
+            native = entry["native_codes"][tag]
             assert template.format(code=native)
 
 
@@ -441,6 +453,24 @@ def test_arch_still_reads_nllb_without_vocab_json():
     detail = {"config": {"model_type": "m2m_100"}}
     files = {"sentencepiece.bpe.model": 1}
     assert sync_registry._arch(detail, files) == "nllb"
+
+
+def test_arch_reads_mbart_rather_than_nllb():
+    """mBART ships NLLB's file shape; only `model_type` tells them apart."""
+    detail = {"config": {"model_type": "mbart"}}
+    files = {"sentencepiece.bpe.model": 1, "special_tokens_map.json": 1}
+    assert sync_registry._arch(detail, files) == "mbart"
+
+
+def test_mbart_native_codes_match_the_language_subtag(monkeypatch):
+    tokens = ["ar_AR", "en_XX", "es_XX", "vi_VN", "zh_CN"]
+    monkeypatch.setattr(sync_registry, "raw_file", lambda repo, path: json.dumps(
+        {"additional_special_tokens": tokens}))
+    files = {"special_tokens_map.json": 1}
+    assert sync_registry._mbart_native_codes("x/y", files, ["vi", "en"]) == \
+        {"en": "en_XX", "vi": "vi_VN"}
+    with pytest.raises(sync_registry.SkipRepo):
+        sync_registry._mbart_native_codes("x/y", files, ["vi", "pt"])
 
 
 def test_arch_reads_pegasus_fast_from_tokenizer_json():
@@ -600,7 +630,8 @@ def test_hi_to_ta_resolves_direct(translator):
 #: for. Kept as a literal set rather than read from the registry, so that
 #: adding an entry for an architecture nobody wrote a pipeline for fails here.
 RUNNABLE_ARCHS = {"marian", "m2m100", "nllb", "madlad", "t5-prefix",
-                  "indictrans2", "opennmt-bpe", "pegasus-fast"}
+                  "indictrans2", "opennmt-bpe", "pegasus-fast", "t5-fast",
+                  "mbart", "causal-lm"}
 
 
 @pytest.mark.parametrize("model_id", sorted(TRANSLATE))
@@ -767,41 +798,30 @@ def test_registry_json_is_stable_and_sorted():
 # A Marian export whose vocab.json cannot spell its own source language
 # --------------------------------------------------------------------------
 
-class TestTheEnKoClaimIsWithdrawn:
-    """`Helsinki-NLP/opus-mt-tc-big-en-ko` cannot read English.
+class TestSeparateVocabularies:
+    """`Helsinki-NLP/opus-mt-tc-big-en-ko` and `liv4ever-mt` were trained with
+    separate source and target vocabularies.
 
-    Its `vocab.json` is the *target* (Korean) vocabulary: only 21% of the
-    pieces `source.spm` produces have an id, so `doctor`, `patient`,
-    `recover` and `weeks` all arrive at the encoder as `<unk>` and the
-    decoder answers fluent Korean nonsense
-    (`'process 잘 모기 댓글 upon9-2.'`). `transformers` builds the identical
-    input ids from the identical files, so this is an upstream export defect
-    that no inference change here can repair - the claim goes instead.
+    The en-ko base repo ships only the target (Korean) vocabulary as
+    `vocab.json`: 21% of the pieces `source.spm` produces have an id, so the
+    encoder reads English as `<unk>` and the decoder answers fluent Korean
+    nonsense. `transformers` builds the same ids from the same files. The
+    TigreGotico repo carries the source ids in `vocab.json` and the target ids
+    in `target_vocab.json`, and the entry has to name both: decoding
+    liv4ever-mt's output with `vocab.json` gives text in no language.
     """
 
-    def test_the_registry_no_longer_claims_the_pair(self):
+    @pytest.mark.parametrize("model_id", ["opus-mt-en-ko", "opus-mt-en-ko-int8",
+                                          "liv4ever-mt", "liv4ever-mt-int8"])
+    def test_the_entry_names_the_target_vocabulary(self, model_id):
         registry = json.loads((REPO_ROOT / "linguonnx" / "model_index"
                                / "translate.json").read_text(encoding="utf-8"))
-        assert not [m for m in registry if m.startswith("opus-mt-en-ko")]
+        side = registry[model_id]["side_files"]
+        prefix = "int8/" if model_id.endswith("-int8") else ""
+        assert (side["vocab"], side["target_vocab"]) == (
+            prefix + "vocab.json", prefix + "target_vocab.json")
 
-    def test_the_reason_is_recorded_rather_than_forgotten(self):
-        skipped = json.loads((REPO_ROOT / "linguonnx" / "model_index"
-                              / "skipped.json").read_text(encoding="utf-8"))
-        reason = skipped.get("TigreGotico/opus-mt-en-ko-onnx")
-        assert reason and "source.spm" in reason
-
-    def test_english_to_korean_still_routes(self):
-        """Withdrawing a broken claim must not withdraw the language.
-
-        The replacement was measured, not assumed: `m2m100-418M-int8` scores
-        **chrF 30.4** on `en->ko`, FLORES-200 devtest, n=100, beam4 - the same
-        corpus, metric and decoding mode every `quality` number in the
-        registry uses. It is in the band of the measured entries there
-        (`opus-mt-az-en` 25.9, `m2m100_418M_en_hau_rel_news_ft` 37.9). The
-        number is not written into `m2m100-418M-int8`'s `quality` field
-        because that field is a whole-model claim and this is one pair out of
-        that model's ~9900.
-        """
+    def test_english_to_korean_routes(self):
         translator = load_translator()
         assert translator.route("en", "ko").hops
 
@@ -948,7 +968,8 @@ class TestASyncCannotDestroyCuratedRegistryData:
         "extra_files": [],
         "src_languages": ["en"],
         "tgt_languages": ["da", "sv", "nb", "nn", "fo", "is"],
-        "native_codes": {"nso": "ns"},
+        "native_codes": {"da": "da", "en": "en", "fo": "fo", "is": "is", "nb": "nb",
+                         "nn": "nn", "sv": "sv"},
         "notes": ("Demo group model. FLORES-200 re-measurement (n=100, chrF) "
                   "found it looping on 6 of 100 in-domain sentences."),
         "quality": {"chrf": 41.2, "corpus": "flores200", "metric": "chrf",
@@ -976,7 +997,8 @@ class TestASyncCannotDestroyCuratedRegistryData:
         "extra_files": [],
         "src_languages": ["en"],
         "tgt_languages": ["da", "sv", "nb", "nn", "fo", "is"],
-        "native_codes": {"nso": "ns"},
+        "native_codes": {"da": "da", "en": "en", "fo": "fo", "is": "is", "nb": "nb",
+                         "nn": "nn", "sv": "sv"},
         "notes": "Demo group model.",
     }
 
@@ -1457,3 +1479,152 @@ class TestARuleBasedEntrySurvivesAResync:
         assert sync.main([]) == 0
         assert self._registry(sync)["pt2barranquenho"]["quality"] == \
             {"chrf_vs_ref": 50.0}
+
+
+class TestFastTextLidExternalData:
+    """A fastText export whose graph keeps its weights in ``<graph>_data``."""
+
+    # Sizes of TigreGotico/lid218e-onnx on the Hub.
+    FILES = {"lid218e.onnx": 474, "lid218e.onnx_data": 1_173_665_792,
+             "lid218e.int8.onnx": 293_417_764, "lid218e_hash.py": 4_785,
+             "vocab.txt": 1_370_564, "labels.json": 4_578, "config.json": 123}
+
+    def test_size_and_extra_files_count_the_external_weights(self, monkeypatch):
+        sync = _load_sync_registry()
+        monkeypatch.setattr(sync, "raw_file", lambda repo_id, path: json.dumps(
+            ["eng_Latn", "por_Latn"] if path == "labels.json"
+            else {"loss": "softmax"}))
+        detail = {"cardData": {"license": "cc-by-nc-4.0"},
+                  "siblings": [{"rfilename": f, "size": n}
+                               for f, n in self.FILES.items()]}
+        entries = sync.lid_entries("TigreGotico/lid218e-onnx", detail, "")
+        fp32, int8 = entries["lid218e"], entries["lid218e-int8"]
+        # (474 + 1173665792 + 1370564 + 4578 + 123) / 1e6 = 1175.04
+        assert fp32["size_mb"] == 1175
+        assert fp32["extra_files"] == ["lid218e.onnx_data"]
+        # (293417764 + 1370564 + 4578 + 123) / 1e6 = 294.79
+        assert int8["size_mb"] == 295
+        assert "extra_files" not in int8
+
+
+class TestTransformerLidEntries:
+    """`lid_entries` on a transformer sequence-classification export, offline."""
+
+    FILES = {"model.onnx": 1_000_000_000, "model.int8.onnx": 250_000_000,
+             "config.json": 10_000, "tokenizer.json": 30_000_000}
+    CONFIG = {"architectures": ["XLMRobertaForSequenceClassification"],
+              "model_type": "xlm-roberta",
+              "problem_type": "single_label_classification",
+              "id2label": {"0": "yor", "1": "hau", "2": "nan_lang"}}
+
+    @pytest.fixture
+    def sync(self):
+        return _load_sync_registry()
+
+    def _entries(self, sync, monkeypatch, name, config, license="apache-2.0"):
+        monkeypatch.setattr(sync, "raw_file",
+                            lambda repo_id, path: json.dumps(config))
+        detail = {"cardData": {"license": license},
+                  "siblings": [{"rfilename": f, "size": n}
+                               for f, n in self.FILES.items()]}
+        assert sync.classify(sync._files_of(detail)) == "lid"
+        return sync.lid_entries(f"TigreGotico/{name}-onnx", detail, "")
+
+    def test_both_precisions_are_registered_for_the_transformer_engine(
+            self, sync, monkeypatch):
+        entries = self._entries(sync, monkeypatch, "some-lid", self.CONFIG)
+        assert sorted(entries) == ["some-lid", "some-lid-int8"]
+        fp32, int8 = entries["some-lid"], entries["some-lid-int8"]
+        assert fp32["engine"] == int8["engine"] == "transformer-onnx"
+        assert fp32["onnx_file"] == "model.onnx"
+        assert int8["onnx_file"] == "model.int8.onnx"
+        assert fp32["side_files"] == {"tokenizer_json": "tokenizer.json",
+                                      "config": "config.json"}
+        assert fp32["num_labels"] == 3
+        assert fp32["license"] == "Apache-2.0"
+        assert fp32["size_mb"] == 1030
+        assert "loss" not in fp32
+
+    def test_a_classifier_whose_labels_are_not_languages_is_refused(
+            self, sync, monkeypatch):
+        config = dict(self.CONFIG, id2label={"0": "Cairo", "1": "Doha"})
+        with pytest.raises(sync.SkipRepo, match="not language codes"):
+            self._entries(sync, monkeypatch, "some-lid", config)
+
+    def test_a_causal_lm_is_refused(self, sync, monkeypatch):
+        config = {"architectures": ["GemmaForCausalLM"], "model_type": "gemma"}
+        with pytest.raises(sync.SkipRepo, match="not a sequence classifier"):
+            self._entries(sync, monkeypatch, "some-lm", config)
+
+    def test_a_multi_label_head_is_refused(self, sync, monkeypatch):
+        config = dict(self.CONFIG, problem_type="multi_label_classification")
+        with pytest.raises(sync.SkipRepo, match="softmax"):
+            self._entries(sync, monkeypatch, "some-lid", config)
+
+    def test_afrolid_reads_its_licence_from_its_card(self, sync, monkeypatch):
+        entries = self._entries(sync, monkeypatch, "afrolid_1.5", self.CONFIG,
+                                license="apache-2.0")
+        assert {e["license"] for e in entries.values()} == {"Apache-2.0"}
+        assert all("Yoruba" in e["notes"] for e in entries.values())
+
+    def test_marbert_is_refused_for_its_terms(self, sync, monkeypatch):
+        with pytest.raises(sync.SkipRepo, match="exclusively for research"):
+            self._entries(sync, monkeypatch,
+                          "arabic-MARBERT-dialect-identification-city",
+                          self.CONFIG, license="other")
+
+
+class TestCompleteNativeCodes:
+    """`complete_native_codes` writes BCP-47 codes and the full table."""
+
+    def test_a_model_spelling_moves_into_the_table(self):
+        entry = {"pair": ["spa_Latn", "arg_Latn"]}
+        out = sync_registry.complete_native_codes("x", entry)
+        assert out["pair"] == ["es", "an"]
+        assert out["native_codes"] == {"an": "arg_Latn", "es": "spa_Latn"}
+
+    def test_a_bcp47_code_maps_to_itself(self):
+        out = sync_registry.complete_native_codes(
+            "x", {"languages": ["en", "ns"]})
+        assert out["languages"] == ["en", "nso"]
+        assert out["native_codes"] == {"en": "en", "nso": "ns"}
+
+    @pytest.mark.parametrize("code, tag", [("arn_Latn", "oc"), ("ns", "nso")])
+    def test_a_model_spelling_becomes_the_language_it_means(self, code, tag):
+        out = sync_registry.complete_native_codes(
+            "x", {"languages": ["en", code]})
+        assert out["languages"] == ["en", tag]
+        assert out["native_codes"] == {"en": "en", tag: code}
+
+    def test_a_curated_override_wins_over_the_extracted_spelling(self):
+        entry = {"pair": ["bam", "fr"], "native_codes": {"bm": "sw"}}
+        out = sync_registry.complete_native_codes("x", entry)
+        assert out["pair"] == ["bm", "fr"]
+        assert out["native_codes"] == {"bm": "sw", "fr": "fr"}
+
+    def test_transcribed_directions_get_rows(self):
+        entry = {"languages": ["en"], "directions": [["en", "tw"]],
+                 "native_codes": {"tw": "twi_Latn"}}
+        out = sync_registry.complete_native_codes("x", entry)
+        assert out["native_codes"] == {"en": "en", "tw": "twi_Latn"}
+
+    def test_two_spellings_of_one_tag_are_refused(self):
+        with pytest.raises(ValueError, match="spelled both"):
+            sync_registry.complete_native_codes(
+                "x", {"languages": ["tl", "fil"]})
+
+    def test_a_row_for_an_unrouted_tag_is_refused(self):
+        with pytest.raises(ValueError, match="does not route"):
+            sync_registry.complete_native_codes(
+                "x", {"pair": ["en", "fr"], "native_codes": {"de": "deu"}})
+
+    def test_a_transcribed_model_spelling_is_refused(self):
+        with pytest.raises(ValueError, match="not BCP-47"):
+            sync_registry.complete_native_codes(
+                "x", {"languages": ["en"], "directions": [["en", "twi_Latn"]]})
+
+    def test_the_committed_registry_is_already_complete(self):
+        for model_id, entry in model_manager.list_models(
+                kind="translate").items():
+            assert sync_registry.complete_native_codes(model_id, entry) \
+                == entry, model_id

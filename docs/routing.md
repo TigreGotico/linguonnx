@@ -1,4 +1,5 @@
 # Routing
+<!-- agent-hint: how the router selects a route: prefer policies, hop caps, the size budget, pivot ranking, quality flags. Verify: `python scripts/check_docs.py docs/routing.md` and `pytest -q test/test_docs.py`. -->
 
 No single translation model covers every pair anyone wants. Some pairs have a
 dedicated bilingual model, some are only reachable inside a big multilingual
@@ -30,32 +31,29 @@ fails at runtime.
 ## Coverage and runnability are separate
 
 A capability says what a model's weights know. It also says whether this
-library can **run** them, which is a different question: an entry can be a
-correct claim about languages and still have no inference pipeline here.
-IndicTrans2 needs the IndicProcessor preprocessing chain and ProxectoNos'
-OpenNMT exports need Moses plus subword-nmt BPE; neither is vendored, so
-`TranslationModel.translate` raises `NotImplementedError` for them.
+library can **run** them, which is a different question. An entry can be a
+correct claim about languages, and the model can still need packages that are
+not installed. IndicTrans2 needs the IndicProcessor preprocessing chain from
+the `indic` extra. The Proxecto Nós OpenNMT exports need Moses and subword-nmt
+BPE from the `opennmt` extra.
 
-The routing layer agrees with that. A model the registry marks unrunnable is
-excluded from `route()`, `routes()`, `can_translate()` and
-`available_languages`, so a caller who asks "will this work" before committing
-gets the same answer `translate()` will give:
+The routing layer agrees with that. A model that cannot run is excluded from
+`route()`, `routes()`, `can_translate()` and `available_languages`. A caller who
+asks "will this work" before the call gets the same answer that `translate()`
+gives:
 
 ```python
 from linguonnx import load_translator
 
 tx = load_translator()
-print(tx.can_translate("en", "sat"))    # False — no runnable model has Santali
+print(tx.can_translate("en", "sat"))    # True — with the indic extra installed
 ```
 
-The pair is still covered by an entry, and the error says so instead of
-implying the language is unknown:
-
-```
-no route from 'en' to 'sat' within 2 hop(s) -- model(s) cover this pair but
-cannot be run: indictrans2-en-indic-dist-200M-int8 (IndicTrans2 needs the
-IndicProcessor preprocessing pipeline ...)
-```
+Without the `indic` extra the answer is `False`. The pair is still covered by an
+entry, and the `NoRouteError` message says so. It names the models that cover
+the pair and the extra to install, for example
+`indic-nlp-library-itt not installed; install linguonnx[indic]`. It does not
+say that the language is unknown.
 
 Runnability is registry data, not a list of architecture names in the router.
 `scripts/sync_registry.py` writes `"runnable": false` and an
@@ -106,16 +104,17 @@ from linguonnx import load_translator
 tx = load_translator()
 route = tx.route("pt", "eu")
 
-print(route.n_hops)         # 1
-print(route.model_ids)      # ('madlad400-3b-mt-int8',)
-print(route.pivots)         # () — no pivot on a direct route
-print(route.licenses)       # ('Apache-2.0',)
+print(route.n_hops)         # 2
+print(route.model_ids)      # ('aina-translator-pt-ca-int8', 'mt-hitz-ca-eu-int8')
+print(route.pivots)         # ('ca',)
+print(route.licenses)       # ('Apache-2.0', 'Apache-2.0')
 print(route.license_tier)   # 'permissive' — the worst tier on the chain
 print(route.prefer)         # 'fewest_hops' — the policy that produced this
-print(route.pivot_basis)    # 'phonological' or 'table'
+# 'phonological' or 'table'
+print(route.pivot_basis)
 print(route)
-# [pt->eu, 1 hop(s), prefer=fewest_hops] pt->eu via madlad400-3b-mt-int8
-# (multilingual, Apache-2.0)
+# [pt->eu, 2 hop(s), prefer=fewest_hops] pt->ca via aina-translator-pt-ca-int8 ...
+#  | ca->eu via mt-hitz-ca-eu-int8 (dedicated, Apache-2.0, specialist:HiTZ)
 ```
 
 A `Route` is always available to the caller, and `translate(...,
@@ -126,12 +125,12 @@ never happen silently.
 ## Cost ordering
 
 Every candidate route is scored by a tuple, lowest first. The policy reorders
-the tuple's first two elements; it does not run a different search.
+the hop terms; it does not run a different search.
 
 | `prefer=` | key |
 |---|---|
-| `"fewest_hops"` (default) | `(hops, multilingual_hops, non_specialist_hops, recency, licence_tier, pivot_rank, size, model_ids)` |
-| `"dedicated"` | `(multilingual_hops, hops, non_specialist_hops, recency, licence_tier, pivot_rank, size, model_ids)` |
+| `"fewest_hops"` (default) | `(flagged_hops, hops, multilingual_hops, non_specialist_hops, recency, licence_tier, pivot_rank, size, model_ids)` |
+| `"dedicated"` | `(flagged_hops, multilingual_hops, hops, non_specialist_hops, recency, licence_tier, pivot_rank, size, model_ids)` |
 
 Read in order, that means:
 
@@ -154,22 +153,24 @@ rather than intuition. So it is a parameter, not a baked-in assumption:
 ```python
 tx = load_translator(prefer="fewest_hops")   # the default
 tx = load_translator(prefer="dedicated")     # 2 dedicated hops > 1 multilingual
-print(tx.route("pt", "ru", prefer="fewest_hops").model_ids)  # or per call
+# or per call
+print(tx.route("pt", "ru", prefer="fewest_hops").model_ids)
 ```
 
 `fewest_hops` is the default because it is the conservative choice: it never
 doubles latency or compounds error unless it is asked to. It is not a claim
 that it produces better text.
 
-The two policies really do diverge. Under the default, `pt -> eu` is one MADLAD
-hop; under `prefer="dedicated"` it is a two-hop Marian chain through Catalan.
+The two policies give different routes. Under the default, `pt -> ru` is one
+M2M100 hop. Under `prefer="dedicated"` it is a chain of two Marian models
+through English.
 
 ```python
 tx = load_translator()
-print(tx.route("pt", "eu").model_ids)
-# ('madlad400-3b-mt-int8',)
-print(tx.route("pt", "eu", prefer="dedicated").model_ids)
-# ('opus-mt-pt-ca-int8', 'mt-hitz-ca-eu-int8')
+print(tx.route("pt", "ru").model_ids)
+# ('m2m100-418M-int8',)
+print(tx.route("pt", "ru", prefer="dedicated").model_ids)
+# ('opus-mt-pt-en-int8', 'opus-mt-en-ru-int8')
 ```
 
 Basque is a good illustration of why the default graph is not flat: **M2M100
@@ -273,19 +274,18 @@ field is deliberately populated from the upstream repo's `createdAt`, once,
 by hand, and the sync script documents exactly where each date came from
 (`PROVENANCE_BY_PREFIX` in `scripts/sync_registry.py`).
 
-Not every institution's date has been verified yet - Proxecto Nós's
-`proxectonos` org repos and TartuNLP's `smugri` model are undated as of this
-writing, rather than guessed. An undated model sorts as if it were
-infinitely old, so it never wins a recency comparison and never blocks a
-route for a reason it has no evidence for; it just stops competing on this
-one tier and falls through to licence and size, same as before this feature
-existed.
+Some dates are not verified: Proxecto Nós's `proxectonos` org repos and
+TartuNLP's `smugri` model have no date, rather than a guessed one. An undated
+model sorts as if it were infinitely old. It never wins a recency comparison,
+and it never blocks a route for a reason it has no evidence for. It stops
+competing on this one tier, and the router compares licence and size next.
 
 ## Hop cap
 
 ```python
 tx = load_translator(max_hops=2)             # the default
-print(tx.route("pt", "en", max_hops=1))      # per-call override
+# a per-call override
+print(tx.route("pt", "en", max_hops=1))
 ```
 
 `max_hops=1` means direct models only: it raises `NoRouteError` rather than
@@ -305,6 +305,17 @@ guessing at.
 `max_model_mb` is the largest single model routing may put on a route. A model
 over the budget is left out, and the router looks for a chain of smaller ones
 instead of failing.
+
+With no budget set, routing prefers models of 2048 MB or less
+(`linguonnx.limits.DEFAULT_MAX_MODEL_MB`). M2M100-418M and the aina models fit
+under that, and MADLAD does not. A pair that nothing under 2048 MB can serve
+falls back to the smallest larger model that covers it, so each language stays
+routable: 592 on a base install, and 606 with every extra. `en -> tyv` goes to MADLAD and `pt -> ru` stays on M2M100.
+
+A budget that you set is a filter. It comes from `max_model_mb=` or from
+`LINGUONNX_MAX_MODEL_MB`, and no route goes past it unless you also pass
+`oversize_fallback=True`. A `LINGUONNX_MAX_DOWNLOAD_MB` below 2048 lowers the
+default, and the fallback stops at that same number.
 
 <!-- doc-check: norun the second line's answer depends on the local cache -->
 ```python
@@ -347,30 +358,38 @@ model already on disk costs quality and saves nothing.
 
 ### What a budget costs in coverage
 
-Over the default selection — int8 and rule-based models that are not
-non-commercial, 195 models —
-with an empty cache:
+Over the default selection (int8 and rule-based models that are not
+non-commercial, 211 models), with an empty cache. The figure is for a base
+install. The table also gives the languages with every extra installed:
 
-| `max_model_mb` | models kept | languages routable |
-|---|---|---|
-| none | 195 | 596 |
-| 2000 | 183 | 303 |
-| 1000 | 157 | 258 |
-| 500 | 131 | 255 |
-| 300 | 121 | 78 |
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="img/budgets-dark.svg">
+  <img alt="On a base install, a 500 MB budget keeps 131 of 211 models but only 235 of 592 languages; 300 MB keeps 77 languages." src="img/budgets.svg">
+</picture>
+
+`img/plot_budgets.py` makes this figure from `benchmarks/results.json`, which `scripts/benchmark.py` writes.
+
+| `max_model_mb` | models kept | languages, base install | languages, every extra |
+|---|---|---|---|
+| none | 211 | 592 | 606 |
+| 2000 | 191 | 289 | 303 |
+| 1000 | 157 | 238 | 258 |
+| 500 | 131 | 235 | 255 |
+| 300 | 120 | 77 | 78 |
 
 The model column and the language column tell different stories, and the second
-one is the one to plan against. A 500 MB budget drops 64 of 195 models, but
-those 64 include `madlad400-3b-mt-int8` (4945 MB), `m2m100-1.2B-int8` (2344 MB)
+one is the one to plan against. A 500 MB budget drops 80 of 211 models, but
+those 80 include `madlad400-3b-mt-int8` (4945 MB), `m2m100-1.2B-int8` (2344 MB)
 and `m2m100-418M-int8` (1207 MB), and the big multilingual models are where the
 long tail of languages lives. MADLAD is the only model in the registry with
-Chuvash at all; no chain of small models replaces it, because there is no small
+Tuvan at all; no chain of small models replaces it, because there is no small
 model on either side of it.
 
-What survives is what has bilingual models: the 255 languages opus-mt,
-mt-hitz, NLLB-200-distilled and the Iberian pairs cover between them.
+What survives is what has bilingual models: the 235 languages (255 with every
+extra) that opus-mt, mt-hitz, NLLB-200-distilled and the Iberian pairs cover
+between them.
 `pt -> ru`, `nl -> fi`, `pt -> eu` all still route under 500 MB, as chains.
-`en -> cv` does not, because MADLAD is the only model with Chuvash.
+`en -> tyv` does not, because MADLAD is the only model with Tuvan.
 
 So a budget is not a way to shrink the registry evenly. It keeps the
 well-served pairs and drops the tail, and `available_languages` says which is
@@ -378,9 +397,9 @@ which:
 
 ```python
 tx = load_translator(max_model_mb=500, count_cached_as_free=False)
-print(len(tx.available_languages))       # 255
+print(len(tx.available_languages))       # 255 — with every extra, 235 on a base install
 print(tx.can_translate("pt", "ru"))      # True — via a chain
-print(tx.can_translate("en", "cv"))      # False — only MADLAD has Chuvash
+print(tx.can_translate("en", "tyv"))     # False — only MADLAD has Tuvan
 ```
 
 `available_languages` is filtered by the budget for the same reason it is
@@ -396,20 +415,20 @@ that a 4-slot model cache cannot keep warm. But the budget that fixes that
 deletes 400 languages, because the tail exists only inside the models it
 excludes.
 
-`oversize_fallback=True` makes the budget a **preference** instead of a
-filter:
+`oversize_fallback=True` makes a budget you set a **preference** instead of a
+filter. It is the default only for the library's own budget:
 
 <!-- doc-check: norun the answers depend on the registry and the local cache -->
 ```python
 tx = load_translator(max_model_mb=500, oversize_fallback=True)
 
 print(tx.route("en", "ca").model_ids)      # ('opus-mt-en-ca-int8',)   157 MB
-print(tx.route("en", "cv").model_ids)      # ('madlad400-3b-mt-int8',) 4945 MB
-print(tx.route("en", "cv").waived_size_cap)  # 500
-print(len(tx.available_languages))         # 596, not 255
+print(tx.route("en", "tyv").model_ids)     # ('madlad400-3b-mt-int8',) 4945 MB
+print(tx.route("en", "tyv").waived_size_cap)  # 500
+print(len(tx.available_languages))         # 606 with every extra (592 on a base install), not 255
 ```
 
-`en -> ca` stays on the small model, because one exists. Chuvash routes at
+`en -> ca` stays on the small model, because one exists. Tuvan routes at
 all, because nothing under the cap has it and the alternative is not a
 different route but no route. Four rules make that safe:
 
@@ -449,7 +468,7 @@ load-latency semantics per request:
 
 <!-- doc-check: norun the answer depends on what this host has cached -->
 ```python
-tx.route("en", "cv", oversize_fallback=True, count_cached_as_free=False)
+tx.route("en", "tyv", oversize_fallback=True, count_cached_as_free=False)
 ```
 
 ### The budget and the hop cap interact
@@ -514,12 +533,12 @@ a model already on disk costs no download and the budget never sees it. Routing
 follows that rule, because the alternative is to promise a route the downloader
 then refuses.
 
-Measured, with a 600 MB budget:
+With a 600 MB budget:
 
-| box | `tx.route("en", "cv")` | time |
-|-----|------------------------|------|
-| cold | `NoRouteError` | 55 ms |
-| warm (MADLAD on disk) | `('madlad400-3b-mt-int8',)` | 12227 ms |
+| box | `tx.route("en", "tyv")` |
+|-----|-------------------------|
+| cold | `NoRouteError` |
+| warm (MADLAD on disk) | `('madlad400-3b-mt-int8',)` |
 
 Both answers are correct for the box they came from. The cold box is telling
 the truth: it cannot fetch 4945 MB under a 600 MB budget. The warm box is also
@@ -665,8 +684,10 @@ badly" as distinct states.
 Two independent checks, either one enough on its own — see
 `linguonnx.translate.quality.quality_flag_reasons` for the exact logic:
 
-- **Absolute floor**: either precision's chrF-vs-reference below 40 flags the
-  entry, whatever the other precision scored. This is what should have
+- **Absolute floor**: chrF-vs-reference below 40 flags the entry. An entry
+  with no score of its own takes the score of its other precision, so
+  `opus-mt-az-en-int8` carries the flag that `opus-mt-az-en` measured. An
+  entry with its own score is judged on that score. This is what should have
   caught the Azerbaijani `opus-mt-*-az`/`opus-mt-az-*` trio and
   `m2m100_418M_en_hau_rel_news_ft` from the start — both hallucinate proper
   nouns and repeat garbled phrases on real news-domain text, in *both*
@@ -690,17 +711,15 @@ Two independent checks, either one enough on its own — see
   that truncates long output moves chrF, so `mode` alone would not have pinned
   the number down.) `no_repeat_ngram_size=3` breaks every loop observed, and
   is left off by default on purpose — see below.
-  `opus-mt-en-jap` is the third case the floor catches, and the plainest:
-  chrF **6.1** on 100 FLORES-200 devtest sentences (int8, beam 4). It does not
-  translate the input at all. It answers in an archaic biblical register with
-  hallucinated proper names — `"I live in Lisbon."` comes back as
-  `わたし は 争い に よ っ て 生き る `, and a news sentence about diabetic mice
-  comes back naming tribes and territories. Helsinki-NLP trained the `jap`
-  pair on a corpus that is essentially scripture, and the export is faithful
-  to it. It is the only *dedicated* English→Japanese model in the registry, so
-  `prefer="dedicated"` selects it over M2M100-418M, which answers the same
-  input with `私はリスボンに住んでいます。`. A deployment that does not set
-  `exclude_flagged=True` gets the biblical one.
+  A low score alone keeps a model in the registry, where it loses in ranking.
+  A model leaves only with evidence that it does not translate or answers in
+  the wrong language, and only when another model serves the pair.
+  `opus-mt-en-jap` left on that evidence: chrF **6.1** on 100 FLORES-200
+  devtest sentences, with every output in the register of its scripture
+  training corpus. `"I live in Lisbon."` came back as
+  `わたし は 争い に よ っ て 生き る `, where M2M100-418M gives
+  `私はリスボンに住んでいます。`. `skipped.json` records the withdrawal, so a
+  registry sync does not add the model back.
 
 - **int8 gap**: int8 trailing fp32 by more than 2 chrF (against the
   reference) flags the int8 entry. Every pair actually measured — weak and
@@ -708,16 +727,16 @@ Two independent checks, either one enough on its own — see
   headroom before flagging while still catching a real regression if one
   ever turns up.
 
-Flagging never removes a model from the registry — every model is published
-regardless of its score, exactly like a non-commercial licence or an
-oversized download. It only gives a caller filtering at runtime something to
-filter on:
+A flag ranks a model last under every routing policy. A flagged model serves
+a pair only when nothing else does, so two clean hops beat one flagged hop.
+`Route.n_flagged_hops` and `str(hop)` show when a flagged model ran.
+`exclude_flagged=True` removes flagged models from the graph:
 
 ```python
 from linguonnx.translate.quality import is_quality_flagged
 
-print(is_quality_flagged("opus-mt-az-en"))    # True  - below the absolute floor
-print(is_quality_flagged("opus-mt-en-es"))    # False - a calibration-set model
+print(is_quality_flagged("opus-mt-az-en"))    # True — below the absolute floor
+print(is_quality_flagged("opus-mt-en-es"))    # False — a calibration-set model
 ```
 
 ### Filtering on it
@@ -808,11 +827,14 @@ tx.flagged_languages
 that can write it is flagged for it, so a flag on one of two providers costs
 nothing.
 
-A flag never removes the model, and it does not rewrite the coverage claim
-either: `cv` stays in MADLAD's `languages`, so the library can still say
-*why* it refuses the language instead of reporting it as unsupported. Every
-flag names an observation somebody made; there is no heuristic that mints
-them.
+The router removes the edge a flag names, so `en -> cv` raises `NoRouteError`
+and quotes the flag. MADLAD keeps its other languages, and `cv -> en` still
+routes. Another model that covers the language still serves it.
+
+A flag does not rewrite the coverage claim: `cv` stays in MADLAD's
+`languages`, so the library can still say *why* it refuses the language
+instead of reporting it as unsupported. Every flag names an observation
+somebody made; there is no heuristic that mints them.
 
 `language_flags` is hand-curated. `scripts/sync_registry.py` lists it in
 `HUMAN_OWNED_KEYS`, next to `notes` and `quality`, so a re-crawl of the Hub
@@ -868,6 +890,11 @@ Nodes are BCP-47, and `normalize_tag` maps every shape onto one node name:
 `por_Latn`, `POR` and `pt` all resolve to `pt`. A tag carrying a region the
 models do not distinguish routes as its language, so `route("pt-BR", "en")`
 serves `pt`.
+
+A tag never loses its script. A region that implies another script resolves
+to that script's node, so `zh-TW` and `zh-HK` route as `zh-Hant`, following
+CLDR's likely subtags. With no such node the tag has no route: `az-Cyrl` and
+`pa-PK` raise `NoRouteError` and do not route as `az` and `pa`.
 
 A region a model does distinguish is a node of its own: `es-ES`, `es-419`,
 `fr-CA` and `fa-AF` are served by MADLAD models. When such a node has no route
@@ -936,11 +963,10 @@ a poor pivot inside the Iberian peninsula, where Spanish keeps far more of the
 morphology and lexicon than English does.
 
 `linguonnx/translate/graph.py` holds a global `DEFAULT_PIVOT_PREFERENCE` and a
-per-language `REGIONAL_PIVOTS` table, and both are overridable:
+per-language `REGIONAL_PIVOTS` table. You can override both:
 
 ```python
 tx = load_translator(pivot_preference=("es", "en", "fr"))
-print(tx.route("gl", "ca", prefer="dedicated").pivots)   # ('pt',)
 ```
 
 ### Ranking pivots by measured distance
@@ -955,7 +981,8 @@ pip install linguonnx[distance]     # adds orthography2ipa
 
 ```python
 tx = load_translator(pivot_ranking="auto")   # the default
-print(tx.pivot_ranking)                      # 'phonological' or 'table'
+# 'phonological' or 'table'
+print(tx.pivot_ranking)
 print(tx.route("pt", "eu").pivot_basis)
 ```
 
@@ -1010,3 +1037,6 @@ dataset carries an empty ancestry list, so Ibero-Romance languages never meet
 at a shared ancestor and `full_distance` ends up rating English closer to
 Catalan than Spanish is. That data gap has to close before the switch is worth
 making.
+
+---
+[← Prev](translate.md) · [Home](index.md) · [Next →](models.md)

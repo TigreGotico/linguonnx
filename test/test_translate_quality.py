@@ -103,6 +103,34 @@ def test_fp32_side_is_never_gap_flagged_against_its_own_int8():
     assert quality_flag_reasons(fp32, int8) == ()
 
 
+def test_an_unmeasured_entry_takes_the_floor_failure_of_its_counterpart():
+    fp32 = _entry("fp32", chrf_vs_ref=25.9, n=20)
+    reasons = quality_flag_reasons(_entry("int8"), fp32)
+    assert reasons == ("chrF-vs-reference 25.9 of the fp32 build is below the "
+                       "40 floor (flores200-devtest, n=20)",)
+
+
+def test_an_unmeasured_fp32_takes_the_floor_failure_of_its_int8():
+    int8 = _entry("int8", chrf_vs_ref=QUALITY_ABSOLUTE_FLOOR - 0.1)
+    assert len(quality_flag_reasons(_entry("fp32"), int8)) == 1
+
+
+def test_an_unmeasured_entry_stays_clean_beside_a_counterpart_over_the_floor():
+    fp32 = _entry("fp32", chrf_vs_ref=QUALITY_ABSOLUTE_FLOOR)
+    assert quality_flag_reasons(_entry("int8"), fp32) == ()
+
+
+def test_an_agreement_score_on_the_counterpart_flags_nothing():
+    fp32 = _entry("fp32", chrf_vs_fp32=10.0)
+    assert quality_flag_reasons(_entry("int8"), fp32) == ()
+
+
+def test_an_entry_with_its_own_score_ignores_the_floor_failure_of_its_counterpart():
+    int8 = _entry("int8", chrf_vs_ref=QUALITY_ABSOLUTE_FLOOR - 5)
+    fp32 = _entry("fp32", chrf_vs_ref=90.0)
+    assert quality_flag_reasons(fp32, int8) == ()
+
+
 def test_both_checks_can_fire_together():
     fp32 = _entry("fp32", chrf_vs_ref=90.0)
     int8 = _entry("int8", chrf_vs_ref=QUALITY_ABSOLUTE_FLOOR - 5)
@@ -120,6 +148,7 @@ def test_quality_flag_reasons_for_missing_model_is_empty():
 
 @pytest.mark.parametrize("model_id", [
     "opus-mt-az-en",
+    "opus-mt-az-en-int8",
     "m2m100_418M_en_hau_rel_news_ft",
     "m2m100_418M_en_hau_rel_news_ft-int8",
     # A live sweep flagged these two for looping multi-word phrases. Measured
@@ -133,14 +162,6 @@ def test_quality_flag_reasons_for_missing_model_is_empty():
     "m2m100_418M_bbj_fr_rel_news_ft-int8",
     "m2m100_418M_mos_fr_rel_news_ft",
     "m2m100_418M_mos_fr_rel_news_ft-int8",
-    # chrF 6.1 on 100 FLORES-200 devtest sentences: the model answers in an
-    # archaic biblical register with hallucinated proper names instead of
-    # translating. It is the only dedicated en->ja model in the registry, so
-    # prefer="dedicated" picks it unless a caller filters on this flag. This
-    # is a base-checkpoint defect, not a quantization artifact, so both
-    # precisions carry the measurement and both must flag.
-    "opus-mt-en-jap-int8",
-    "opus-mt-en-jap",
 ])
 def test_known_weak_models_are_flagged(model_id):
     assert is_quality_flagged(model_id, REGISTRY), (
@@ -198,14 +219,10 @@ def test_every_quality_field_has_a_sample_size_and_corpus(model_id):
 
 def test_exclude_flagged_drops_the_weak_models_in_both_precisions():
     entries = _select_entries(None, False, None, exclude_flagged=True)
-    # opus-mt-az-en's fp32 side was measured below the absolute floor, so it
-    # is quantitatively flagged and dropped.
+    # Only opus-mt-az-en's fp32 side has a reference score. Its int8 side has
+    # an agreement number alone, so it takes the fp32 floor failure.
     assert "opus-mt-az-en" not in entries
-    # Its int8 sibling only has an agreement-vs-fp32 number on file (n=100,
-    # no reference measurement), so the quantitative flag never fires for
-    # it - the hallucination caveat for it lives in `notes`, checked
-    # separately in test_hallucinating_models_carry_a_notes_caveat.
-    assert "opus-mt-az-en-int8" in entries
+    assert "opus-mt-az-en-int8" not in entries
     assert "m2m100_418M_en_hau_rel_news_ft" not in entries
     assert "m2m100_418M_en_hau_rel_news_ft-int8" not in entries
     # Not flagged quantitatively - agreement-only entries stay.
@@ -215,14 +232,12 @@ def test_exclude_flagged_drops_the_weak_models_in_both_precisions():
     assert "opus-mt-en-es-int8" in entries
 
 
-def test_exclude_flagged_drops_both_precisions_of_opus_mt_en_jap():
-    # The en->jap checkpoint's scripture-answering defect lives in the base
-    # model, not the int8 export, so exclude_flagged=True must remove both
-    # registry entries, leaving the caller with no en->jap model at all
-    # rather than silently falling back onto the equally-broken fp32 side.
+def test_exclude_flagged_drops_both_precisions_of_a_base_model_defect():
+    # The defect lives in the base model, not the int8 export, so neither
+    # precision may survive as a silent fallback for the other.
     entries = _select_entries(None, False, None, exclude_flagged=True)
-    assert "opus-mt-en-jap-int8" not in entries
-    assert "opus-mt-en-jap" not in entries
+    assert "m2m100_418M_bbj_fr_rel_news_ft" not in entries
+    assert "m2m100_418M_bbj_fr_rel_news_ft-int8" not in entries
 
 
 def test_exclude_flagged_can_leave_fp32_as_the_only_survivor_of_a_pair():
@@ -250,6 +265,13 @@ def test_exclude_flagged_can_leave_fp32_as_the_only_survivor_of_a_pair():
         translate_mod.list_models = original
     assert "strong-fp32" in entries
     assert "strong-fp32-int8" not in entries
+
+
+@pytest.mark.parametrize("precision", [None, "int8", "fp32"])
+def test_a_flagged_model_serves_no_azerbaijani_route_in_either_precision(precision):
+    route = load_translator(precision=precision).route("az", "en")
+    assert not [hop.model_id for hop in route.hops if hop.model_id.startswith("opus-mt-az-en")]
+    assert route.n_flagged_hops == 0
 
 
 def test_min_chrf_excludes_only_models_measured_below_it():

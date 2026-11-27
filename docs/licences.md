@@ -1,8 +1,9 @@
 # Licences
+<!-- agent-hint: licence tiers, non-commercial models and NoRouteError. Verify: `python scripts/check_docs.py docs/licences.md`. -->
 
 `linguonnx` is Apache-2.0. The models are not all Apache-2.0, and a model's
 licence follows its output into whatever you build. So the library treats
-licence as a first-class routing fact rather than a footnote: it downloads no
+licence as a routing fact rather than a footnote: it downloads no
 model you did not ask for, keeps the restrictive ones out of the default
 translation graph, and reports the tier of every route it returns.
 
@@ -14,7 +15,7 @@ tiers, in order of how many strings are attached:
 | tier | what is in it | in the default graph? |
 |---|---|---|
 | `permissive` | Apache-2.0, MIT, CC-BY-4.0, AFL-3.0 | yes |
-| `share-alike` | CC-BY-SA-3.0, CC-BY-SA-4.0 | yes |
+| `share-alike` | CC-BY-SA-3.0, CC-BY-SA-4.0, GPL-3.0, AGPL-3.0 | yes |
 | `non-commercial` | CC-BY-NC-4.0 | no |
 
 Tier is a routing key, not just metadata. It is the third element of the
@@ -26,8 +27,11 @@ routes the more permissive chain wins.
 Nothing is filtered here, because a detector is one model and you chose it by
 name. But the choice matters:
 
-- **GlotLID** is Apache-2.0. It is the default, and stays the default, because
-  it is the only permissive option.
+- **GlotLID** is Apache-2.0. It is the default because it is permissive and
+  has the widest coverage.
+- **AfroLID** is Apache-2.0 as well. Its Hub card declares no licence. The
+  AfroLID repository states that its Apache-2.0 licence applies to the
+  pre-trained models. It covers African languages only.
 - **OpenLID and OpenLID-v2 are GPL-3.0**, inherited from the upstream models.
   If your project cares about licence compatibility, do not use them.
 - **lid.176** is CC-BY-SA-3.0, which has its own share-alike condition. It is
@@ -36,19 +40,28 @@ name. But the choice matters:
 
 ## Translation
 
-`load_translator()` leaves out **non-commercial models only**. Twenty-eight
+`load_translator()` leaves out **non-commercial models only**. Thirty-two
 registry entries are excluded by default: `nllb-600M`, `aina-es-oc`,
-`aina-translator-es-an`, `aina-translator-es-ast` and ten of the
-`afrigloss-opus-mt-*` pairs, in both precisions. All of them are
+`aina-translator-es-an`, `aina-translator-es-ast`, `afrigloss-nllb-600m`,
+`afrigloss-nllb-1.3b` and ten of the `afrigloss-opus-mt-*` pairs, in both
+precisions. All of them are
 CC-BY-NC-4.0.
 
 A share-alike model stays in the default graph. CC-BY-SA permits commercial
-use; its condition is that a derived work keeps the same licence. One
-translation entry has this tier: `pt2mirandese`, whose word lists are
-CC-BY-SA-4.0. A caller who must avoid share-alike terms can check
-`route.license_tier`, or name the models in `models=`.
+use. Its condition is that a derived work keeps the same licence. Two
+translation entries have this tier: `pt2mirandese`, whose word lists are
+CC-BY-SA-4.0, and `vinai-translate-vi2en-v2`. A caller who must avoid
+share-alike terms can check `route.license_tier`, or name the models in
+`models=`.
 
-`AFL-3.0` — carried by ten of the `m2m100_418M_*` African fine-tunes — is
+`vinai-translate-vi2en-v2` is AGPL-3.0, inherited from VinAI's upstream
+model. It is published in fp32 only, so the
+default int8 graph never routes through it. AGPL-3.0 adds a condition that
+CC-BY-SA does not have: a service that lets users interact with a modified
+version over a network must offer them its source. A caller who runs a
+translation service should check this model separately.
+
+`AFL-3.0`, carried by sixteen of the `m2m100_418M_*` African fine-tunes, is
 classified `permissive` and stays in the default graph. It grants use,
 modification and redistribution, but its patent-retaliation clause and naming
 restriction go beyond Apache-2.0 or MIT, so a caller with its own downstream
@@ -83,8 +96,8 @@ try:
 except ValueError as err:
     print(err)
     # 'nllb-600M-int8' is not in this translator's models. It is
-    # filtered out (see include_noncommercial=, precision= and models= on
-    # load_translator) or it does not exist.
+    #  filtered out (see include_noncommercial=, precision= and models= on
+    #  load_translator) or it does not exist.
 ```
 
 This is what makes `include_noncommercial=False` a guarantee about the output
@@ -141,8 +154,9 @@ whole:
 ```python
 tx = load_translator()
 route = tx.route("pt", "eu", prefer="dedicated")
-print(route.licenses)       # one licence per hop
-print(route.license_tier)   # the most restrictive of them
+# one licence per hop, then the most restrictive of them
+print(route.licenses)
+print(route.license_tier)
 ```
 
 `license_tier` is the **most restrictive** tier on the chain, because a route
@@ -166,7 +180,7 @@ try:
     tx.route("pt", "kea")
 except NoRouteError as err:
     print(err)
-# no route from 'pt' to 'kea' within 2 hop(s) -- excluded non-commercial
+# no route from 'pt' to 'kea' within 2 hop(s) -- excluded non-commercial ...
 # model(s) cover this pair: nllb-600M-int8; pass include_noncommercial=True
 # to use them
 ```
@@ -175,3 +189,6 @@ The hint only appears when the licence filter is genuinely the thing in the
 way. A pair no model covers at all gets the plain message, and `max_hops=1`
 adds its own note saying only direct models were considered, so the three
 reasons a route can fail are never confused with each other.
+
+---
+[← Prev](models.md) · [Home](index.md) · [Next →](reference.md)

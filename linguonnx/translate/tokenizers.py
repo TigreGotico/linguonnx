@@ -18,6 +18,11 @@ directly rather than taking the dependency.
     block after the ordinary vocabulary, in the order given by
     ``special_tokens_map.json``.
 
+`MBartTokenizer`
+    mBART. NLLB's fairseq offset and positional language block, but the source
+    tag goes *after* the sentence: ``pieces + [</s>, src_lang]``. The codes are
+    mBART's own (``vi_VN``, ``en_XX``).
+
 `MarianTokenizer`
     opus-mt. A separate SentencePiece model per side, a shared ``vocab.json``,
     and ``</s>`` appended with no language token at all - the model *is* the
@@ -29,13 +34,16 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 import sentencepiece as spm
 
-__all__ = ["normalize_punctuation", "SpmSeq2SeqTokenizer", "MarianTokenizer",
-           "FastUnigramTokenizer", "T5SpmTokenizer", "T5TextPrefixTokenizer",
+__all__ = ["normalize_punctuation", "SpmSeq2SeqTokenizer", "MBartTokenizer",
+           "MarianTokenizer",
+           "FastUnigramTokenizer", "ByteLevelBpeTokenizer", "T5SpmTokenizer",
+           "T5TextPrefixTokenizer",
            "UnigramTextPrefixTokenizer", "IndicTransTokenizer",
            "OpenNmtBpeTokenizer", "load_tokenizer", "artifact_lang_codes",
            "tokenizer_json_added_tokens",
@@ -222,14 +230,29 @@ def tokenizer_json_added_tokens(path) -> tuple[dict[str, int], set]:
 
     ``tokenizer.json`` states each id, so it is read instead of counted.
     """
-    added = _load_json(path).get("added_tokens") or []
+    languages, others, _ = _split_added_tokens(_load_json(path), path)
+    return languages, others
+
+
+def _split_added_tokens(spec: dict, path) -> tuple[dict[str, int], set, list]:
+    """``(language_ids, other_special_ids, text_tokens)`` of one tokenizer.json.
+
+    A token marked ``"special": false`` is text, not a language: the
+    `tokenizers` library matches it inside the input. ``text_tokens`` holds
+    those entries as the file states them.
+    """
+    added = spec.get("added_tokens") or []
     languages: dict[str, int] = {}
     others = set()
+    text = []
     for token in added:
         if not isinstance(token, dict):
             continue
         content, token_id = token.get("content"), token.get("id")
         if not isinstance(content, str) or not isinstance(token_id, int):
+            continue
+        if token.get("special") is False:
+            text.append(token)
             continue
         if _BRACKETED_SPECIAL.match(content):
             others.add(token_id)
@@ -241,10 +264,23 @@ def tokenizer_json_added_tokens(path) -> tuple[dict[str, int], set]:
     if not languages:
         raise ValueError(
             f"{path} carries no added token that could be a language; every "
-            f"one of its {len(added)} added tokens is a bracketed special. "
-            f"An export whose language block cannot be read here must not "
-            f"fall back to counting positions.")
-    return languages, others
+            f"one of its {len(added)} added tokens is a bracketed special or "
+            f"text. An export whose language block cannot be read here must "
+            f"not fall back to counting positions.")
+    return languages, others, text
+
+
+def _word_break_token(text_tokens: list, path) -> int:
+    """The id of the one text token this tokenizer.json adds, which must be
+    whitespace with ``normalized: true``: a word break."""
+    if len(text_tokens) == 1 and text_tokens[0]["content"].isspace() \
+            and text_tokens[0].get("normalized") is True:
+        return text_tokens[0]["id"]
+    raise ValueError(
+        f"{path} adds text tokens {[t['content'] for t in text_tokens]!r}. "
+        f"Only one whitespace token with normalized: true, a word break, is "
+        f"encoded here; any other text token would be left out of the input "
+        f"ids and the model would read text it was not trained on.")
 
 
 class SpmSeq2SeqTokenizer:
@@ -283,6 +319,24 @@ class SpmSeq2SeqTokenizer:
     So a code the export has no token for is now a hard error, here, at load
     time. A model that cannot address a language has to say so rather than
     quietly address a different one.
+
+    Text tokens
+    -----------
+    A ``tokenizer.json`` can add a token that is text, not a special
+    (``"special": false``). The AfriGloss NLLB fine-tunes add ``"\\n"`` as id
+    256204 with ``normalized: true``. The normaliser turns that content into
+    a space, so the `tokenizers` library matches the token at every space of
+    the input: ``The children`` encodes as ``▁The``, 256204, ``▁children``.
+    The models were trained on that encoding and write the token between
+    words of their output.
+
+    ``encode`` gives the same ids from SentencePiece: the token goes before
+    each word but the first, and once for leading or for trailing
+    whitespace. The `tokenizers` library is not used: 1.0.0-rc.3 no longer
+    matches a normalised added token, and its ids have no 256204 at all.
+    ``decode`` reads the token as a word break, so the output has one space
+    between words. Only a whitespace text token with ``normalized: true`` is
+    accepted; any other text token raises at load time.
     """
 
     def __init__(self, spm_path, lang_codes: Sequence[str],
@@ -292,6 +346,8 @@ class SpmSeq2SeqTokenizer:
                  bos_id: int = 0, declared_codes: Optional[Sequence[str]] = None,
                  clean_up_tokenization_spaces: bool = False):
         self.sp = _load_spm(spm_path)
+        self._word_break_id: Optional[int] = None
+        self._edges: Optional["spm.SentencePieceNormalizer"] = None
         self.clean_up_tokenization_spaces = clean_up_tokenization_spaces
         self.fairseq_offset = fairseq_offset
         self.eos_id, self.pad_id, self.unk_id, self.bos_id = eos_id, pad_id, unk_id, bos_id
@@ -305,6 +361,7 @@ class SpmSeq2SeqTokenizer:
         else:
             lang_block_start = self.sp.get_piece_size() + fairseq_offset
 
+        self._other_special_ids: Set[int] = set()
         if added_tokens_path is not None and Path(added_tokens_path).exists():
             # Authoritative, and used alone. See the class docstring.
             added = _load_json(added_tokens_path)
@@ -334,8 +391,16 @@ class SpmSeq2SeqTokenizer:
             # Authoritative for the same reason `added_tokens.json` is: it
             # states each id rather than letting one be counted. See
             # `tokenizer_json_added_tokens`.
-            stated, other_specials = tokenizer_json_added_tokens(
-                tokenizer_json_path)
+            stated, other_specials, text_tokens = _split_added_tokens(
+                _load_json(tokenizer_json_path), tokenizer_json_path)
+            if text_tokens:
+                self._word_break_id = _word_break_token(text_tokens,
+                                                        tokenizer_json_path)
+                # The same normaliser with the input's own edges kept.
+                # sentencepiece before 0.2.3 does not escape by default.
+                self._edges = spm.SentencePieceNormalizer(
+                    model_file=str(spm_path), add_dummy_prefix=False,
+                    remove_extra_whitespaces=False, escape_whitespaces=True)
             self.lang_code_to_id = {code: stated[code] for code in lang_codes
                                     if code in stated}
             missing = [code for code in lang_codes if code not in stated]
@@ -361,30 +426,11 @@ class SpmSeq2SeqTokenizer:
         # A bracketed special the export added - `<mask>` - is past the
         # SentencePiece table too, so letting one reach `id_to_piece()` is
         # the same `IndexError: OUT_OF_RANGE` the wrong language id caused.
-        self._specials |= getattr(self, "_other_special_ids", set())
-        self._add_bcp47_aliases()
+        self._specials |= self._other_special_ids
         if declared_codes:
             self._check_declared(declared_codes)
 
     # -- names on top of the export's own order ---------------------------
-
-    def _add_bcp47_aliases(self) -> None:
-        """Let a caller ask in BCP-47 for a token spelled in FLORES.
-
-        The ids come from the export and never move. This only adds a second
-        NAME for an id that already exists: `kab` for `kab_Latn`, `en` for
-        `eng_Latn`. A name is never invented for a token the export lacks, and
-        an alias never overwrites a code the export itself carries.
-        """
-        from linguonnx.detect.labels import to_bcp47
-        for code in list(self.lang_code_to_id):
-            try:
-                alias = to_bcp47(code)
-            except Exception:
-                continue
-            if alias and alias != code:
-                self.lang_code_to_id.setdefault(alias,
-                                                self.lang_code_to_id[code])
 
     def _check_declared(self, declared_codes: Sequence[str]) -> None:
         """Every language the registry advertises must address a real token.
@@ -434,16 +480,56 @@ class SpmSeq2SeqTokenizer:
 
     def encode(self, text: str, src_lang: str) -> List[int]:
         pieces = self.sp.encode(text, out_type=str)
-        return ([self.lang_id(src_lang)]
-                + [self.piece_to_id(p) for p in pieces]
-                + [self.eos_id])
+        body = [self.piece_to_id(p) for p in pieces]
+        if self._word_break_id is not None:
+            body = self._mark_word_breaks(text, pieces, body)
+        return [self.lang_id(src_lang)] + body + [self.eos_id]
+
+    def _mark_word_breaks(self, text: str, pieces: Sequence[str],
+                          ids: Sequence[int]) -> List[int]:
+        """Put the word-break token where the `tokenizers` library matches
+        it: before each word but the first, and once for leading or for
+        trailing whitespace. Whitespace is what the normaliser makes a space,
+        which includes U+200B and U+200E."""
+        marked: List[int] = []
+        for index, (piece, token_id) in enumerate(zip(pieces, ids)):
+            if index and piece.startswith(_WORD_MARK):
+                marked.append(self._word_break_id)
+            marked.append(token_id)
+        normalized = self._edges.normalize(text)
+        if normalized.startswith(_WORD_MARK):
+            marked.insert(0, self._word_break_id)
+        if normalized.endswith(_WORD_MARK) and normalized.strip(_WORD_MARK):
+            marked.append(self._word_break_id)
+        return marked
 
     def decode(self, ids: Sequence[int]) -> str:
-        pieces = [self.id_to_piece(i) for i in ids if i not in self._specials]
-        text = self.sp.DecodePieces(pieces)
+        words: List[List[str]] = [[]]
+        for i in ids:
+            if i == self._word_break_id:
+                words.append([])
+            elif i not in self._specials:
+                words[-1].append(self.id_to_piece(i))
+        text = " ".join(self.sp.DecodePieces(pieces)
+                        for pieces in words if pieces)
         if self.clean_up_tokenization_spaces:
             text = clean_up_tokenization(text)
         return text
+
+
+class MBartTokenizer(SpmSeq2SeqTokenizer):
+    """mBART: ``pieces + [</s>, src_lang]``.
+
+    The vocabulary is laid out like NLLB's - SentencePiece ids shifted by the
+    fairseq offset of 1, then one token per language - and only the place of
+    the source tag differs. ``transformers``' ``MBartTokenizer`` sets
+    ``prefix_tokens = []`` and ``suffix_tokens = [eos, src_lang]``.
+    """
+
+    def encode(self, text: str, src_lang: str) -> List[int]:
+        pieces = self.sp.encode(text, out_type=str)
+        return ([self.piece_to_id(p) for p in pieces]
+                + [self.eos_id, self.lang_id(src_lang)])
 
 
 def clean_up_tokenization(text: str) -> str:
@@ -476,7 +562,7 @@ class MarianTokenizer:
 
     def __init__(self, source_spm, target_spm, vocab_path,
                  eos_token: str = "</s>", pad_token: str = "<pad>",
-                 unk_token: str = "<unk>"):
+                 unk_token: str = "<unk>", target_vocab_path=None):
         """``eos_token``/``pad_token``/``unk_token`` default to the standard
         opus-mt spellings, but not every Marian export uses them: Softcatalà/
         BSC's fairseq-derived exports (e.g. ``aina-translator-ca-*``) spell
@@ -486,15 +572,23 @@ class MarianTokenizer:
         - see :func:`load_tokenizer`, which reads the real strings out of the
         repo's own ``special_tokens_map.json`` before falling back to these
         defaults.
+
+        A model trained with separate vocabularies (``sepvoc``) numbers its
+        source and target pieces independently: ``vocab.json`` holds the
+        source ids and ``target_vocab.json`` the target ids. Without
+        ``target_vocab_path`` one vocabulary serves both sides.
         """
         self.spm_source = _load_spm(source_spm)
         self.spm_target = _load_spm(target_spm)
         self.vocab: Dict[str, int] = _load_json(vocab_path)
-        self.inv_vocab = {i: t for t, i in self.vocab.items()}
+        target_vocab: Dict[str, int] = (_load_json(target_vocab_path)
+                                        if target_vocab_path else self.vocab)
+        self.inv_vocab = {i: t for t, i in target_vocab.items()}
         self.eos_id = self.vocab[eos_token]
         self.pad_id = self.vocab[pad_token]
         self.unk_id = self.vocab[unk_token]
-        self._specials = {self.eos_id, self.pad_id, self.unk_id}
+        self._specials = {target_vocab[token]
+                          for token in (eos_token, pad_token, unk_token)}
         self.language_tokens = sorted(
             t for t in self.vocab if t.startswith(">>") and t.endswith("<<"))
 
@@ -517,6 +611,51 @@ class MarianTokenizer:
         return self.spm_target.DecodePieces(pieces)
 
 
+def load_fast_tokenizer(tokenizer_json):
+    """``tokenizer_json`` read by the ``tokenizers`` package, with the file's
+    own truncation and padding switched off.
+
+    `transformers` applies neither unless a caller asks for it, and a model
+    exported from it was given whole, unpadded sentences. The encoder bounds
+    in :mod:`linguonnx.limits` refuse an input that is too long instead.
+    """
+    try:
+        import tokenizers
+    except ImportError as exc:
+        raise ImportError(
+            "this model's tokenizer is a `tokenizers`-library "
+            "tokenizer.json, which needs the 'tokenizers' package. "
+            "Install it: pip install 'linguonnx[fast-tokenizers]'") from exc
+    tok = tokenizers.Tokenizer.from_file(str(tokenizer_json))
+    # tokenizers 1.0 replaced no_truncation() and no_padding() with
+    # properties that take None. From 1.0.0rc4 only the CompiledTokenizer
+    # that compile() builds can encode, and compile() freezes the settings,
+    # so they come first. The release candidates differ, so each step tests
+    # for the method rather than for the version.
+    if hasattr(tok, "no_truncation"):
+        tok.no_truncation()
+        tok.no_padding()
+    else:
+        tok.truncation = None
+        tok.padding = None
+    if hasattr(tok, "compile"):
+        return tok.compile()
+    return tok
+
+
+def _token_ids(tokenizer_json) -> Dict[str, int]:
+    """Token to id over a ``tokenizer.json``'s model vocabulary and its added
+    tokens. A Unigram vocabulary is a list of ``[piece, score]``, where the
+    position is the id; the other models map each token to its id."""
+    spec = _load_json(tokenizer_json)
+    vocab = spec["model"]["vocab"]
+    ids = ({piece: index for index, (piece, _) in enumerate(vocab)}
+           if isinstance(vocab, list) else dict(vocab))
+    ids.update({entry["content"]: int(entry["id"])
+                for entry in spec.get("added_tokens", ())})
+    return ids
+
+
 class FastUnigramTokenizer:
     """Softcatalà's ``translate-eus-cat``/``translate-oci-cat``: a Marian-
     shaped Pegasus export whose tokenizer is not a raw SentencePiece
@@ -529,19 +668,25 @@ class FastUnigramTokenizer:
     group-model ambiguity (confirmed by inspecting ``vocab.json``: neither
     ships any ``>>xxx<<`` token), so, like :class:`MarianTokenizer`, it never
     needs a target token.
+
+    ``arat5-arabic-dialects-translation`` (``t5-fast``) loads through here
+    too. Its ``tokenizer.json`` holds a BPE model rather than a Unigram one,
+    which the ``tokenizers`` package reads the same way, and the model is a
+    plain directed one with no prefix on the input either.
+
+    A ``tokenizer.json`` can carry a ``truncation`` setting, and the AraT5
+    one does: 64 tokens. The ``tokenizers`` package applies it on every
+    ``encode``, so a longer sentence is cut with nothing raised and the model
+    translates the first half of it fluently. :func:`load_fast_tokenizer`
+    switches it off.
     """
 
     def __init__(self, tokenizer_json, eos_token: str = "</s>",
-                 pad_token: str = "<blank>", unk_token: str = "<unk>"):
-        try:
-            from tokenizers import Tokenizer
-        except ImportError as exc:
-            raise ImportError(
-                "this model's tokenizer is a `tokenizers`-library "
-                "tokenizer.json, which needs the 'tokenizers' package. "
-                "Install it: pip install 'linguonnx[fast-tokenizers]'") from exc
-        self._tok = Tokenizer.from_file(str(tokenizer_json))
-        vocab = self._tok.get_vocab()
+                 pad_token: str = "<blank>", unk_token: str = "<unk>",
+                 clean_up_tokenization_spaces: bool = False):
+        self._tok = load_fast_tokenizer(tokenizer_json)
+        self.clean_up_tokenization_spaces = clean_up_tokenization_spaces
+        vocab = _token_ids(tokenizer_json)
         self.eos_id = vocab[eos_token]
         self.pad_id = vocab[pad_token]
         self.unk_id = vocab[unk_token]
@@ -562,7 +707,173 @@ class FastUnigramTokenizer:
 
     def decode(self, ids: Sequence[int]) -> str:
         ids = [i for i in ids if i not in self._specials]
-        return self._tok.decode(ids, skip_special_tokens=False)
+        text = self._tok.decode(ids, skip_special_tokens=False)
+        if self.clean_up_tokenization_spaces:
+            text = clean_up_tokenization(text)
+        return text
+
+
+def _byte_to_unicode() -> Dict[int, str]:
+    """GPT-2's map from each byte to a printable character. The printable
+    ASCII and Latin-1 bytes stand for themselves; the other 68 take the
+    characters from U+0100 on, in byte order."""
+    printable = [*range(ord("!"), ord("~") + 1), *range(ord("¡"), ord("¬") + 1),
+                 *range(ord("®"), ord("ÿ") + 1)]
+    mapping = {byte: chr(byte) for byte in printable}
+    for offset, byte in enumerate(b for b in range(256) if b not in mapping):
+        mapping[byte] = chr(256 + offset)
+    return mapping
+
+
+class ByteLevelBpeTokenizer:
+    """A decoder-only model's byte-level BPE ``tokenizer.json`` (the GPT-2
+    scheme), read in pure Python.
+
+    Encodes a whole prompt the way ``tokenizer(prompt)`` does in
+    `transformers`: the prompt carries its own ``<s>`` and language tags,
+    which are added tokens, and the post-processor adds nothing. Decodes the
+    way ``tokenizer.decode(ids, skip_special_tokens=True).strip()`` does,
+    including the space clean-up the export's ``tokenizer_config.json`` asks
+    for.
+
+    The ``tokenizers`` package does not read the Plume files from 1.0 on: it
+    refuses a byte-level vocabulary that has no token for some bytes. Before
+    1.0 it drops such a byte from the input, and this class does the same.
+
+    A ``tokenizer.json`` that asks for a step this class does not implement
+    is refused at load time. A step ignored here would tokenize a string the
+    model was never given.
+    """
+
+    _PRE_TOKENIZE = (r"'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+"
+                     r"| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+")
+    # The word cache stops growing at this size, as in `tokenizers`.
+    _CACHE_WORDS = 10_000
+
+    def __init__(self, tokenizer_json, clean_up_tokenization_spaces: bool = False):
+        try:
+            import regex
+        except ImportError as exc:
+            raise ImportError(
+                "this model's byte-level BPE tokenizer needs the 'regex' "
+                "package. Install it: pip install 'linguonnx[fast-tokenizers]'"
+            ) from exc
+        spec = _load_json(tokenizer_json)
+        self._check_supported(spec, tokenizer_json)
+        model = spec["model"]
+        self._vocab: Dict[str, int] = model["vocab"]
+        self._ranks = {tuple(pair.split(" ") if isinstance(pair, str) else pair): rank
+                       for rank, pair in enumerate(model["merges"])}
+        self._token = {token_id: token for token, token_id in self._vocab.items()}
+        added = spec.get("added_tokens", ())
+        self._added = {entry["content"]: int(entry["id"]) for entry in added}
+        self._specials = {int(entry["id"]) for entry in added if entry["special"]}
+        self._token.update({token_id: token for token, token_id in self._added.items()})
+        self._added_re = regex.compile("|".join(
+            regex.escape(token) for token in sorted(self._added, key=len, reverse=True)))
+        self._normalizers = self._compile_normalizers(spec["normalizer"], regex)
+        self._pre_tokenize = regex.compile(self._PRE_TOKENIZE)
+        self._to_char = _byte_to_unicode()
+        self._to_byte = {char: byte for byte, char in self._to_char.items()}
+        self._clean_up = clean_up_tokenization_spaces
+        self._cache: Dict[str, List[int]] = {}
+
+    @staticmethod
+    def _check_supported(spec: dict, path) -> None:
+        model = spec.get("model") or {}
+        byte_level = {"type": "ByteLevel", "add_prefix_space": False, "use_regex": True}
+        problems = []
+        if model.get("type") != "BPE":
+            problems.append(f"model type {model.get('type')!r}")
+        for key in ("dropout", "unk_token", "continuing_subword_prefix",
+                    "end_of_word_suffix"):
+            if model.get(key) is not None:
+                problems.append(f"model {key} {model[key]!r}")
+        for key in ("byte_fallback", "ignore_merges"):
+            if model.get(key):
+                problems.append(f"model {key}")
+        pre = spec.get("pre_tokenizer") or {}
+        if any(pre.get(key) != value for key, value in byte_level.items()):
+            problems.append(f"pre_tokenizer {pre!r}")
+        if (spec.get("post_processor") or {}).get("type", "ByteLevel") != "ByteLevel":
+            problems.append(f"post_processor {spec['post_processor']['type']!r}")
+        if (spec.get("decoder") or {}).get("type") != "ByteLevel":
+            problems.append(f"decoder {spec.get('decoder')!r}")
+        for entry in spec.get("added_tokens", ()):
+            if (entry["single_word"] or entry["lstrip"] or entry["rstrip"]
+                    or entry["normalized"]):
+                problems.append(f"added token {entry['content']!r} flags")
+        if problems:
+            raise ValueError(
+                f"{path} is not a byte-level BPE tokenizer this reader "
+                f"implements: {'; '.join(problems)}")
+
+    @staticmethod
+    def _compile_normalizers(spec: Optional[dict], regex) -> List:
+        if spec is None:
+            return []
+        steps = spec["normalizers"] if spec["type"] == "Sequence" else [spec]
+        compiled = []
+        for step in steps:
+            if step["type"] in ("NFC", "NFD", "NFKC", "NFKD"):
+                form = step["type"]
+                compiled.append(lambda text, form=form: unicodedata.normalize(form, text))
+            elif step["type"] == "Replace":
+                pattern = step["pattern"]
+                found = regex.compile(pattern["Regex"] if "Regex" in pattern
+                                      else regex.escape(pattern["String"]))
+                content = step["content"]
+                compiled.append(lambda text, found=found, content=content:
+                                found.sub(lambda _: content, text))
+            else:
+                raise ValueError(
+                    f"normalizer {step['type']!r} is not implemented by this reader")
+        return compiled
+
+    def _bpe(self, word: str) -> List[int]:
+        if word in self._cache:
+            return self._cache[word]
+        # A character with no token is dropped before merging, so its
+        # neighbours can merge across it, as in `tokenizers` before 1.0.
+        symbols = [char for char in word if char in self._vocab]
+        while len(symbols) > 1:
+            pairs = [(self._ranks.get(pair, len(self._ranks)), index)
+                     for index, pair in enumerate(zip(symbols, symbols[1:]))]
+            rank, index = min(pairs)
+            if rank == len(self._ranks):
+                break
+            symbols[index:index + 2] = [symbols[index] + symbols[index + 1]]
+        ids = [self._vocab[symbol] for symbol in symbols]
+        if len(self._cache) < self._CACHE_WORDS:
+            self._cache[word] = ids
+        return ids
+
+    def _encode_text(self, text: str) -> List[int]:
+        for normalize in self._normalizers:
+            text = normalize(text)
+        ids: List[int] = []
+        for word in self._pre_tokenize.findall(text):
+            ids.extend(self._bpe("".join(self._to_char[b] for b in word.encode("utf-8"))))
+        return ids
+
+    def encode(self, prompt: str) -> List[int]:
+        ids: List[int] = []
+        position = 0
+        for match in self._added_re.finditer(prompt):
+            ids.extend(self._encode_text(prompt[position:match.start()]))
+            ids.append(self._added[match.group()])
+            position = match.end()
+        ids.extend(self._encode_text(prompt[position:]))
+        return ids
+
+    def decode(self, ids: Sequence[int]) -> str:
+        tokens = [self._token[i] for i in ids
+                  if i in self._token and i not in self._specials]
+        text = bytes(self._to_byte[char] for char in "".join(tokens)
+                     ).decode("utf-8", errors="replace")
+        if self._clean_up:
+            text = clean_up_tokenization(text)
+        return text.strip()
 
 
 class T5SpmTokenizer:
@@ -1104,7 +1415,7 @@ def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str],
     if arch == "marian":
         specials = _marian_special_tokens(files.get("special_tokens_map"))
         return MarianTokenizer(files["source_spm"], files["target_spm"], files["vocab"],
-                               **specials)
+                               target_vocab_path=files.get("target_vocab"), **specials)
     if arch == "m2m100":
         codes = lang_codes or artifact_lang_codes(files)
         return SpmSeq2SeqTokenizer(files["spm"], codes, vocab_path=files["vocab"],
@@ -1123,6 +1434,11 @@ def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str],
             declared_codes=lang_codes,
             clean_up_tokenization_spaces=bool(
                 tokenizer_config.get("clean_up_tokenization_spaces", False)))
+    if arch == "mbart":
+        return MBartTokenizer(
+            files["spm"], artifact_lang_codes(files), fairseq_offset=1,
+            tokenizer_json_path=files.get("tokenizer_json"),
+            declared_codes=lang_codes)
     if arch == "madlad":
         return T5SpmTokenizer(files["spm"])
     if arch == "t5-prefix":
@@ -1150,4 +1466,18 @@ def load_tokenizer(arch: str, files: Dict[str, Path], lang_codes: Sequence[str],
     if arch == "pegasus-fast":
         specials = _marian_special_tokens(files.get("special_tokens_map"))
         return FastUnigramTokenizer(files["tokenizer_json"], **specials)
+    if arch == "t5-fast":
+        specials = _marian_special_tokens(files.get("special_tokens_map"))
+        tokenizer_config = _load_json(files["tokenizer_config"])
+        return FastUnigramTokenizer(
+            files["tokenizer_json"], **specials,
+            clean_up_tokenization_spaces=bool(
+                tokenizer_config.get("clean_up_tokenization_spaces", False)))
+    if arch == "causal-lm":
+        tokenizer_config = (_load_json(files["tokenizer_config"])
+                            if files.get("tokenizer_config") else {})
+        return ByteLevelBpeTokenizer(
+            files["tokenizer_json"],
+            clean_up_tokenization_spaces=bool(
+                tokenizer_config.get("clean_up_tokenization_spaces", False)))
     raise ValueError(f"unknown architecture {arch!r}")

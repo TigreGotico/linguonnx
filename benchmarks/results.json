@@ -1,0 +1,99 @@
+{
+ "routing": {
+  "base": {
+   "selection_models": 211,
+   "selection_size_mb": 165486,
+   "default_languages": 592,
+   "languages_under_500_mb": 235,
+   "budgets": [
+    {
+     "max_model_mb": null,
+     "models_kept": 211,
+     "languages_routable": 592
+    },
+    {
+     "max_model_mb": 2000,
+     "models_kept": 191,
+     "languages_routable": 289
+    },
+    {
+     "max_model_mb": 1000,
+     "models_kept": 157,
+     "languages_routable": 238
+    },
+    {
+     "max_model_mb": 500,
+     "models_kept": 131,
+     "languages_routable": 235
+    },
+    {
+     "max_model_mb": 300,
+     "models_kept": 120,
+     "languages_routable": 77
+    }
+   ]
+  },
+  "all_extras": {
+   "selection_models": 211,
+   "selection_size_mb": 165486,
+   "default_languages": 606,
+   "languages_under_500_mb": 255,
+   "budgets": [
+    {
+     "max_model_mb": null,
+     "models_kept": 211,
+     "languages_routable": 606
+    },
+    {
+     "max_model_mb": 2000,
+     "models_kept": 191,
+     "languages_routable": 303
+    },
+    {
+     "max_model_mb": 1000,
+     "models_kept": 157,
+     "languages_routable": 258
+    },
+    {
+     "max_model_mb": 500,
+     "models_kept": 131,
+     "languages_routable": 255
+    },
+    {
+     "max_model_mb": 300,
+     "models_kept": 120,
+     "languages_routable": 78
+    }
+   ]
+  }
+ },
+ "detect": {
+  "model_id": "glotlid-int8",
+  "galician_short_text": [
+   {
+    "input": "Bo día",
+    "length": 6,
+    "detected": "pap",
+    "confidence": 0.77
+   },
+   {
+    "input": "Bo día, como estás?",
+    "length": 19,
+    "detected": "es",
+    "confidence": 0.53
+   },
+   {
+    "input": "Bo día, o meu nome é Miro",
+    "length": 25,
+    "detected": "gl",
+    "confidence": 1.0
+   },
+   {
+    "input": "A lingua galega é unha lingua románica que se fala principalmente en Galicia.",
+    "length": 77,
+    "detected": "gl",
+    "confidence": 1.0
+   }
+  ]
+ }
+}

@@ -30,7 +30,7 @@ class TestPipelineRegistry:
 
     @pytest.mark.parametrize("arch", ["marian", "m2m100", "nllb", "madlad",
                                       "indictrans2", "opennmt-bpe",
-                                      "t5-prefix"])
+                                      "t5-prefix", "causal-lm"])
     def test_every_registered_architecture_has_a_pipeline(self, arch):
         assert isinstance(pipeline_for(arch), Pipeline)
 

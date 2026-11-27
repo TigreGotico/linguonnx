@@ -22,17 +22,20 @@ from __future__ import annotations
 
 import os
 import re
+from typing import Sequence
 
 __all__ = [
     "InputTooLongError",
     "EmptyInputError",
     "DecodeError",
+    "OutputTruncatedError",
     "CorruptModelFileError",
     "MAX_DETECT_CHARS",
     "MAX_LINE_TOKENS",
     "MAX_ENCODER_TOKENS",
     "MAX_NUM_BEAMS",
     "MAX_LENGTH_PENALTY",
+    "DEFAULT_MAX_MODEL_MB",
     "MAX_MODEL_MB",
     "has_visible_content",
     "check_length",
@@ -49,6 +52,17 @@ class EmptyInputError(ValueError):
 
 class DecodeError(RuntimeError):
     """Generation produced no usable sequence."""
+
+
+class OutputTruncatedError(DecodeError):
+    """Generation hit ``max_new_tokens`` before the model finished.
+
+    ``tokens`` holds the ids generated up to the cap.
+    """
+
+    def __init__(self, message: str, tokens: Sequence[int] = ()) -> None:
+        super().__init__(message)
+        self.tokens = list(tokens)
 
 
 class CorruptModelFileError(ValueError):
@@ -116,6 +130,11 @@ MAX_NUM_BEAMS = _env_int("LINGUONNX_MAX_NUM_BEAMS", 32)
 #: afford the download - a Pi, a metered link - and coverage stays, latency
 #: grows. See ``docs/routing.md``.
 MAX_MODEL_MB = _env_optional_int("LINGUONNX_MAX_MODEL_MB")
+
+#: The size routing prefers when nobody set a cap. M2M100-418M and the aina
+#: models fit under it and MADLAD does not, so MADLAD serves only the pairs
+#: nothing smaller covers, through the oversize fallback.
+DEFAULT_MAX_MODEL_MB = 2048
 
 
 def operator_budget_is_set() -> bool:

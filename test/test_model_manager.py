@@ -29,9 +29,17 @@ EXPECTED = {
     "lid218e-int8": ("TigreGotico/lid218e-onnx", "CC-BY-NC-4.0", "softmax", 218, "int8"),
 }
 
+TRANSFORMER_EXPECTED = {
+    # model_id: (hf_repo, license, onnx_file, num_labels, precision)
+    "afrolid_1.5": ("TigreGotico/afrolid_1.5-onnx", "Apache-2.0", "model.onnx",
+                    518, "fp32"),
+    "afrolid_1.5-int8": ("TigreGotico/afrolid_1.5-onnx", "Apache-2.0",
+                         "model.int8.onnx", 518, "int8"),
+}
+
 
 def test_registry_has_exactly_the_expected_models():
-    assert set(model_manager.list_models()) == set(EXPECTED)
+    assert set(model_manager.list_models()) == set(EXPECTED) | set(TRANSFORMER_EXPECTED)
 
 
 @pytest.mark.parametrize("model_id", sorted(EXPECTED))
@@ -49,6 +57,21 @@ def test_registry_entry_fields(model_id):
     assert entry["size_mb"] > 0
 
 
+@pytest.mark.parametrize("model_id", sorted(TRANSFORMER_EXPECTED))
+def test_transformer_registry_entry_fields(model_id):
+    entry = model_manager.list_models()[model_id]
+    repo, lic, onnx_file, num_labels, precision = TRANSFORMER_EXPECTED[model_id]
+    assert entry["model_id"] == model_id
+    assert entry["hf_repo"] == repo
+    assert entry["license"] == lic
+    assert entry["onnx_file"] == onnx_file
+    assert entry["num_labels"] == num_labels
+    assert entry["precision"] == precision
+    assert entry["engine"] == "transformer-onnx"
+    assert entry["side_files"] == {"tokenizer_json": "tokenizer.json",
+                                   "config": "config.json"}
+
+
 def test_default_model_is_the_permissively_licensed_one():
     """GPL/CC-BY-SA models must never be what a caller gets without asking."""
     from linguonnx.detect import DEFAULT_MODEL_ID
@@ -60,7 +83,7 @@ def test_default_model_is_the_permissively_licensed_one():
 def test_only_hs_models_declare_an_hs_tree_side_file():
     for model_id, entry in model_manager.list_models().items():
         has_tree = "hs_tree" in entry["side_files"]
-        assert has_tree == (entry["loss"] == "hs"), model_id
+        assert has_tree == (entry.get("loss") == "hs"), model_id
 
 
 def test_registry_entry_unknown_model_raises():

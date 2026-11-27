@@ -15,19 +15,12 @@ IndicTrans2's FLORES tags and the AINA bilingual entries - not a
 ``normalize_tag`` alias, which would apply the substitution to every caller
 of ``ns``/``nso`` project-wide rather than just this one model.
 
-``arat5-arabic-dialects-translation`` (T5, no MADLAD-shaped ``spiece.model``)
-and ``vinai-translate-vi2en-v2`` (mBART) are architectures this library
-implements no loader for - `scripts/sync_registry.py` now records both with
-that reason rather than the mBART one silently mislabelling itself "nllb"
-(both share NLLB's lone ``sentencepiece.bpe.model`` +
-``special_tokens_map.json`` shape, which is what let the mislabel happen
-unnoticed before this fix).
-
-``arabic-MARBERT-dialect-identification-city`` and ``afrolid_1.5`` are
-transformer (MARBERT/XLM-R) sequence classifiers - fastText-hash is the only
-LID engine ``linguonnx.detect`` implements, and the MARBERT model's own
-output (Arabic city names) would not fit ``lid.json``'s BCP-47 contract even
-with such an engine. Both are recorded in ``skipped.json``, not registered.
+``afrolid_1.5`` is an XLM-R sequence classifier that ``linguonnx.detect``
+runs with its ``transformer-onnx`` engine. Its card says ``other``; the
+AfroLID repository states Apache-2.0 for the pre-trained models, and the
+registry carries that. ``arabic-MARBERT-dialect-identification-city`` is
+recorded in ``skipped.json``: neither the fine-tune nor its research-only
+MARBERT base grants redistribution.
 """
 
 import json
@@ -40,6 +33,7 @@ from linguonnx.translate.models import TranslationModel
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TRANSLATE = list_models("translate")
+LID = list_models("lid")
 SKIPPED = json.loads(
     (REPO_ROOT / "linguonnx" / "model_index" / "skipped.json")
     .read_text(encoding="utf-8"))
@@ -92,10 +86,8 @@ def test_the_registry_still_has_bilingual_finetune_entries():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("hf_repo,expect_substring", [
-    ("TigreGotico/arat5-arabic-dialects-translation-onnx", "spiece.model"),
-    ("TigreGotico/vinai-translate-vi2en-v2-onnx", "mbart"),
-    ("TigreGotico/arabic-MARBERT-dialect-identification-city-onnx", "MARBERT"),
-    ("TigreGotico/afrolid_1.5-onnx", "XLM-R"),
+    ("TigreGotico/arabic-MARBERT-dialect-identification-city-onnx",
+     "exclusively for research"),
 ])
 def test_unregisterable_repos_are_recorded_with_their_real_reason(
         hf_repo, expect_substring):
@@ -104,20 +96,31 @@ def test_unregisterable_repos_are_recorded_with_their_real_reason(
     assert expect_substring in reason
 
 
-def test_arat5_and_vinai_are_not_claimed_by_the_registry():
-    """T5-non-MADLAD and mBART are not architectures `linguonnx.translate`
-    implements; neither model may appear under any model_id."""
-    claimed = {entry.get("hf_repo") for entry in TRANSLATE.values()}
-    assert "TigreGotico/arat5-arabic-dialects-translation-onnx" not in claimed
-    assert "TigreGotico/vinai-translate-vi2en-v2-onnx" not in claimed
+@pytest.mark.parametrize("model_id,onnx_file", [
+    ("afrolid_1.5", "model.onnx"), ("afrolid_1.5-int8", "model.int8.onnx"),
+])
+def test_afrolid_is_registered_for_the_transformer_engine(model_id, onnx_file):
+    entry = LID[model_id]
+    assert entry["hf_repo"] == "TigreGotico/afrolid_1.5-onnx"
+    assert entry["engine"] == "transformer-onnx"
+    assert entry["onnx_file"] == onnx_file
+    assert entry["side_files"] == {"tokenizer_json": "tokenizer.json",
+                                   "config": "config.json"}
+    assert entry["num_labels"] == 518
+    assert entry["license"] == "Apache-2.0"
+    assert "TigreGotico/afrolid_1.5-onnx" not in SKIPPED
 
 
-def test_afrolid_upstream_defect_is_documented_not_papered_over():
-    """The Yoruba misclassification is confirmed upstream (see the module
-    docstring and skipped.json), so the caveat must survive in the skip
-    reason rather than being silently dropped - it is what tells a future
-    maintainer who *does* add a transformer-classifier engine that this
-    model still needs a `quality` entry, not a plain registration."""
-    reason = SKIPPED["TigreGotico/afrolid_1.5-onnx"]
-    assert "yor" in reason.lower() or "yoruba" in reason.lower()
-    assert "upstream" in reason.lower()
+@pytest.mark.parametrize("model_id", ["afrolid_1.5", "afrolid_1.5-int8"])
+def test_afrolid_upstream_yoruba_caveat_is_in_the_notes(model_id):
+    """Short Yoruba sentences are misread by the unmodified upstream
+    checkpoint too; the caveat travels with the registry entry."""
+    notes = LID[model_id]["notes"]
+    assert "Yoruba" in notes
+    assert "upstream" in notes.lower()
+
+
+def test_marbert_is_not_registered():
+    claimed = {entry.get("hf_repo") for entry in LID.values()}
+    assert ("TigreGotico/arabic-MARBERT-dialect-identification-city-onnx"
+            not in claimed)

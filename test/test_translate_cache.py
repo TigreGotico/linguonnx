@@ -193,6 +193,59 @@ def test_two_threads_racing_one_cold_model_build_it_once(monkeypatch):
     assert got[0] is got[1], "one thread got an orphaned model"
 
 
+def test_threads_on_one_cold_model_download_and_build_it_once(monkeypatch, tmp_path):
+    """Real `TranslationModel`: the sessions are built after the constructor,
+    so the count has to be taken at the session, not at the object."""
+    entry = dict(REGISTRY["pt-en"], native_codes={"pt": "pt", "en": "en"})
+    config = tmp_path / "config.json"
+    config.write_text('{"eos_token_id": 0, "pad_token_id": 1, '
+                      '"decoder_start_token_id": 1}')
+    calls = {"fetch": 0, "session": 0, "tokenizer": 0}
+    lock = threading.Lock()
+
+    def count(name):
+        with lock:
+            calls[name] += 1
+        time.sleep(0.05)  # the window an unguarded check-then-set leaves open
+
+    def fetch(*args, **kwargs):
+        count("fetch")
+        return {"config": config, "encoder": "e", "decoder": "d",
+                "decoder_with_past": "p"}
+
+    def session(path, providers=None):
+        count("session")
+        return path
+
+    def tokenizer(*args, **kwargs):
+        count("tokenizer")
+        return object()
+
+    monkeypatch.setattr("linguonnx.translate.models.ensure_model_files", fetch)
+    monkeypatch.setattr("linguonnx.translate.models._session", session)
+    monkeypatch.setattr("linguonnx.translate.models.load_tokenizer", tokenizer)
+    monkeypatch.setattr("linguonnx.translate.models.Seq2SeqDecoder",
+                        lambda *args, **kwargs: object())
+
+    tx = Translator({"pt-en": entry}, model_cache_size=4)
+    start = threading.Barrier(8)
+    got = []
+
+    def worker():
+        start.wait(timeout=10)
+        model = tx.model("pt-en")
+        got.append((model.decoder, model.tokenizer))
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+
+    assert calls == {"fetch": 1, "session": 3, "tokenizer": 1}
+    assert len(got) == 8 and len(set(got)) == 1
+
+
 def test_loading_one_model_does_not_block_another(monkeypatch):
     """Per-model locks, not one global one: a 2 GB load must not stall a hop
     through an unrelated model."""

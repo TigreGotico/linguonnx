@@ -277,3 +277,39 @@ def test_matches_real_onnx_reader_on_a_real_external_data_export(tmp_path):
     })
     actual = sorted(model_manager._external_data_locations(onnx_path))
     assert actual == reference == ["model.onnx_data"]
+
+
+class TestLid218eFetchesItsWeights:
+    """``lid218e.onnx`` is a 474-byte graph; its weights are ``lid218e.onnx_data``."""
+
+    def test_fresh_download_fetches_the_onnx_data_blob(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(model_manager, "MODELS_DIR", tmp_path / "models")
+        src = tmp_path / "hub"
+        src.mkdir()
+        (src / "lid218e.onnx").write_bytes(_graph_bytes("lid218e.onnx_data"))
+        fetched = []
+
+        def fake_download(repo_id, filename, revision=None):
+            assert repo_id == "TigreGotico/lid218e-onnx"
+            fetched.append(filename)
+            path = src / filename
+            if not path.exists():
+                path.write_bytes(b"x")
+            return str(path)
+
+        with patch("linguonnx.model_manager.hf_hub_download",
+                   side_effect=fake_download):
+            paths = model_manager.ensure_model_files("lid218e", kind="lid",
+                                                     enforce_budget=False)
+
+        assert "lid218e.onnx_data" in fetched
+        assert (paths["onnx_file"].parent / "lid218e.onnx_data").exists()
+
+    def test_budget_counts_the_external_weights(self, tmp_path, monkeypatch):
+        """1,173,665,792 bytes of weights do not fit a 500 MB budget."""
+        monkeypatch.setattr(model_manager, "MODELS_DIR", tmp_path)
+        monkeypatch.setenv("LINGUONNX_MAX_DOWNLOAD_MB", "500")
+        with patch("linguonnx.model_manager.hf_hub_download",
+                   side_effect=AssertionError("budget must refuse first")):
+            with pytest.raises(model_manager.DownloadTooLargeError):
+                model_manager.ensure_model_files("lid218e", kind="lid")

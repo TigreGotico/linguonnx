@@ -44,7 +44,8 @@ class _RecordingTokenizer:
 
 
 class _StubDecoder:
-    def generate(self, input_ids, forced_bos_token_id=None, config=None):
+    def generate(self, input_ids, forced_bos_token_id=None, config=None,
+                 decoder_start_token_id=None):
         return [1, 2, 3]
 
 
@@ -206,6 +207,12 @@ def test_every_multi_target_model_has_a_way_to_name_its_target(model_id, entry):
         assert reachable == set(entry["languages"]), (
             f"{model_id} lists {sorted(entry['languages'])} but its "
             f"instructions only reach {sorted(reachable)}")
+    elif arch == "causal-lm":
+        # The prompt names the target, and a prompt without the slot sends
+        # every request to whatever language the model prefers.
+        assert "{tgt}" in entry.get("prompt_template", ""), (
+            f"{model_id} is a prompted {arch} model and its prompt template "
+            f"does not name the target")
     elif arch in ("m2m100", "nllb"):
         assert pipeline_for(arch).forced_bos.__qualname__.startswith(
             "SpmLangTokenPipeline"), \
@@ -418,3 +425,18 @@ def test_the_generator_excludes_the_same_tokens():
     spec.loader.exec_module(module)
     assert module._MARIAN_GROUP_EXCLUSIONS["opus-mt-tc-big-en-zle"] == \
         ("orv", "orv_Cyrl")
+
+
+def test_a_model_reads_its_codes_from_the_native_codes_table_only():
+    """No table, no model: the runtime derives no code from a tag."""
+    entry = {"model_id": "toy", "arch": "nllb", "license": "MIT",
+             "license_tier": "permissive", "size_mb": 1,
+             "pair": ["es", "an"]}
+    with pytest.raises(ValueError, match="native_codes"):
+        TranslationModel("toy", entry=dict(entry))
+    model = TranslationModel("toy", entry=dict(
+        entry, native_codes={"es": "spa_Latn", "an": "arg_Latn"}))
+    assert model.native_code("es") == "spa_Latn"
+    assert model.native_codes == ("spa_Latn", "arg_Latn")
+    with pytest.raises(KeyError):
+        model.native_code("ca")

@@ -132,6 +132,12 @@ _KNOWN_SCRIPT_DEFAULTS: Dict[str, str] = {
 # BCP-47 base tag.
 _ALWAYS_KEEP_SCRIPT = {"zh", "sr"}
 
+# Labels that name no language. AfroLID v1.5 carries ``nan_lang`` next to its
+# 517 ISO 639-3 codes; the AfroLID supported-languages list does not contain
+# it, and split as ``code_Script`` it would read as Min Nan Chinese (``nan``).
+# BCP-47's ``und`` (undetermined) is the tag for "no language identified".
+_NON_LANGUAGE_LABELS: Dict[str, str] = {"nan_lang": "und"}
+
 _WARNED_UNKNOWN: set = set()
 
 
@@ -253,6 +259,9 @@ def is_collection_or_special(tag: str) -> bool:
 
 def to_bcp47(label: str) -> str:
     """``eng_Latn`` -> ``en``, ``zho_Hans`` -> ``zh-Hans``, ``pt`` -> ``pt``."""
+    raw = label[len(LABEL_PREFIX):] if label.startswith(LABEL_PREFIX) else label
+    if raw in _NON_LANGUAGE_LABELS:
+        return _NON_LANGUAGE_LABELS[raw]
     iso3, script = split_label(label)
     code = _MACRO_OVERRIDES.get(iso3, iso3)
     tag = f"{code}-{script}" if script else code

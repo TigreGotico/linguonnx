@@ -131,7 +131,7 @@ def test_the_declared_check_still_reads_the_stated_ids(tiny_spm, tmp_path):
     """A registry claim the export cannot carry still raises, and one it can
     still passes."""
     files = _files(tiny_spm, tmp_path)
-    load_tokenizer("nllb", files, ["arn"])       # an alias of arn_Latn
+    load_tokenizer("nllb", files, ["arn_Latn"])  # the appended token
     with pytest.raises(ValueError, match="no language token"):
         load_tokenizer("nllb", files, ["zzz_Zzzz"])
 
