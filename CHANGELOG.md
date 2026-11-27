@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.5a2](https://github.com/TigreGotico/linguonnx/tree/0.26.5a2) (2026-11-27)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.5a1...0.26.5a2)
+
+**Merged pull requests:**
+
+- refactor: read every language tag through linguatag [\#194](https://github.com/TigreGotico/linguonnx/pull/194) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.26.5a1](https://github.com/TigreGotico/linguonnx/tree/0.26.5a1) (2026-11-27)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.4a3...0.26.5a1)
