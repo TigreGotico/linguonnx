@@ -20,7 +20,7 @@ dependencies = [
     "huggingface_hub>=0.20.0",  # stable `revision=` handling in hf_hub_download
     # Every language tag: standardization, likely script, IANA scope and the
     # default region of a bare tag.
-    "linguatag>=0.0.2a2",
+    "linguatag>=0.10.0a1",
     "sentencepiece>=0.2.0",  # normalize() and SentencePieceNormalizer
 ]
 classifiers = [
