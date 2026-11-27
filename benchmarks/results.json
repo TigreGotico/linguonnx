@@ -3,13 +3,13 @@
   "base": {
    "selection_models": 211,
    "selection_size_mb": 165486,
-   "default_languages": 592,
+   "default_languages": 593,
    "languages_under_500_mb": 235,
    "budgets": [
     {
      "max_model_mb": null,
      "models_kept": 211,
-     "languages_routable": 592
+     "languages_routable": 593
     },
     {
      "max_model_mb": 2000,
@@ -36,13 +36,13 @@
   "all_extras": {
    "selection_models": 211,
    "selection_size_mb": 165486,
-   "default_languages": 606,
+   "default_languages": 607,
    "languages_under_500_mb": 255,
    "budgets": [
     {
      "max_model_mb": null,
      "models_kept": 211,
-     "languages_routable": 606
+     "languages_routable": 607
     },
     {
      "max_model_mb": 2000,
