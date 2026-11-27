@@ -18,14 +18,8 @@ dependencies = [
     "onnxruntime>=1.22.0",  # 8-bit MatMulNBits, used by the Plume int8 graphs
     "numpy>=1.21.0",
     "huggingface_hub>=0.20.0",  # stable `revision=` handling in hf_hub_download
-    "langcodes>=3.3.0",
-    # Already pulled in by langcodes; declared because linguonnx now reads the
-    # IANA Language Subtag Registry out of it directly, to tell a language
-    # from a language *family* (`itc`, `sla`, `ber`) - see
-    # `linguonnx.detect.labels.tag_scope`.
-    "language_data>=1.1",
-    # The default region of a bare tag (`es` -> `es-ES`), which the router
-    # tries when the bare language has no route.
+    # Every language tag: standardization, likely script, IANA scope and the
+    # default region of a bare tag.
     "linguatag>=0.0.2a2",
     "sentencepiece>=0.2.0",  # normalize() and SentencePieceNormalizer
 ]
@@ -91,6 +85,8 @@ gpu = []
 # it needs no torch/tensorflow/flax backend for tokenizer-only use.
 test = [
     "pytest>=7.0",
+    # test_registry_invariants reads the macrolanguage of a subtag.
+    "langcodes>=3.3.0",
     # onnx 1.23.0rc1 is an orphaned RC: it writes IR version 14 into every
     # model it saves, and no published onnxruntime (1.30.0 is the latest) can
     # load it. Exclude it explicitly until 1.23.0 final lands - do not pin a
