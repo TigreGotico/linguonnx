@@ -197,46 +197,7 @@
     "zh",
     "ca"
   ],
-  "TigreGotico/allosaurus-onnx": null,
-  "TigreGotico/arabic-MARBERT-dialect-identification-city-onnx": null,
   "TigreGotico/arat5-arabic-dialects-translation-onnx": null,
-  "TigreGotico/audiosronnx-apbwe": null,
-  "TigreGotico/audiosronnx-callenhancer": null,
-  "TigreGotico/audiosronnx-cmgan": null,
-  "TigreGotico/audiosronnx-deepfilternet": null,
-  "TigreGotico/audiosronnx-dpdfnet": null,
-  "TigreGotico/audiosronnx-flowhigh": null,
-  "TigreGotico/audiosronnx-frcrn": null,
-  "TigreGotico/audiosronnx-gtcrn": null,
-  "TigreGotico/audiosronnx-hifiganbwe": null,
-  "TigreGotico/audiosronnx-lavasr": null,
-  "TigreGotico/audiosronnx-metadenoiser": null,
-  "TigreGotico/audiosronnx-mossformer2": null,
-  "TigreGotico/audiosronnx-mossformergan": null,
-  "TigreGotico/audiosronnx-mpsenet": null,
-  "TigreGotico/audiosronnx-novasr": null,
-  "TigreGotico/audiosronnx-sidon": null,
-  "TigreGotico/audiosronnx-unipase": null,
-  "TigreGotico/audiosronnx-voicefixer": null,
-  "TigreGotico/audiosronnx-voiceisolator": null,
-  "TigreGotico/bilstm-diacritizer": [
-    "ar"
-  ],
-  "TigreGotico/catt-diacritizer": null,
-  "TigreGotico/cqt-onnx": null,
-  "TigreGotico/crf-query-xtract": [
-    "ca",
-    "da",
-    "de",
-    "en",
-    "es",
-    "eu",
-    "fr",
-    "gl",
-    "it",
-    "nl",
-    "pt"
-  ],
   "TigreGotico/cuneiformBase-400m-onnx": [
     "akk",
     "sux",
@@ -248,19 +209,6 @@
     "sux-Xsux",
     "gmy-Linb"
   ],
-  "TigreGotico/deepmoji-onnx": null,
-  "TigreGotico/delta-mfcc-onnx": null,
-  "TigreGotico/distillhubert-onnx": null,
-  "TigreGotico/dnsmos-onnx": null,
-  "TigreGotico/eat-classifiers": [
-    "en"
-  ],
-  "TigreGotico/filterbank-onnx": null,
-  "TigreGotico/fireredvad-coreml": null,
-  "TigreGotico/frame-vad-marblenet-onnx": null,
-  "TigreGotico/fsmn-vad-coreml": null,
-  "TigreGotico/fsmn-vad-onnx": null,
-  "TigreGotico/gammatone-onnx": null,
   "TigreGotico/glotlid-onnx": null,
   "TigreGotico/indictrans2-en-indic-1B-onnx": [
     "as",
@@ -361,30 +309,6 @@
     "ta",
     "te",
     "ur"
-  ],
-  "TigreGotico/jevasio-0.8b": [
-    "pt"
-  ],
-  "TigreGotico/jevasio-0.8b-v2": [
-    "pt"
-  ],
-  "TigreGotico/jevasio-4b": [
-    "pt"
-  ],
-  "TigreGotico/jevasio-4b-v2": [
-    "pt"
-  ],
-  "TigreGotico/jevhakim-0.8b": [
-    "ar"
-  ],
-  "TigreGotico/jevhakim-4b": [
-    "ar"
-  ],
-  "TigreGotico/kolokwa-g2p-onnx": [
-    "lir"
-  ],
-  "TigreGotico/libtashkeel-diacritizer": [
-    "ar"
   ],
   "TigreGotico/lid176-onnx": null,
   "TigreGotico/lid218e-onnx": null,
@@ -509,27 +433,6 @@
     "multilingual"
   ],
   "TigreGotico/madlad400-3b-mt-onnx": null,
-  "TigreGotico/marblenet-vad-coreml": null,
-  "TigreGotico/mfcc-onnx": null,
-  "TigreGotico/model2vec-ATC-role-classification-bert-base-uwb-atcc": [
-    "en"
-  ],
-  "TigreGotico/model2vec-ATC-role-classification-potion-2M": [
-    "en"
-  ],
-  "TigreGotico/model2vec-ATC-role-classification-potion-32M": [
-    "en"
-  ],
-  "TigreGotico/model2vec-ATC-role-classification-potion-4M": [
-    "en"
-  ],
-  "TigreGotico/model2vec-ATC-role-classification-potion-8M": [
-    "en"
-  ],
-  "TigreGotico/model2vec-ATC-role-classification-potion-multilingual-128M": [
-    "en"
-  ],
-  "TigreGotico/model2vec-bert-base-token-classification-for-atc-en-uwb-atcc": null,
   "TigreGotico/mt-hitz-ca-eu-onnx": [
     "ca",
     "eu"
@@ -554,7 +457,6 @@
     "gl",
     "eu"
   ],
-  "TigreGotico/nisqa-onnx": null,
   "TigreGotico/nllb-200-distilled-600M-onnx": [
     "multilingual"
   ],
@@ -795,10 +697,6 @@
   "TigreGotico/opus-mt-en-it-onnx": [
     "en",
     "it"
-  ],
-  "TigreGotico/opus-mt-en-jap-onnx": [
-    "en",
-    "ja"
   ],
   "TigreGotico/opus-mt-en-ko-onnx": [
     "en",
@@ -1178,37 +1076,6 @@
     "zh",
     "en"
   ],
-  "TigreGotico/plp-onnx": null,
-  "TigreGotico/pncc-onnx": null,
-  "TigreGotico/pyannote-segmentation-3.0-onnx": null,
-  "TigreGotico/rawi": [
-    "ar"
-  ],
-  "TigreGotico/rawi-ensemble": [
-    "ar"
-  ],
-  "TigreGotico/rawi-v2": [
-    "ar"
-  ],
-  "TigreGotico/rawi-v3": [
-    "ar"
-  ],
-  "TigreGotico/sb-vad-crdnn-onnx": null,
-  "TigreGotico/sentence-type-classifiers": [
-    "en",
-    "de",
-    "es",
-    "fr",
-    "it",
-    "nl",
-    "pt"
-  ],
-  "TigreGotico/shakkala-diacritizer": null,
-  "TigreGotico/sigmos-onnx": null,
-  "TigreGotico/silero-vad-onnx": null,
-  "TigreGotico/stressonnx-models": null,
-  "TigreGotico/ten-vad-coreml": null,
-  "TigreGotico/ten-vad-onnx": null,
   "TigreGotico/translate-eus-cat-onnx": [
     "eu",
     "ca"
@@ -1217,138 +1084,8 @@
     "oc",
     "ca"
   ],
-  "TigreGotico/utmos-onnx": null,
   "TigreGotico/vinai-translate-vi2en-v2-onnx": [
     "vi",
     "en"
-  ],
-  "TigreGotico/voiceclonnx-bicodec": [
-    "en"
-  ],
-  "TigreGotico/voiceclonnx-chatterbox": [
-    "en"
-  ],
-  "TigreGotico/voiceclonnx-cosyvoice": null,
-  "TigreGotico/voiceclonnx-facodec": null,
-  "TigreGotico/voiceclonnx-focalcodec": null,
-  "TigreGotico/voiceclonnx-knn-vc": null,
-  "TigreGotico/voiceclonnx-lscodec": null,
-  "TigreGotico/voiceclonnx-openvoice-v2": [
-    "en"
-  ],
-  "TigreGotico/voiceclonnx-rvc": null,
-  "TigreGotico/voiceclonnx-triaan-vc": [
-    "en"
-  ],
-  "TigreGotico/wakehubert-mel-attn": [
-    "en",
-    "de",
-    "nl",
-    "fr",
-    "es",
-    "it",
-    "pt",
-    "pl",
-    "multilingual"
-  ],
-  "TigreGotico/wakehubert-mel-bigru": [
-    "en",
-    "multilingual"
-  ],
-  "TigreGotico/wakehubert-mel-gru": [
-    "en",
-    "multilingual"
-  ],
-  "TigreGotico/wakehubert-mel-tcn-deep": [
-    "en",
-    "multilingual"
-  ],
-  "TigreGotico/wakehubert-mel-tcn-wide": [
-    "en",
-    "multilingual"
-  ],
-  "TigreGotico/wakehubert-mixconv": [
-    "en",
-    "de",
-    "nl",
-    "fr",
-    "es",
-    "it",
-    "pt",
-    "pl",
-    "multilingual"
-  ],
-  "TigreGotico/wakehubert-tiny": [
-    "en",
-    "de",
-    "nl",
-    "fr",
-    "es",
-    "it",
-    "pt",
-    "pl",
-    "multilingual"
-  ],
-  "TigreGotico/wakephonehubert": [
-    "en",
-    "nl",
-    "fr",
-    "de",
-    "it",
-    "pl",
-    "pt",
-    "es",
-    "ca",
-    "cy",
-    "ru",
-    "fa",
-    "tr",
-    "uk",
-    "ar",
-    "cs",
-    "el",
-    "et",
-    "id",
-    "ky",
-    "mn",
-    "ro",
-    "sv",
-    "lv"
-  ],
-  "TigreGotico/wakewav-mel-bigru": [
-    "en",
-    "multilingual"
-  ],
-  "TigreGotico/wakewav-mel-gru": [
-    "en",
-    "multilingual"
-  ],
-  "TigreGotico/wakewav-mel-tcn": [
-    "en",
-    "multilingual"
-  ],
-  "TigreGotico/wakewav-mel-tcn-wide": [
-    "en",
-    "multilingual"
-  ],
-  "TigreGotico/wakexeus-mel-bigru": [
-    "en",
-    "multilingual"
-  ],
-  "TigreGotico/wakexeus-mel-gru": [
-    "en",
-    "multilingual"
-  ],
-  "TigreGotico/wakexeus-mel-tcn": [
-    "en",
-    "multilingual"
-  ],
-  "TigreGotico/wakexeus-mel-tcn-wide": [
-    "en",
-    "multilingual"
-  ],
-  "TigreGotico/wav2vec2-xlsr-53-espeak-cv-ft-onnx": null,
-  "TigreGotico/yes-no-classifiers": [
-    "multilingual"
   ]
 }
