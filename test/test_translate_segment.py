@@ -110,3 +110,62 @@ def test_every_registry_target_has_a_script_answer():
     assert len(targets) > 300
     for tag in targets:
         likely_script(tag)
+
+
+class _LoopingDecoder:
+    """Loops until max_new_tokens unless repeated trigrams are banned."""
+
+    def __init__(self, loops_with_guard=False):
+        self.loops_with_guard = loops_with_guard
+        self.guards = []
+
+    def generate(self, input_ids, forced_bos_token_id=None, config=None, decoder_start_token_id=None):
+        self.guards.append(config.no_repeat_ngram_size)
+        if config.no_repeat_ngram_size and not self.loops_with_guard:
+            return [7, 8, 9]
+        raise OutputTruncatedError("cut", [5, 6] * 64)
+
+
+class _Pipeline:
+    default_target_token_template = None
+
+    def encode(self, model, text, src, tgt, target_token=None):
+        return [1, 2]
+
+    def decode(self, model, ids, src, tgt):
+        return "ok" if ids == [7, 8, 9] else "?"
+
+    def forced_bos(self, model, tgt):
+        return None
+
+    def decoder_start(self, model, tgt):
+        return None
+
+
+def _model(monkeypatch, decoder):
+    monkeypatch.setattr(TranslationModel, "pipeline", property(lambda self: _Pipeline()))
+    monkeypatch.setattr(TranslationModel, "banned_token_ids", property(lambda self: frozenset()))
+    model = TranslationModel("opus-mt-pt-en-int8")
+    model._decoder = decoder
+    return model
+
+
+def test_a_looping_output_gets_a_second_pass_with_the_repeat_guard(monkeypatch):
+    decoder = _LoopingDecoder()
+    assert _model(monkeypatch, decoder).translate("Uma frase.", "pt", "en") == "ok"
+    assert decoder.guards == [0, 3]
+
+
+def test_an_output_that_still_reaches_the_limit_raises(monkeypatch):
+    decoder = _LoopingDecoder(loops_with_guard=True)
+    with pytest.raises(OutputTruncatedError):
+        _model(monkeypatch, decoder).translate("Uma frase.", "pt", "en")
+    assert decoder.guards == [0, 3]
+
+
+def test_a_caller_guard_gets_no_second_pass(monkeypatch):
+    from linguonnx.translate.decode import GenerationConfig
+    decoder = _LoopingDecoder(loops_with_guard=True)
+    with pytest.raises(OutputTruncatedError):
+        _model(monkeypatch, decoder).translate("Uma frase.", "pt", "en", config=GenerationConfig(no_repeat_ngram_size=2))
+    assert decoder.guards == [2]

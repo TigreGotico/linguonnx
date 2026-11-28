@@ -49,11 +49,13 @@ import importlib
 import json
 import logging
 import threading
+from dataclasses import replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple
 
-from linguonnx.limits import MAX_ENCODER_TOKENS, DecodeError, has_visible_content
+from linguonnx.limits import (MAX_ENCODER_TOKENS, DecodeError, OutputTruncatedError,
+                              has_visible_content)
 from linguonnx.model_manager import (ensure_model_files, list_models,
                                       registry_entry)
 from linguonnx.providers import ProviderSpec, make_session
@@ -70,6 +72,9 @@ from linguonnx.translate.quality import (counterpart_model_id,
                                          quality_flag_reasons)
 from linguonnx.translate.segment import UNSPACED_SCRIPTS, split_sentences
 from linguonnx.translate.tokenizers import load_tokenizer
+
+#: The n-gram guard of the second pass after an output reaches max_new_tokens.
+REPEAT_GUARD = 3
 
 LOG = logging.getLogger(__name__)
 
@@ -493,10 +498,20 @@ class TranslationModel:
         pipeline = self.pipeline
         input_ids = pipeline.encode(self, text, src, tgt,
                                     target_token=target_token)
-        output_ids = self.decoder.generate(
-            input_ids, forced_bos_token_id=pipeline.forced_bos(self, tgt),
-            decoder_start_token_id=pipeline.decoder_start(self, tgt),
-            config=config)
+        def generate(cfg):
+            return self.decoder.generate(
+                input_ids, forced_bos_token_id=pipeline.forced_bos(self, tgt),
+                decoder_start_token_id=pipeline.decoder_start(self, tgt),
+                config=cfg)
+        try:
+            output_ids = generate(config)
+        except OutputTruncatedError:
+            if config.no_repeat_ngram_size:
+                raise
+            # A model stuck in a loop repeats a short token cycle until the
+            # limit. One more pass that bans repeated trigrams ends the loop;
+            # a text that is long, not looping, still raises.
+            output_ids = generate(replace(config, no_repeat_ngram_size=REPEAT_GUARD))
         result = pipeline.decode(self, output_ids, src, tgt)
         if not has_visible_content(result):
             # The decoder produced *something* (empty `output_ids` already
