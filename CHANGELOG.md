@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.6a1](https://github.com/TigreGotico/linguonnx/tree/0.26.6a1) (2026-11-28)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.5a2...0.26.6a1)
+
+**Merged pull requests:**
+
+- fix: the card cache holds only the repos the registry cites [\#196](https://github.com/TigreGotico/linguonnx/pull/196) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.26.5a2](https://github.com/TigreGotico/linguonnx/tree/0.26.5a2) (2026-11-27)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.5a1...0.26.5a2)
@@ -395,7 +403,6 @@
 **Merged pull requests:**
 
 - feat: Akkadian, Sumerian, Hittite and Linear B, via a new instruction-prefixed T5/UMT5 architecture [\#88](https://github.com/TigreGotico/linguonnx/pull/88) ([JarbasAl](https://github.com/JarbasAl))
-- fix: flag opus-mt-en-jap, which answers in scripture instead of translating [\#86](https://github.com/TigreGotico/linguonnx/pull/86) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.12.0a1](https://github.com/TigreGotico/linguonnx/tree/0.12.0a1) (2026-08-10)
 
