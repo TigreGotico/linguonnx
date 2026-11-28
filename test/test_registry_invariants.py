@@ -607,3 +607,10 @@ def test_every_declared_direction_names_registered_languages():
             assert src in declared, f"{model_id}: {key} source not in languages"
             assert tgt in declared, f"{model_id}: {key} target not in languages"
             assert src != tgt, f"{model_id}: {key} is a self-edge"
+
+
+def test_the_card_cache_holds_only_cited_repos():
+    cited = {entry["hf_repo"] for kind in ("translate", "lid")
+             for entry in model_manager.list_models(kind=kind).values() if "hf_repo" in entry}
+    extra = sorted(set(CARD_LANGUAGES) - cited)
+    assert not extra, f"{len(extra)} repo(s) that the registry does not cite: {extra[:5]}"
