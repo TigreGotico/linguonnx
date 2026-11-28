@@ -2928,6 +2928,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     # test_registry_invariants.py's card-bound-coverage tests need this cache
     # to include every repo the registry currently cites, or they silently
     # skip exactly the entry they exist to catch (see CARD_LANGUAGES_PATH).
+    # Only the repos that the registry cites: other org repos (phoonnx
+    # voices, audio models) have no place in a translation test cache.
+    cited = {entry["hf_repo"] for registry in (translate, lid)
+             for entry in registry.values() if "hf_repo" in entry}
+    card_languages = {repo: langs for repo, langs in card_languages.items()
+                      if repo in cited}
     card_text = json.dumps(dict(sorted(card_languages.items())), indent=2,
                            ensure_ascii=False) + "\n"
     card_current = CARD_LANGUAGES_PATH.read_text(encoding="utf-8") \
