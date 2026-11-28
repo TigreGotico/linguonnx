@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.7a1](https://github.com/TigreGotico/linguonnx/tree/0.26.7a1) (2026-11-28)
+
+[Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.6a1...0.26.7a1)
+
+**Merged pull requests:**
+
+- fix: a looping output gets a second pass with the repeat guard [\#202](https://github.com/TigreGotico/linguonnx/pull/202) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.26.6a1](https://github.com/TigreGotico/linguonnx/tree/0.26.6a1) (2026-11-28)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.26.5a2...0.26.6a1)
@@ -392,17 +400,9 @@
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.13.0a1...0.13.0a2)
 
-**Merged pull requests:**
-
-- Add configurable ONNX execution-provider \(GPU\) support [\#87](https://github.com/TigreGotico/linguonnx/pull/87) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [0.13.0a1](https://github.com/TigreGotico/linguonnx/tree/0.13.0a1) (2026-09-01)
 
 [Full Changelog](https://github.com/TigreGotico/linguonnx/compare/0.12.0a1...0.13.0a1)
-
-**Merged pull requests:**
-
-- feat: Akkadian, Sumerian, Hittite and Linear B, via a new instruction-prefixed T5/UMT5 architecture [\#88](https://github.com/TigreGotico/linguonnx/pull/88) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.12.0a1](https://github.com/TigreGotico/linguonnx/tree/0.12.0a1) (2026-08-10)
 
