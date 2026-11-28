@@ -427,16 +427,16 @@ Output that stops at the budget is a failure too. When generation reaches
 `max_new_tokens` before the model ends the sequence, the decoder raises
 `linguonnx.limits.OutputTruncatedError`, a subclass of `DecodeError`. Its
 `tokens` attribute holds the ids generated up to the cap. Split the input or
-raise `max_new_tokens`.
+raise `max_new_tokens`. The end-of-sequence token counts against the budget,
+as it does in `transformers`. Beam search raises when the best-scoring
+hypothesis has not ended, even if a lower-scoring one has: on long input a
+finished hypothesis is often a short one that stopped early.
 
 A model can loop: it repeats a short cycle of tokens until the cap. When the
 caller sets no `no_repeat_ngram_size`, `translate()` therefore decodes a
 sentence that reaches the cap one more time with `no_repeat_ngram_size=3`.
 The error comes only when that second pass reaches the cap too. A caller that
-sets `no_repeat_ngram_size` gets no second pass. The end-of-sequence token counts against the budget,
-as it does in `transformers`. Beam search raises when the best-scoring
-hypothesis has not ended, even if a lower-scoring one has: on long input a
-finished hypothesis is often a short one that stopped early.
+sets `no_repeat_ngram_size` gets no second pass.
 
 ---
 [← Prev](detect.md) · [Home](index.md) · [Next →](routing.md)
