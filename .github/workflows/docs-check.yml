@@ -1,0 +1,33 @@
+name: Docs check
+
+on:
+  pull_request:
+    branches: [dev]
+  workflow_dispatch:
+
+jobs:
+  docs-check:
+    runs-on: ubuntu-latest
+    env:
+      LINGUONNX_CACHE: ${{ github.workspace }}/.linguonnx-cache
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: |
+          pip install uv
+          UV_PRERELEASE=allow uv pip install --system -e ".[test]"
+      - name: Cache the models that the docs examples load
+        uses: actions/cache@v4
+        with:
+          path: .linguonnx-cache
+          key: linguonnx-docs-models-${{ hashFiles('linguonnx/model_index/*.json') }}
+          restore-keys: linguonnx-docs-models-
+      - name: Figure data matches the committed result files
+        run: |
+          for script in docs/img/plot_*.py; do DOCS_FIGURES_DATA_ONLY=1 python "$script"; done
+          git diff --exit-code -- 'docs/img/*.json'
+      - name: Docs code examples print what their comments state
+        run: python scripts/check_docs.py

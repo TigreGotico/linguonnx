@@ -5,6 +5,15 @@ import pytest
 
 from linguonnx import model_manager
 
+#: A minimal, syntactically-valid (but empty) protobuf message: field 99
+#: (arbitrary, unused by ONNX), wire type 2 (length-delimited), zero-length
+#: payload. `model_manager._external_data_locations` parses this cleanly and
+#: finds no `location` - unlike a single stray byte like `b"x"`, which is a
+#: truncated varint and (correctly, since R3) raises rather than being
+#: silently treated as "no external data". Fixtures below stand in for a real
+#: `.onnx` graph, so they need to parse, even if trivially.
+FAKE_ONNX_BYTES = b"\x9a\x06\x00"
+
 
 EXPECTED = {
     # model_id: (hf_repo, license, loss, num_labels, precision)
@@ -16,11 +25,21 @@ EXPECTED = {
     "openlid-int8": ("TigreGotico/openlid-onnx", "GPL-3.0", "softmax", 201, "int8"),
     "openlid-v2": ("TigreGotico/openlid-v2-onnx", "GPL-3.0", "softmax", 200, "fp32"),
     "openlid-v2-int8": ("TigreGotico/openlid-v2-onnx", "GPL-3.0", "softmax", 200, "int8"),
+    "lid218e": ("TigreGotico/lid218e-onnx", "CC-BY-NC-4.0", "softmax", 218, "fp32"),
+    "lid218e-int8": ("TigreGotico/lid218e-onnx", "CC-BY-NC-4.0", "softmax", 218, "int8"),
+}
+
+TRANSFORMER_EXPECTED = {
+    # model_id: (hf_repo, license, onnx_file, num_labels, precision)
+    "afrolid_1.5": ("TigreGotico/afrolid_1.5-onnx", "Apache-2.0", "model.onnx",
+                    518, "fp32"),
+    "afrolid_1.5-int8": ("TigreGotico/afrolid_1.5-onnx", "Apache-2.0",
+                         "model.int8.onnx", 518, "int8"),
 }
 
 
 def test_registry_has_exactly_the_expected_models():
-    assert set(model_manager.list_models()) == set(EXPECTED)
+    assert set(model_manager.list_models()) == set(EXPECTED) | set(TRANSFORMER_EXPECTED)
 
 
 @pytest.mark.parametrize("model_id", sorted(EXPECTED))
@@ -38,6 +57,21 @@ def test_registry_entry_fields(model_id):
     assert entry["size_mb"] > 0
 
 
+@pytest.mark.parametrize("model_id", sorted(TRANSFORMER_EXPECTED))
+def test_transformer_registry_entry_fields(model_id):
+    entry = model_manager.list_models()[model_id]
+    repo, lic, onnx_file, num_labels, precision = TRANSFORMER_EXPECTED[model_id]
+    assert entry["model_id"] == model_id
+    assert entry["hf_repo"] == repo
+    assert entry["license"] == lic
+    assert entry["onnx_file"] == onnx_file
+    assert entry["num_labels"] == num_labels
+    assert entry["precision"] == precision
+    assert entry["engine"] == "transformer-onnx"
+    assert entry["side_files"] == {"tokenizer_json": "tokenizer.json",
+                                   "config": "config.json"}
+
+
 def test_default_model_is_the_permissively_licensed_one():
     """GPL/CC-BY-SA models must never be what a caller gets without asking."""
     from linguonnx.detect import DEFAULT_MODEL_ID
@@ -49,7 +83,7 @@ def test_default_model_is_the_permissively_licensed_one():
 def test_only_hs_models_declare_an_hs_tree_side_file():
     for model_id, entry in model_manager.list_models().items():
         has_tree = "hs_tree" in entry["side_files"]
-        assert has_tree == (entry["loss"] == "hs"), model_id
+        assert has_tree == (entry.get("loss") == "hs"), model_id
 
 
 def test_registry_entry_unknown_model_raises():
@@ -107,7 +141,7 @@ def test_ensure_model_files_downloads_onnx_and_side_files(tmp_path, monkeypatch)
     monkeypatch.setattr(model_manager, "MODELS_DIR", tmp_path)
 
     fake_blob = tmp_path / "source_blob"
-    fake_blob.write_text("x")
+    fake_blob.write_bytes(FAKE_ONNX_BYTES)
 
     with patch("linguonnx.model_manager.hf_hub_download", return_value=str(fake_blob)) as mock_dl:
         paths = model_manager.ensure_model_files("glotlid-int8")
@@ -120,3 +154,89 @@ def test_ensure_model_files_downloads_onnx_and_side_files(tmp_path, monkeypatch)
     for path in paths.values():
         assert path.exists()
         assert path.stat().st_size > 0
+
+
+class TestIsCached:
+    """`is_cached` answers "would this cost a download?" without doing one."""
+
+    ENTRY = {
+        "model_id": "m", "hf_repo": "x/m", "onnx_file": "model.onnx",
+        "side_files": {"config": "config.json"},
+    }
+
+    def _registry(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(model_manager, "MODELS_DIR", tmp_path)
+        monkeypatch.setattr(model_manager, "registry_entry",
+                            lambda model_id, kind="lid": self.ENTRY)
+
+    def test_a_model_with_every_file_present_is_cached(self, tmp_path, monkeypatch):
+        self._registry(monkeypatch, tmp_path)
+        (tmp_path / "m").mkdir()
+        (tmp_path / "m" / "model.onnx").write_bytes(FAKE_ONNX_BYTES)
+        (tmp_path / "m" / "config.json").write_bytes(b"x")
+        assert model_manager.is_cached("m", kind="translate") is True
+
+    def test_a_model_missing_one_file_is_not_cached(self, tmp_path, monkeypatch):
+        self._registry(monkeypatch, tmp_path)
+        (tmp_path / "m").mkdir()
+        (tmp_path / "m" / "model.onnx").write_bytes(FAKE_ONNX_BYTES)
+        assert model_manager.is_cached("m", kind="translate") is False
+
+    def test_a_zero_byte_file_is_not_cached(self, tmp_path, monkeypatch):
+        """The same rule the fetch path uses, so the two cannot disagree."""
+        self._registry(monkeypatch, tmp_path)
+        (tmp_path / "m").mkdir()
+        (tmp_path / "m" / "model.onnx").write_bytes(b"")
+        (tmp_path / "m" / "config.json").write_bytes(b"x")
+        assert model_manager.is_cached("m", kind="translate") is False
+
+    def test_an_unknown_model_is_not_cached(self):
+        assert model_manager.is_cached("no-such-model", kind="translate") is False
+
+
+class TestCacheRoot:
+    """``LINGUONNX_CACHE`` relocates the model cache.
+
+    The default puts tens of gigabytes of weights under ``$HOME``, which on a
+    server is usually the small root volume. Before this variable existed the
+    only fix was a symlink at ``~/.cache/linguonnx`` - invisible in the code,
+    and silently back to filling the root disk the moment it went missing.
+    """
+
+    def test_unset_uses_the_home_default(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("LINGUONNX_CACHE", raising=False)
+        monkeypatch.setattr(model_manager.Path, "home", lambda: tmp_path)
+        assert model_manager._cache_root() == tmp_path / ".cache" / "linguonnx"
+
+    def test_set_relocates_the_cache(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("LINGUONNX_CACHE", str(tmp_path / "bulk"))
+        assert model_manager._cache_root() == tmp_path / "bulk"
+
+    def test_tilde_is_expanded(self, monkeypatch, tmp_path):
+        # A compose file or systemd unit passes a literal string; nothing
+        # expands `~` on the way in, so an unexpanded tilde would otherwise
+        # create a directory actually named "~".
+        monkeypatch.setenv("LINGUONNX_CACHE", "~/bulk/linguonnx")
+        # expanduser() reads $HOME, not Path.home(), so the env is what matters
+        monkeypatch.setenv("HOME", str(tmp_path))
+        assert model_manager._cache_root() == tmp_path / "bulk" / "linguonnx"
+
+    @pytest.mark.parametrize("value", ["", "   ", "\t\n"])
+    def test_blank_is_treated_as_unset(self, monkeypatch, tmp_path, value):
+        # `LINGUONNX_CACHE=` in a compose file, or an unexpanded shell
+        # variable, must not cache into the process's working directory.
+        monkeypatch.setenv("LINGUONNX_CACHE", value)
+        monkeypatch.setattr(model_manager.Path, "home", lambda: tmp_path)
+        assert model_manager._cache_root() == tmp_path / ".cache" / "linguonnx"
+
+    def test_models_dir_hangs_off_the_root(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("LINGUONNX_CACHE", str(tmp_path / "bulk"))
+        root = model_manager._cache_root()
+        assert root / "models" == tmp_path / "bulk" / "models"
+
+    def test_relative_path_is_kept_relative(self, monkeypatch):
+        # Not resolved against cwd on purpose: resolving would freeze the
+        # working directory at import time, which is a worse surprise than a
+        # relative path behaving relatively.
+        monkeypatch.setenv("LINGUONNX_CACHE", "var/cache/linguonnx")
+        assert model_manager._cache_root() == Path("var/cache/linguonnx")

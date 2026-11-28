@@ -1,4 +1,5 @@
 # Language identification
+<!-- agent-hint: language identification: the models, variety labels, BCP-47 mapping and input limits. Verify: `python scripts/check_docs.py docs/detect.md`. -->
 
 `linguonnx.detect` answers one question: what language is this text in?
 
@@ -6,12 +7,13 @@
 from linguonnx import load_detector
 
 det = load_detector()                 # glotlid-int8, the default
-# load_detector("lid176-int8") for another model: openlid-int8, openlid-v2-int8
+# load_detector("lid176-int8") for another model: openlid-int8,
+# openlid-v2-int8, afrolid_1.5-int8
 
 print(det.detect("Egun on, zer moduz?"))          # 'eu' — best-guess BCP-47 tag
-print(det.detect_probs("Bon dia a tothom", 3))    # {'ca': 0.998, ...}
-print(det.detect_raw("Bon dia a tothom"))         # ('cat_Latn', 0.998)
-print(len(det.available_languages))               # 2100 BCP-47 tags
+print(det.detect_probs("Bon dia a tothom", 3))    # {'ca': 0.999, ...}
+print(det.detect_raw("Bon dia a tothom"))         # ('cat_Latn', 0.999)
+print(len(det.available_languages))               # 2097 — BCP-47 tags
 print(det.loss)                                   # 'softmax'
 ```
 
@@ -19,7 +21,7 @@ print(det.loss)                                   # 'softmax'
 voice stack wants. `detect_raw` gives you the model's own label untouched, for
 when you need the exact variety and script the classifier chose.
 
-## The four models
+## The models
 
 | model_id | file | size | labels | precision | licence |
 |---|---|---|---|---|---|
@@ -31,11 +33,12 @@ when you need the exact variety and script the classifier chose.
 | `openlid` | `openlid.onnx` | 1.23 GB | 201 | fp32 | GPL-3.0 |
 | `openlid-v2-int8` | `openlid-v2.int8.onnx` | 305 MB | 200 | int8 | GPL-3.0 |
 | `openlid-v2` | `openlid-v2.onnx` | 1.22 GB | 200 | fp32 | GPL-3.0 |
+| `afrolid_1.5-int8` | `model.int8.onnx` | 313 MB | 518 | int8 | Apache-2.0 |
+| `afrolid_1.5` | `model.onnx` | 1.15 GB | 518 | fp32 | Apache-2.0 |
 
 [**GlotLID**](https://huggingface.co/TigreGotico/glotlid-onnx) has 2102
 language-script labels, by far the widest coverage, and is the default. It is
-also the only Apache-2.0 model here, which is the other reason it is the
-default.
+also Apache-2.0, which is the other reason it is the default.
 
 [**lid.176**](https://huggingface.co/TigreGotico/lid176-onnx) is Meta's
 original fastText identifier: 176 languages and only 33 MB in int8, so it is
@@ -48,6 +51,17 @@ accented text or it will guess.
 and 200 curated FLORES-200 varieties, trained on audited data. Prefer v2
 unless you need parity with the original OpenLID paper. Both are GPL-3.0.
 
+[**AfroLID v1.5**](https://huggingface.co/TigreGotico/afrolid_1.5-onnx) is
+UBC-NLP's identifier for 517 African languages and varieties, many of which
+no other model here knows. It is a transformer, not a fastText model. See
+[Transformer classifiers](#transformer-classifiers).
+
+AfroLID labels every input with an African language, so give it text you
+already know is African. English, French, Portuguese and Chinese sentences
+come back as Wolof, Kinyarwanda or Oromo, sometimes with a probability over
+0.9. Short Yoruba sentences can come back as Wolof or Fula with a low
+probability. The original PyTorch model does the same.
+
 ### Precision
 
 int8 is the default because it is almost free. GlotLID's HuggingFace repo
@@ -58,11 +72,18 @@ publisher's 59-language set — which is what you would expect from quantising a
 16-dimension model that was already small. Use `lid176` fp32 when 131 MB is
 affordable.
 
+AfroLID was measured against the original PyTorch model on 112 FLORES-200
+devtest sentences in 14 African languages. The fp32 graph gives the same
+top-5 labels on all 112, with probabilities within 1e-6. The int8 graph keeps
+the top-1 label on 111. The one change is a near tie on a Lingala sentence,
+where fp32 says Swahili at 0.59 and int8 says Lingala at 0.51.
+
 ## How a fastText model becomes an ONNX graph
 
-Every model here is a fastText classifier. fastText's actual math — averaging
-embedding rows, multiplying by the output matrix, softmax — is representable
-as an ONNX graph, so that part runs as a normal ONNX Runtime session:
+Every model here except AfroLID is a fastText classifier. fastText's actual
+math — averaging embedding rows, multiplying by the output matrix, softmax —
+is representable as an ONNX graph, so that part runs as a normal ONNX
+Runtime session:
 
 ```
 input_ids: int64[num_features]  ->  probs: float32[num_labels]
@@ -71,8 +92,8 @@ input_ids: int64[num_features]  ->  probs: float32[num_labels]
 What ONNX cannot do portably is fastText's *preprocessing*: tokenising text
 and hashing character n-grams into `input_ids`. That half stays in Python, in
 `linguonnx/detect/hashing.py`, vendored from the reference implementation
-published alongside the ONNX weights. Every model in the registry uses the
-same hashing and differs only in the `nwords`/`minn`/`maxn`/`bucket` values
+published alongside the ONNX weights. Every fastText model in the registry
+uses the same hashing and differs only in the `nwords`/`minn`/`maxn`/`bucket` values
 read from its `config.json`.
 
 It is a straight port of fastText's `Dictionary` class, including the detail
@@ -100,6 +121,31 @@ Which path a model takes is decided by the `loss` field on its registry entry,
 falling back to the `loss` in its own `config.json` and then to `softmax` —
 never by the model's name. `det.loss` reports what was chosen.
 
+## Transformer classifiers
+
+AfroLID is an XLM-R encoder with a sequence-classification head, and its
+registry entry names the `transformer-onnx` engine instead of
+`fasttext-onnx`. `linguonnx.detect.transformer` tokenizes with the export's
+own `tokenizer.json` through the `tokenizers` package, which needs the
+`fast-tokenizers` extra:
+
+```
+pip install 'linguonnx[fast-tokenizers]'
+```
+
+The graph returns logits, and a softmax over them gives one probability per
+`id2label` entry in the export's `config.json`. The API is the same as for
+the fastText models. `detect_raw` returns the model's own label (`yor`), and
+`detect` and `detect_probs` return BCP-47 tags (`yo`).
+
+Leading and trailing whitespace is stripped before tokenizing. The
+SentencePiece tokenizer AfroLID was trained with drops it, while the
+`tokenizer.json` port turns a trailing space into a lone `▁` piece. Text
+longer than the model's 512 positions raises `InputTooLongError`.
+
+AfroLID's label `nan_lang` is not one of its 517 languages, and it does not
+mean Min Nan Chinese (`nan`). It is reported as `und` (undetermined).
+
 ## Varieties, and collapsing them
 
 GlotLID labels individual varieties rather than macrolanguages. There are 11
@@ -112,7 +158,7 @@ most callers want a tag they can act on: a TTS voice, a translation target.
 Both are available:
 
 ```python
-print(det.detect_raw("وش لونك يا خوي"))                      # ('ars_Arab', 0.99)
+print(det.detect_raw("وش لونك يا خوي"))                      # ('ars_Arab', 1.0)
 print(det.detect("وش لونك يا خوي"))                          # 'ars'
 print(det.detect("وش لونك يا خوي", collapse_varieties=True)) # 'ar'
 ```
@@ -129,21 +175,18 @@ GlotLID, OpenLID and OpenLID-v2 emit `iso3_Script` labels (`eng_Latn`,
 `glg_Latn`, `zho_Hans`). lid.176 emits bare ISO codes with no script (`en`,
 `gl`, `pt`). `linguonnx.detect.labels` maps both shapes to BCP-47.
 
-Most of the work is `langcodes.standardize_tag`: ISO 639-3 to 639-1 where a
-two-letter code exists (`eng` → `en`), deprecated codes repaired (`iw` → `he`),
-canonical replacements applied (`tgl` → `fil`), and a redundant script subtag
-dropped (`eng-Latn` → `en`) while an informative one is kept (`srp-Cyrl` →
-`sr-Cyrl`).
+`linguatag.standardize_lang` does most of the work. It changes ISO 639-3 to
+639-1 where a two-letter code exists (`eng` → `en`) and repairs deprecated
+codes (`iw` → `he`). Two more steps belong to the module:
 
-Two things it does not do, which the module owns:
-
-- **Redundant scripts CLDR has no data about.** `standardize_tag` only drops a
-  script subtag for a language CLDR's likely-subtags table covers, and that is
-  a minority of GlotLID's labels — it leaves `ast-Latn`, `yo-Latn`, `ig-Latn`.
-  Correct, but noisy. So the script is dropped when `Language.maximize()`
-  guesses the same script anyway. `_ALWAYS_KEEP_SCRIPT` protects the languages
-  this must not happen to: readers of Serbian and Mandarin need Cyrl/Latn and
-  Hans/Hant kept apart even though CLDR calls one of each the likely default.
+- **Redundant scripts.** The module drops a script subtag when
+  `linguatag.likely_script` gives the same script for the language (`eng_Latn`
+  → `en`, `ast_Latn` → `ast`). It keeps one that is not the likely script
+  (`srp_Latn` → `sr-Latn`). For a language with no known script, it drops
+  `Latn` only. `_ALWAYS_KEEP_SCRIPT` holds the languages whose readers need
+  the script kept even when it is the likely one: Serbian and Chinese.
+  The likely script comes from CLDR, so a label in another script keeps it:
+  CLDR gives Devanagari for Fiji Hindi, so `hif_Latn` is `hif-Latn`.
 - **Macrolanguage varieties.** `arb`, `cmn` and `zho` always resolve to `ar`
   and `zh`, because GlotLID never emits a bare `ara` and downstream consumers
   expect the macrolanguage. Everything else is left alone unless you ask for
@@ -151,12 +194,12 @@ Two things it does not do, which the module owns:
 
 Because several raw labels can map onto the same BCP-47 tag,
 `available_languages` is smaller than the label count: GlotLID's 2102 labels
-yield 2100 distinct tags. `detect_probs` collapses duplicates the same way,
+yield 2097 distinct tags. `detect_probs` collapses duplicates the same way,
 keeping the highest probability for a tag.
 
-A handful of GlotLID labels are not valid language tags at all — `und_Kawi`,
-`und_Nagm`, `tok_Latn` (Toki Pona), `eml_Latn` — and are emitted as-is with a
-warning on the logger. Better a code you can look up than a silent guess.
+A label whose language subtag is not in the IANA registry, such as
+`xyz_Latn`, comes out as is (`xyz`), with a warning on the logger. A code
+that you can look up is better than a guess.
 
 ## Short text is unreliable
 
@@ -169,7 +212,7 @@ related languages collapse into each other. Galician shows this clearly:
 | `Bo día` | 6 | `pap` (Papiamento) | 0.77 |
 | `Bo día, como estás?` | 19 | `es` | 0.53 |
 | `Bo día, o meu nome é Miro` | 25 | `gl` | 1.00 |
-| `A lingua galega é unha lingua románica...` | 113 | `gl` | 1.00 |
+| `A lingua galega é unha lingua románica que se fala principalmente en Galicia.` | 77 | `gl` | 1.00 |
 
 The first two are wrong, and the second is wrong *confidently enough to look
 plausible* — Galician and Spanish share most of their character n-grams, so a
@@ -188,3 +231,69 @@ Two practical consequences:
 
 This is a property of n-gram language identification rather than a defect in
 this export — the same behaviour is present in the original fastText models.
+
+## Input limits
+
+Detection is cheap per character but not free: feature hashing is a
+pure-Python loop that holds the GIL, and every token expands into character
+n-grams that the ONNX graph then gathers embeddings for. A 200,000-character
+string produces around 800,000 feature ids and close to a gigabyte of
+transient allocation. Behind an HTTP handler, one such request slows every
+other request in the process.
+
+Two bounds apply, and both **raise** rather than truncate. A truncated
+detection returns a plausible answer computed from part of the input, which is
+the hardest kind of wrong to notice.
+
+| limit | default | environment variable |
+|---|---|---|
+| characters per call | 10,000 | `LINGUONNX_MAX_DETECT_CHARS` |
+| whitespace tokens per call | 1,024 | `LINGUONNX_MAX_LINE_TOKENS` |
+
+```python
+from linguonnx.limits import InputTooLongError
+
+huge_text = "a" * 200_000
+try:
+    det.detect(huge_text)
+except InputTooLongError as err:
+    print(err)   # input is 200000 characters, over the limit of 10000; ...
+```
+
+Both defaults sit far above what identification needs — accuracy saturates
+after a few hundred characters (see above) — so raising them buys nothing
+except exposure. Set them per process with the environment variables, or per
+detector:
+
+```python
+from linguonnx.detect import LanguageDetector
+
+det = LanguageDetector(max_chars=2_000, max_tokens=256)
+```
+
+The 1,024-token figure is fastText's own `MAX_LINE_SIZE`. Note that fastText
+applies it only in the *unsupervised* `Dictionary::getLine` overload; the
+supervised overload these LID models use reads the whole line. So this is a
+linguonnx bound set at the reference's idea of a long line, not a parity fix,
+and it is tunable for anyone who wants byte-for-byte fastText behaviour on
+very long lines.
+
+### Empty input
+
+Text with no visible content raises `EmptyInputError`. `str.strip()` alone
+does not catch this case: zero-width spaces, joiners, the BOM and the bidi
+marks survive it, and text pasted out of HTML or a PDF carries them routinely.
+Such a string reaches the graph as the single end-of-sentence feature and gets
+a confident-looking label back.
+
+```python
+from linguonnx.limits import EmptyInputError
+
+try:
+    det.detect("​‍")   # zero-width space + zero-width joiner
+except EmptyInputError as err:
+    print(err)
+```
+
+---
+[← Prev](install.md) · [Home](index.md) · [Next →](translate.md)

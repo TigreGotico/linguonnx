@@ -227,3 +227,55 @@ class TestLossDispatch:
                  "side_files": {"hs_tree": "hs_tree.json"}}
         detector, _ = _make_detector(paths, entry, [0.25, 0.8])
         assert detector.available_languages == {"en", "pt", "gl"}
+
+
+class TestDetectorInputBounds:
+    """The detect helpers sit behind unauthenticated HTTP in every deployment
+    this library is meant for, so their input has to be bounded and their
+    empty-input case has to be explicit."""
+
+    def _detector(self, tmp_path, **kwargs):
+        from unittest.mock import MagicMock, patch
+
+        from linguonnx.detect import LanguageDetector
+
+        paths = _write_fake_model_files(tmp_path)
+        entry = {"num_labels": 3, "loss": "softmax", "side_files": {}}
+        session = MagicMock()
+        session.get_inputs.return_value = [MagicMock()]
+        session.get_inputs.return_value[0].name = "input_ids"
+        session.get_outputs.return_value = [MagicMock()]
+        session.get_outputs.return_value[0].name = "probs"
+        session.run.return_value = [np.asarray([0.1, 0.7, 0.2], dtype=np.float32)]
+        with patch("linguonnx.detect.model_manager.registry_entry", return_value=entry), \
+             patch("linguonnx.detect.model_manager.ensure_model_files", return_value=paths), \
+             patch("linguonnx.detect.ort.InferenceSession", return_value=session):
+            return LanguageDetector(model_id="fake", **kwargs)
+
+    def test_over_long_text_is_rejected_by_every_entry_point(self, tmp_path):
+        from linguonnx.limits import InputTooLongError
+
+        detector = self._detector(tmp_path, max_chars=20)
+        text = "ola " * 20
+        for call in (detector.detect, detector.detect_raw, detector.detect_probs):
+            with pytest.raises(InputTooLongError, match="LINGUONNX_MAX_DETECT_CHARS"):
+                call(text)
+
+    def test_too_many_tokens_is_rejected(self, tmp_path):
+        from linguonnx.limits import InputTooLongError
+
+        detector = self._detector(tmp_path, max_chars=10_000, max_tokens=4)
+        with pytest.raises(InputTooLongError, match="LINGUONNX_MAX_LINE_TOKENS"):
+            detector.detect("ola " * 5)
+
+    @pytest.mark.parametrize("text", ["", "   ", "​", "‍‍", "﻿"])
+    def test_text_with_no_visible_content_is_rejected(self, tmp_path, text):
+        from linguonnx.limits import EmptyInputError
+
+        detector = self._detector(tmp_path)
+        with pytest.raises(EmptyInputError):
+            detector.detect(text)
+
+    def test_normal_text_still_works(self, tmp_path):
+        detector = self._detector(tmp_path)
+        assert detector.detect("hello") == "pt"

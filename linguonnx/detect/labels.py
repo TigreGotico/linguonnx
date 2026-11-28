@@ -9,33 +9,23 @@ The models linguonnx ships use two label shapes:
 
 Both are converted to BCP-47 tags by :func:`to_bcp47`.
 
-The conversion is `langcodes.standardize_tag` doing the work: it maps ISO
+The conversion is `linguatag.standardize_lang` doing the work: it maps ISO
 639-3 to ISO 639-1 where a two-letter code exists (``eng`` -> ``en``), repairs
-deprecated codes (``iw`` -> ``he``, ``in`` -> ``id``), applies canonical
-replacements (``tgl`` -> ``fil``), normalises case and region form
-(``pt-br`` -> ``pt-BR``), and drops a script subtag that CLDR's likely-subtags
-data says is redundant (``eng-Latn`` -> ``en``) while keeping one that is not
-(``zho-Hans`` -> ``zh-Hans``, ``srp-Cyrl`` -> ``sr-Cyrl``).
+deprecated codes (``iw`` -> ``he``, ``in`` -> ``id``), normalises case and
+region form (``pt-br`` -> ``pt-BR``).
 
-Two things `standardize_tag` does not do, which this module owns:
+Two things this module adds:
 
-1. **Redundant scripts CLDR has no data to drop.** ``standardize_tag`` only
-   drops a script subtag when CLDR's likely-subtags table covers that
-   language, and that table covers a minority of GlotLID's 2102 labels. It
-   returns ``ast-Latn``, ``yo-Latn``, ``ig-Latn`` and ``sn-Latn`` - correct
-   but noisy, since none of those languages is written in a second script
-   that anyone needs distinguished. So we drop the script when
-   ``Language.maximize()`` guesses the same script anyway, which for a
-   language CLDR knows nothing about is a plain "Latn unless told
-   otherwise". ``_ALWAYS_KEEP_SCRIPT`` holds the languages this must not
-   happen to: it is a *language*, not a script, that decides whether a
-   script subtag is informative, and CLDR likelihood tables call Cyrl
-   Serbian's most likely script and Hans Mandarin's even though readers of
-   both need the two scripts kept apart.
-2. **Macrolanguage varieties.** ``standardize_tag`` passes ``arb``, ``ars``,
-   ``cmn``, ``yue``, ``pes``, ``swh`` and friends through unchanged. See
-   ``_MACRO_OVERRIDES`` (always applied - GlotLID never emits a bare ``ara``)
-   and :func:`collapse_variety` (opt-in) below.
+1. **Redundant scripts.** A script subtag is dropped when
+   ``linguatag.likely_script`` gives the same script for the language
+   (``eng_Latn`` -> ``en``, ``ast_Latn`` -> ``ast``), and kept when it does
+   not (``zho_Hant`` -> ``zh-Hant``). ``_ALWAYS_KEEP_SCRIPT`` holds the
+   languages whose readers need the script kept apart even when it is the
+   likely one: Serbian, Chinese.
+2. **Macrolanguage varieties.** ``arb``, ``cmn``, ``pes``, ``swh`` and
+   others map to their macrolanguage through ``_MACRO_OVERRIDES`` (always
+   applied - GlotLID never emits a bare ``ara``), and further through
+   :func:`collapse_variety` (opt-in) below.
 """
 
 from __future__ import annotations
@@ -43,7 +33,7 @@ from __future__ import annotations
 import logging
 from typing import Dict, Optional, Tuple
 
-import langcodes
+from linguatag import LanguageTagError, language_scope, likely_script, parse_tag, standardize_lang
 
 LOG = logging.getLogger(__name__)
 
@@ -53,10 +43,78 @@ LABEL_PREFIX = "__label__"
 # whose two-letter code is what every downstream consumer (translators, TTS
 # voice pickers, ...) actually expects. GlotLID/OpenLID label Standard Arabic
 # as "arb" and never emit a bare "ara", so "arb_Arab" must resolve to "ar".
+#
+# This map is *always* applied (unlike :func:`collapse_variety`, which is
+# opt-in for LID dialect fidelity): a translation model that emits "pes" as
+# its own vocabulary token is claiming to translate Persian, not a dialect a
+# caller would ever ask for by that spelling, because nothing else in the
+# graph offers "pes" as a distinct node. Each entry below is a case where a
+# translation model (mainly NLLB, which spells its whole vocabulary in
+# individual ISO 639-3 codes) uses the individual-language code for what is,
+# for every routing purpose, the macrolanguage every other model in the
+# registry calls by its two-letter code - so leaving it unmapped does not
+# preserve a real distinction, it just makes the language unreachable under
+# the tag every other model, and every caller, uses.
 _MACRO_OVERRIDES: Dict[str, str] = {
     "arb": "ar",   # Standard Arabic -> Arabic macrolanguage
     "cmn": "zh",   # Mandarin -> Chinese macrolanguage
-    "zho": "zh",   # Chinese (langcodes already does this, kept explicit)
+    "zho": "zh",   # Chinese
+    "tl": "fil",   # linguatag keeps Tagalog as `tl`; the graph keys it `fil`
+    "tgl": "fil",
+    "pes": "fa",   # Iranian Persian -> Persian macrolanguage
+    "swh": "sw",   # Swahili (individual) -> Swahili macrolanguage
+    "uzn": "uz",   # Northern Uzbek -> Uzbek macrolanguage
+    "npi": "ne",   # Nepali (individual) -> Nepali macrolanguage
+    "ory": "or",   # Odia (individual) -> Odia macrolanguage
+    "zsm": "ms",   # Standard Malay -> Malay macrolanguage
+    "khk": "mn",   # Halh Mongolian -> Mongolian macrolanguage
+    "azj": "az",   # North Azerbaijani -> Azerbaijani macrolanguage. (South
+                   # Azerbaijani "azb" is NOT mapped here - different branch,
+                   # different script tradition, a genuine distinct language.)
+    "lvs": "lv",   # Standard Latvian -> Latvian macrolanguage
+    "plt": "mg",   # Plateau Malagasy -> Malagasy macrolanguage
+    "als": "sq",   # Tosk Albanian -> Albanian macrolanguage
+    "ydd": "yi",   # Eastern Yiddish -> Yiddish macrolanguage
+    "pbt": "ps",   # Southern Pashto -> Pashto macrolanguage
+    # "nob"/"nno" (-> "no") deliberately NOT collapsed here: Bokmal and
+    # Nynorsk are two actively-maintained, mutually distinct written
+    # standards, not a dialect/macrolanguage split. See VARIETY_TO_MACRO's
+    # opt-in nb/nn -> no entries for the LID-detection case, which trades
+    # away that distinction on purpose because a voice picker only wants "no".
+    # A translation model that names them separately keeps them separate
+    # nodes, the same way zh-Hans/zh-Hant are kept apart.
+}
+
+# CLDR's likely-subtags table is incomplete or, for a few codes, empirically
+# stale: it does not know what script a translation model actually uses for
+# these languages, or it names the pre-reform script instead of the one in
+# modern use. Each entry is the script every model that registers the code
+# actually ships, cited so a future editor does not "fix" it back to CLDR's
+# answer. Keyed by the *post-macro-override* base code, so mapping a variety
+# onto its macrolanguage first (e.g. "pbt" -> "ps") already gets the
+# macrolanguage's own (correct) CLDR default for free without an entry here.
+_KNOWN_SCRIPT_DEFAULTS: Dict[str, str] = {
+    # CLDR has no likely-subtag data for these three Arabic vernaculars and
+    # falls back to "Latn"; every one is written in Arabic script in the
+    # model that registers it (NLLB) and nowhere is a Latin-script variant
+    # offered, so the script subtag distinguishes nothing.
+    "acm": "Arab",  # Mesopotamian Arabic
+    "acq": "Arab",  # Ta'izzi-Adeni Arabic
+    "ajp": "Arab",  # South Levantine Arabic
+    "azb": "Arab",  # South Azerbaijani - Iranian-Arabic-script tradition,
+                    # CLDR again falls back to "Latn" for lack of data.
+    "tzm": "Tfng",  # Central Atlas Tamazight - Morocco standardised on
+                    # Neo-Tifinagh in 2003; CLDR's likely-subtag fallback is
+                    # still "Latn".
+    "crh": "Latn",  # Crimean Tatar - Cyrillic was CLDR's Soviet-era default;
+                    # the modern standard orthography, official in Ukraine
+                    # since 1997 and the only script any registered model
+                    # offers, is Latin.
+    "ko": "Hang",   # CLDR's likely script for "ko" is "Kore" (a compound
+                    # alias covering mixed Hangul+Hanja text), not the plain
+                    # "Hang" every Korean-capable model actually tokenises
+                    # with. Treated as equivalent so "ko-Hang"/"ko_Hang"
+                    # collapse onto the "ko" node the rest of the graph uses.
 }
 
 # Languages routinely written in more than one script, where the script
@@ -64,6 +122,12 @@ _MACRO_OVERRIDES: Dict[str, str] = {
 # it "the default" and we would otherwise drop it. Keyed by the *resolved*
 # BCP-47 base tag.
 _ALWAYS_KEEP_SCRIPT = {"zh", "sr"}
+
+# Labels that name no language. AfroLID v1.5 carries ``nan_lang`` next to its
+# 517 ISO 639-3 codes; the AfroLID supported-languages list does not contain
+# it, and split as ``code_Script`` it would read as Min Nan Chinese (``nan``).
+# BCP-47's ``und`` (undetermined) is the tag for "no language identified".
+_NON_LANGUAGE_LABELS: Dict[str, str] = {"nan_lang": "und"}
 
 _WARNED_UNKNOWN: set = set()
 
@@ -99,31 +163,71 @@ def parse_label(label: str) -> Tuple[str, str]:
 
 
 def _drop_redundant_script(tag: str) -> str:
-    """Drop a script subtag that ``standardize_tag`` kept for lack of data."""
+    """Drop a script subtag that names the default script of its language.
+
+    A subtag is redundant when it names the script the base language is
+    actually written in by default - checked against
+    :data:`_KNOWN_SCRIPT_DEFAULTS` first (languages where CLDR's likely-subtag
+    table is missing or stale) and against ``linguatag.likely_script`` otherwise.
+
+    This deliberately does NOT drop the script for a language whose default
+    script is something else and the tag names a genuine alternate: MADLAD
+    ships "bg_Latn", "el_Latn", "bn_Latn" and "gom_Latn" as *romanised*
+    transliteration targets alongside "bg"/"el"/"bn"/"gom" in their native
+    scripts - real, distinct model outputs a caller asking for "bg" does not
+    want silently merged into. ``likely_script`` already keeps these apart
+    (Cyrl/Grek/Beng/Deva != Latn) and no override forces them together.
+    """
     base, _, script = tag.partition("-")
     if not script or base in _ALWAYS_KEEP_SCRIPT:
         return tag
-    try:
-        if langcodes.Language.get(base).maximize().script == script:
-            return base
-    except Exception:
-        pass
-    return tag
+    if _KNOWN_SCRIPT_DEFAULTS.get(base) == script:
+        return base
+    likely = likely_script(base)
+    # A language with no known script is written in Latin script unless the
+    # label says otherwise: GlotLID's `xyz_Latn` is `xyz`.
+    return base if likely == script or (likely is None and script == "Latn") else tag
+
+
+def is_registered_subtag(tag: str) -> bool:
+    """Whether the primary subtag of ``tag`` is in the IANA registry.
+
+    Retired ISO 639-3 codes are not: ``mol`` was withdrawn in favour of
+    ``ron``, and an opus-mt vocabulary that carries both ``>>mol<<`` and
+    ``>>ron<<`` must be read as offering Romanian through ``ron``.
+    """
+    return language_scope(tag) is not None
+
+
+def tag_scope(tag: str) -> Optional[str]:
+    """``"collection"`` (a family such as ``itc``), ``"special"`` (``mul``,
+    ``und``) or ``None`` for one language tag. No caller can ask for either."""
+    scope = language_scope(tag)
+    return scope if scope in ("collection", "special") else None
+
+
+def is_collection_or_special(tag: str) -> bool:
+    """Whether ``tag`` names a language *family* or a placeholder, not a language."""
+    return tag_scope(tag) is not None
 
 
 def to_bcp47(label: str) -> str:
     """``eng_Latn`` -> ``en``, ``zho_Hans`` -> ``zh-Hans``, ``pt`` -> ``pt``."""
+    raw = label[len(LABEL_PREFIX):] if label.startswith(LABEL_PREFIX) else label
+    if raw in _NON_LANGUAGE_LABELS:
+        return _NON_LANGUAGE_LABELS[raw]
     iso3, script = split_label(label)
     code = _MACRO_OVERRIDES.get(iso3, iso3)
     tag = f"{code}-{script}" if script else code
     try:
-        if not langcodes.Language.get(tag).is_valid() and tag not in _WARNED_UNKNOWN:
-            _WARNED_UNKNOWN.add(tag)
-            LOG.warning("label %r is not a valid language tag; "
-                        "emitting it as-is", label)
-        standardized = langcodes.standardize_tag(tag)
-    except Exception:
+        parse_tag(tag)
+    except LanguageTagError:
         return tag
+    standardized = standardize_lang(tag)
+    if language_scope(standardized) is None and tag not in _WARNED_UNKNOWN:
+        _WARNED_UNKNOWN.add(tag)
+        LOG.warning("label %r is not a registered language subtag; "
+                    "emitting it as-is", label)
     return _drop_redundant_script(standardized)
 
 

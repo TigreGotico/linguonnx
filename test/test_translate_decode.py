@@ -16,12 +16,16 @@ The toy model is:
 which the tests mirror in numpy to get a reference answer.
 """
 
+import warnings
+
 import numpy as np
 import onnx
 import onnxruntime as ort
 import pytest
 from onnx import TensorProto, helper, numpy_helper
 
+from linguonnx.limits import (MAX_ENCODER_TOKENS, DecodeError,
+                              InputTooLongError, OutputTruncatedError)
 from linguonnx.translate.decode import (GenerationConfig, Seq2SeqDecoder,
                                         _banned_ngram_tokens)
 
@@ -60,6 +64,21 @@ def _state_to_logits(source: str, prefix: str):
     ]
 
 
+# The toy graphs pin both the opset and the IR version. Left to defaults, a
+# new onnx release moves them: onnx 1.23.0rc1 wrote IR 14, which onnxruntime
+# 1.30 refuses ("max supported IR version: 13"), and the suite went red for a
+# reason that had nothing to do with linguonnx (#93). Opset 13 and IR 8 are
+# accepted by every onnxruntime the package supports.
+TOY_OPSET = 13
+TOY_IR_VERSION = 8
+
+
+def _toy_model(graph):
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", TOY_OPSET)])
+    model.ir_version = TOY_IR_VERSION
+    return model
+
+
 def _make_encoder(path):
     nodes = [
         helper.make_node("Cast", ["input_ids"], ["f"], to=TensorProto.FLOAT),
@@ -72,7 +91,7 @@ def _make_encoder(path):
         [helper.make_tensor_value_info("last_hidden_state", TensorProto.FLOAT,
                                        ["b", "s", 1])],
         initializer=_consts())
-    onnx.save(helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)]), path)
+    onnx.save(_toy_model(graph), path)
 
 
 def _make_decoder(path):
@@ -95,7 +114,7 @@ def _make_decoder(path):
          helper.make_tensor_value_info("present.0.encoder.key", TensorProto.FLOAT, ["b", 1, 1]),
          helper.make_tensor_value_info("present.0.encoder.value", TensorProto.FLOAT, ["b", 1, 1])],
         initializer=_consts())
-    onnx.save(helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)]), path)
+    onnx.save(_toy_model(graph), path)
 
 
 def _make_decoder_with_past(path):
@@ -122,7 +141,7 @@ def _make_decoder_with_past(path):
     ]
     graph = helper.make_graph(nodes, "decoder_past", inputs, outputs,
                               initializer=_consts())
-    onnx.save(helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)]), path)
+    onnx.save(_toy_model(graph), path)
 
 
 @pytest.fixture(scope="module")
@@ -144,11 +163,11 @@ def _logits_for(history):
     return TABLE[(START + sum(history)) % N_STATES].astype(np.float64)
 
 
-def _reference_greedy(forced_bos, max_new_tokens):
+def _reference_greedy(forced_bos, max_new_tokens, logits_for=_logits_for):
     generated = []
     for step in range(max_new_tokens):
         token = forced_bos if (step == 0 and forced_bos is not None) \
-            else int(np.argmax(_logits_for(generated)))
+            else int(np.argmax(logits_for(generated)))
         if token == EOS:
             break
         generated.append(token)
@@ -160,21 +179,23 @@ def _log_softmax(x):
     return x - np.log(np.exp(x).sum(axis=-1, keepdims=True))
 
 
-def _reference_beam(forced_bos, beams, max_new_tokens, length_penalty=1.0):
+def _reference_beam(forced_bos, beams, max_new_tokens, length_penalty=1.0,
+                    logits_for=_logits_for):
     """A plain, obviously-correct beam search over the same transition rule.
 
     Deliberately the same algorithm the implementation claims to run, written
     the slow and readable way: expand every live beam over the whole
     vocabulary, keep the top ``2 * beams`` candidates (so ``beams`` survivors
     remain even if every other candidate ends the sentence), then split them
-    into finished and live.
+    into finished and live. Beams still live when the budget ends compete with
+    the finished ones. A score divides by the length plus the start token.
     """
     live = [(0.0, [])]
     finished = []
     for step in range(max_new_tokens):
         candidates = []
         for score, history in live:
-            logprobs = _log_softmax(_logits_for(history))
+            logprobs = _log_softmax(logits_for(history))
             if step == 0 and forced_bos is not None:
                 candidates.append((score, history + [forced_bos]))
                 continue
@@ -186,16 +207,17 @@ def _reference_beam(forced_bos, beams, max_new_tokens, length_penalty=1.0):
         for score, history in candidates:
             if history[-1] == EOS:
                 if len(history) > 1:
-                    finished.append((score / (len(history) - 1) ** length_penalty,
+                    finished.append((score / len(history) ** length_penalty,
                                      history[:-1]))
                 continue
             if len(live) < beams:
                 live.append((score, history))
         if not live or len(finished) >= beams:
             break
-    if finished:
-        return max(finished, key=lambda item: item[0])[1]
-    return max(live)[1]
+    else:
+        finished += [(score / (len(history) + 1) ** length_penalty, history)
+                     for score, history in live]
+    return max(finished, key=lambda item: item[0])[1]
 
 
 # --------------------------------------------------------------------------
@@ -205,17 +227,34 @@ def _reference_beam(forced_bos, beams, max_new_tokens, length_penalty=1.0):
 INPUT = [5, 6, 7, EOS]
 
 
+def _tokens(decoder, *args, **kwargs):
+    """The ids generated, whether or not the model finished within budget."""
+    try:
+        return decoder.generate(*args, **kwargs)
+    except OutputTruncatedError as error:
+        return error.tokens
+
+
 def test_greedy_matches_the_reference_model(toy):
     out = toy.generate(INPUT, config=GenerationConfig(num_beams=1, max_new_tokens=20))
     assert out == _reference_greedy(None, 20)
     assert out, "the toy model should produce something before EOS"
 
 
-def test_greedy_respects_max_new_tokens(toy):
-    for budget in (1, 3, 5):
-        out = toy.generate(INPUT, config=GenerationConfig(num_beams=1,
-                                                          max_new_tokens=budget))
-        assert len(out) <= budget
+def test_greedy_raises_when_the_budget_ends_before_eos(toy):
+    full = _reference_greedy(None, 20)
+    for budget in range(1, len(full) + 1):
+        config = GenerationConfig(num_beams=1, max_new_tokens=budget)
+        with pytest.raises(OutputTruncatedError,
+                           match=f"max_new_tokens={budget} ") as caught:
+            toy.generate(INPUT, config=config)
+        assert caught.value.tokens == full[:budget]
+
+
+def test_greedy_counts_eos_against_the_budget(toy):
+    full = _reference_greedy(None, 20)
+    config = GenerationConfig(num_beams=1, max_new_tokens=len(full) + 1)
+    assert toy.generate(INPUT, config=config) == full
 
 
 def test_greedy_stops_at_eos_and_never_emits_it(toy):
@@ -225,10 +264,33 @@ def test_greedy_stops_at_eos_and_never_emits_it(toy):
 
 
 def test_forced_bos_is_the_first_generated_token_greedy(toy):
-    out = toy.generate(INPUT, forced_bos_token_id=9,
-                       config=GenerationConfig(num_beams=1, max_new_tokens=10))
+    out = _tokens(toy, INPUT, forced_bos_token_id=9,
+                  config=GenerationConfig(num_beams=1, max_new_tokens=10))
     assert out[0] == 9
     assert out == _reference_greedy(9, 10)
+
+
+@pytest.mark.parametrize("beams", [1, 3])
+def test_a_per_call_decoder_start_replaces_the_configured_one(toy, beams):
+    """mBART starts the decoder on the target language's tag. The toy's state
+    begins at the start token, so the output follows the start it was given."""
+    start = 5
+    config = GenerationConfig(num_beams=beams, max_new_tokens=12)
+    logits = lambda history: TABLE[(start + sum(history)) % N_STATES] \
+        .astype(np.float64)
+    reference = (_reference_greedy(None, 12, logits_for=logits) if beams == 1
+                 else _reference_beam(None, beams, 12, logits_for=logits))
+    assert _tokens(toy, INPUT, config=config,
+                   decoder_start_token_id=start) == reference
+    assert reference != (_reference_greedy(None, 12) if beams == 1
+                         else _reference_beam(None, beams, 12))
+
+
+def test_no_start_token_from_config_or_caller_raises(toy):
+    decoder = Seq2SeqDecoder(toy.encoder, toy.decoder, toy.decoder_past,
+                             eos_id=EOS, pad_id=PAD, decoder_start_id=None)
+    with pytest.raises(ValueError, match="decoder start token"):
+        decoder.generate(INPUT)
 
 
 def test_beam_matches_the_reference_beam_search(toy):
@@ -248,12 +310,20 @@ def test_beam_with_forced_bos_matches_the_reference(toy):
         assert out == _reference_beam(8, beams, 12)
 
 
-def test_beam_respects_max_new_tokens(toy):
+def test_beam_raises_when_the_winner_has_no_eos(toy):
     for budget in (1, 2, 5):
-        out = toy.generate(INPUT, forced_bos_token_id=8,
-                           config=GenerationConfig(num_beams=4,
-                                                    max_new_tokens=budget))
-        assert len(out) <= budget
+        config = GenerationConfig(num_beams=4, max_new_tokens=budget)
+        with pytest.raises(OutputTruncatedError,
+                           match=f"max_new_tokens={budget} ") as caught:
+            toy.generate(INPUT, forced_bos_token_id=8, config=config)
+        assert caught.value.tokens == _reference_beam(8, 4, budget)
+
+
+def test_beam_returns_a_finished_winner_at_the_budget(toy):
+    """All four beams are live at the budget, and the winner reached EOS."""
+    config = GenerationConfig(num_beams=4, max_new_tokens=4, length_penalty=0.0)
+    assert toy.generate(INPUT, config=config) == \
+        _reference_beam(None, 4, 4, length_penalty=0.0)
 
 
 def test_beam_never_emits_eos(toy):
@@ -280,6 +350,82 @@ def test_cache_wiring_is_by_name_not_position(toy):
                               "past_key_values.0.decoder.value"}
 
 
+def _make_decoder_with_past_reading_hidden(path):
+    """The with-past graph, but declaring `encoder_hidden_states` and adding
+    its sum to the state, so a missing or wrong feed changes the tokens."""
+    nodes = [
+        helper.make_node("Cast", ["input_ids"], ["f"], to=TensorProto.FLOAT),
+        helper.make_node("Unsqueeze", ["f", "AX2"], ["cur"]),
+        helper.make_node("Concat", ["past_key_values.0.decoder.key", "cur"],
+                         ["present.0.decoder.key"], axis=2),
+        helper.make_node("Concat", ["past_key_values.0.decoder.value", "cur"],
+                         ["present.0.decoder.value"], axis=2),
+        helper.make_node("ReduceSum", ["present.0.decoder.key", "AX12"], ["dsum"], keepdims=0),
+        helper.make_node("ReduceSum", ["encoder_hidden_states", "AX12"], ["hsum"], keepdims=0),
+        helper.make_node("Add", ["dsum", "hsum"], ["total"]),
+        helper.make_node("Cast", ["total"], ["ti"], to=TensorProto.INT64),
+        helper.make_node("Mod", ["ti", "NSTATES"], ["idx"]),
+        helper.make_node("Gather", ["TABLE", "idx"], ["g"], axis=0),
+        helper.make_node("Unsqueeze", ["g", "AX1"], ["logits"]),
+    ]
+    inputs = [
+        helper.make_tensor_value_info("encoder_attention_mask", TensorProto.INT64, ["b", "s"]),
+        helper.make_tensor_value_info("input_ids", TensorProto.INT64, ["b", 1]),
+        helper.make_tensor_value_info("encoder_hidden_states", TensorProto.FLOAT, ["b", "s", 1]),
+        helper.make_tensor_value_info("past_key_values.0.decoder.key", TensorProto.FLOAT, ["b", 1, "p"]),
+        helper.make_tensor_value_info("past_key_values.0.decoder.value", TensorProto.FLOAT, ["b", 1, "p"]),
+        helper.make_tensor_value_info("past_key_values.0.encoder.key", TensorProto.FLOAT, ["b", 1, 1]),
+        helper.make_tensor_value_info("past_key_values.0.encoder.value", TensorProto.FLOAT, ["b", 1, 1]),
+    ]
+    outputs = [
+        helper.make_tensor_value_info("logits", TensorProto.FLOAT, ["b", 1, VOCAB]),
+        helper.make_tensor_value_info("present.0.decoder.key", TensorProto.FLOAT, ["b", 1, "p"]),
+        helper.make_tensor_value_info("present.0.decoder.value", TensorProto.FLOAT, ["b", 1, "p"]),
+    ]
+    graph = helper.make_graph(nodes, "decoder_past_hidden", inputs, outputs,
+                              initializer=_consts())
+    onnx.save(_toy_model(graph), path)
+
+
+class TestWithPastGraphDeclaringEncoderHiddenStates:
+    """Some exports (the Ugiat MADLAD fine-tunes) declare
+    `encoder_hidden_states` on decoder_with_past. The toy encoder's output is
+    the input ids, so every with-past step adds sum(INPUT) to the state."""
+
+    SHIFT = sum(INPUT)
+
+    @classmethod
+    def _logits_for(cls, history):
+        shift = cls.SHIFT if history else 0
+        return TABLE[(START + sum(history) + shift) % N_STATES].astype(np.float64)
+
+    @pytest.fixture(scope="class")
+    def decoder(self, tmp_path_factory):
+        directory = tmp_path_factory.mktemp("toy-hidden")
+        paths = [directory / name for name in ("enc.onnx", "dec.onnx", "past.onnx")]
+        _make_encoder(paths[0])
+        _make_decoder(paths[1])
+        _make_decoder_with_past_reading_hidden(paths[2])
+        sessions = [ort.InferenceSession(str(p), providers=["CPUExecutionProvider"])
+                    for p in paths]
+        return Seq2SeqDecoder(*sessions, eos_id=EOS, pad_id=PAD, decoder_start_id=START)
+
+    def test_the_shift_changes_the_reference_output(self):
+        assert self.SHIFT % N_STATES
+        assert _reference_greedy(None, 20, self._logits_for) != _reference_greedy(None, 20)
+
+    def test_greedy_feeds_the_encoder_output(self, decoder):
+        out = _tokens(decoder, INPUT,
+                      config=GenerationConfig(num_beams=1, max_new_tokens=20))
+        assert out == _reference_greedy(None, 20, self._logits_for)
+
+    @pytest.mark.parametrize("beams", [2, 3, 4])
+    def test_beam_feeds_the_encoder_output_to_every_beam(self, decoder, beams):
+        config = GenerationConfig(num_beams=beams, max_new_tokens=16)
+        assert _tokens(decoder, INPUT, config=config) == \
+            _reference_beam(None, beams, 16, logits_for=self._logits_for)
+
+
 def test_unwireable_cache_raises_at_load_time(tmp_path):
     """A graph whose cache names do not pair up must fail loudly, not silently."""
     enc, dec = tmp_path / "e.onnx", tmp_path / "d.onnx"
@@ -304,8 +450,10 @@ def test_unwireable_cache_raises_at_load_time(tmp_path):
 def test_no_repeat_ngram_guard_breaks_a_loop(toy):
     """Forced to start at token 1, the toy model falls into an endless "7 7 7";
     the guard must break out of it."""
-    plain = toy.generate(INPUT, forced_bos_token_id=1,
-                         config=GenerationConfig(num_beams=1, max_new_tokens=24))
+    with pytest.raises(OutputTruncatedError) as caught:
+        toy.generate(INPUT, forced_bos_token_id=1,
+                     config=GenerationConfig(num_beams=1, max_new_tokens=24))
+    plain = caught.value.tokens
     assert plain[-6:] == [7] * 6, "expected the unguarded run to loop"
 
     guarded = toy.generate(INPUT, forced_bos_token_id=1,
@@ -316,8 +464,184 @@ def test_no_repeat_ngram_guard_breaks_a_loop(toy):
     assert len(guarded) < len(plain), "the guard should let the run reach EOS"
 
 
+class TestBannedTokenIds:
+    """linguonnx#42: mt-hitz-gl-eu-int8 (and the fp32 export it was quantised
+    from) returned "" for every input. The decoder's own
+    ``decoder_start_token_id``/``pad_token_id`` outscored every real word at
+    generation step 1 - a known Marian degenerate mode upstream already names
+    by shipping ``bad_words_ids: [[<that id>]]`` in ``generation_config.json``
+    - but nothing enforced the ban, so the id was emitted for the whole
+      budget and the tokenizer silently stripped it as a special token,
+    leaving an empty string behind an HTTP 200.
+
+    State 4 of the toy model (``forced_bos=8`` lands there) has PAD ranked
+    first, reproducing exactly that shape of failure without needing the real
+    HiTZ graphs.
+    """
+
+    def test_unguarded_greedy_reproduces_the_bug(self, toy):
+        # Regression pin: without a ban PAD is chosen as real content right
+        # after the forced token, and the toy model then loops forever since
+        # PAD != EOS.
+        with pytest.raises(OutputTruncatedError) as caught:
+            toy.generate(INPUT, forced_bos_token_id=8,
+                         config=GenerationConfig(num_beams=1, max_new_tokens=12))
+        assert caught.value.tokens[1] == PAD, \
+            "expected the unguarded run to hit the bug"
+
+    def test_banned_token_ids_keeps_pad_out_of_greedy_output(self, toy):
+        out = toy.generate(INPUT, forced_bos_token_id=8,
+                           config=GenerationConfig(
+                               num_beams=1, max_new_tokens=12,
+                               banned_token_ids=frozenset({PAD})))
+        assert PAD not in out
+        assert out, "banning PAD must not make the decoder produce nothing"
+
+    def test_banned_token_ids_keeps_pad_out_of_beam_output(self, toy):
+        for beams in (2, 4):
+            out = toy.generate(INPUT, forced_bos_token_id=8,
+                               config=GenerationConfig(
+                                   num_beams=beams, max_new_tokens=12,
+                                   banned_token_ids=frozenset({PAD})))
+            assert PAD not in out
+
+    def test_banned_token_ids_defaults_to_empty(self):
+        assert GenerationConfig().banned_token_ids == frozenset()
+
+    def test_banned_token_ids_accepts_any_iterable(self):
+        assert GenerationConfig(banned_token_ids=[3, 3, 5]).banned_token_ids == \
+            frozenset({3, 5})
+
+
 def test_banned_ngram_tokens():
     assert _banned_ngram_tokens([1, 2, 3, 1], 2) == [2]
     assert _banned_ngram_tokens([1, 2, 3], 0) == []
     assert _banned_ngram_tokens([1], 3) == []
     assert _banned_ngram_tokens([1, 2, 1, 2, 1], 3) == [2]
+
+
+# --------------------------------------------------------------------------
+# input bounds and config validation
+# --------------------------------------------------------------------------
+
+class TestGenerationConfigValidation:
+    """Every knob here reaches the library from `Translator(...)`, so this is
+    the boundary where a bad value has to stop."""
+
+    @pytest.mark.parametrize("beams", [0, -1, 1.5, "4"])
+    def test_num_beams_must_be_a_positive_int(self, beams):
+        with pytest.raises(ValueError, match="num_beams"):
+            GenerationConfig(num_beams=beams)
+
+    def test_num_beams_has_a_ceiling(self):
+        from linguonnx.limits import MAX_NUM_BEAMS
+
+        with pytest.raises(ValueError, match="LINGUONNX_MAX_NUM_BEAMS"):
+            GenerationConfig(num_beams=MAX_NUM_BEAMS + 1)
+        GenerationConfig(num_beams=MAX_NUM_BEAMS)  # the ceiling itself is fine
+
+    @pytest.mark.parametrize("tokens", [0, -5, 2.0])
+    def test_max_new_tokens_must_be_a_positive_int(self, tokens):
+        with pytest.raises(ValueError, match="max_new_tokens"):
+            GenerationConfig(max_new_tokens=tokens)
+
+    @pytest.mark.parametrize("penalty", [-0.1, -2.0, 1e9, float("nan"),
+                                         float("inf")])
+    def test_length_penalty_is_range_checked(self, penalty):
+        with pytest.raises(ValueError, match="length_penalty"):
+            GenerationConfig(length_penalty=penalty)
+
+    @pytest.mark.parametrize("penalty", [0.0, 1.0, 2.0])
+    def test_sane_length_penalties_are_accepted(self, penalty):
+        assert GenerationConfig(length_penalty=penalty).length_penalty == penalty
+
+    def test_no_repeat_ngram_size_one_is_rejected(self):
+        with pytest.raises(ValueError, match="every token"):
+            GenerationConfig(no_repeat_ngram_size=1)
+
+    def test_no_repeat_ngram_size_zero_and_two_are_accepted(self):
+        assert GenerationConfig(no_repeat_ngram_size=0).no_repeat_ngram_size == 0
+        assert GenerationConfig(no_repeat_ngram_size=2).no_repeat_ngram_size == 2
+
+    def test_no_repeat_ngram_size_must_not_be_negative(self):
+        with pytest.raises(ValueError, match="no_repeat_ngram_size"):
+            GenerationConfig(no_repeat_ngram_size=-2)
+
+
+class TestEncoderInputBound:
+    def test_over_long_input_raises_and_names_the_knob(self, toy):
+        toy.max_input_tokens = 8
+        try:
+            with pytest.raises(InputTooLongError,
+                               match="LINGUONNX_MAX_ENCODER_TOKENS"):
+                toy.generate([5] * 9, config=GenerationConfig(num_beams=1))
+        finally:
+            toy.max_input_tokens = MAX_ENCODER_TOKENS
+
+    def test_input_at_the_bound_is_accepted(self, toy):
+        toy.max_input_tokens = 4
+        try:
+            assert toy.generate(INPUT, config=GenerationConfig(num_beams=1))
+        finally:
+            toy.max_input_tokens = MAX_ENCODER_TOKENS
+
+    def test_the_default_bound_comes_from_the_limits_module(self, toy):
+        assert toy.max_input_tokens == MAX_ENCODER_TOKENS
+
+
+class TestDecodeFailureIsDistinguishable:
+    """`translate()` returns "" for empty input, so decode failure must not
+    also come back as an empty sequence."""
+
+    def test_beam_search_raises_when_no_beam_survives(self, toy, monkeypatch):
+        # -inf logits everywhere: no candidate is finite, so the beam set
+        # collapses on the first step and nothing ever reaches EOS.
+        def dead_first_step(hidden, mask, token):
+            logits, cache = Seq2SeqDecoder._first_step(toy, hidden, mask, token)
+            return np.full_like(logits, -np.inf), cache
+
+        monkeypatch.setattr(toy, "_first_step", dead_first_step)
+        with pytest.raises(DecodeError, match="no output can be produced"):
+            toy.generate(INPUT, config=GenerationConfig(num_beams=4))
+
+    def test_greedy_raises_when_the_first_token_is_eos(self, toy, monkeypatch):
+        def eos_first_step(hidden, mask, token):
+            logits, cache = Seq2SeqDecoder._first_step(toy, hidden, mask, token)
+            forced = np.full_like(logits, -1e9)
+            forced[:, EOS] = 0.0
+            return forced, cache
+
+        monkeypatch.setattr(toy, "_first_step", eos_first_step)
+        with pytest.raises(DecodeError, match="single token"):
+            toy.generate(INPUT, config=GenerationConfig(num_beams=1))
+
+    def test_a_successful_decode_still_returns_tokens(self, toy):
+        assert toy.generate(INPUT, config=GenerationConfig(num_beams=4))
+
+
+class TestToyModelsArePinned:
+    def test_every_toy_graph_carries_the_pinned_opset_and_ir(self, tmp_path):
+        # a default IR version follows the onnx release; onnx 1.23.0rc1 wrote
+        # IR 14 and onnxruntime 1.30 refused it (#93). The toys must not depend
+        # on the installed onnx for what they write.
+        for build in (_make_encoder, _make_decoder, _make_decoder_with_past):
+            path = tmp_path / (build.__name__ + ".onnx")
+            build(path)
+            model = onnx.load(str(path))
+            assert model.ir_version == TOY_IR_VERSION, build.__name__
+            assert [(o.domain, o.version) for o in model.opset_import] == [("", TOY_OPSET)], build.__name__
+            ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+
+
+class TestLogSoftmaxDeadRows:
+    def test_all_minus_inf_row_stays_minus_inf_without_a_warning(self):
+        from linguonnx.translate.decode import _log_softmax
+        x = np.array([[-np.inf, -np.inf, -np.inf], [0.0, np.log(3.0), -np.inf]])
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            out = _log_softmax(x)
+        assert np.all(np.isneginf(out[0]))
+        assert not np.any(np.isnan(out))
+        live = out[1]
+        assert np.isclose(np.exp(live[:2]).sum(), 1.0)
+        assert np.isneginf(live[2])
